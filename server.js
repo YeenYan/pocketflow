@@ -17,9 +17,9 @@ const server = http.createServer(app);
 app.use(express.json());
 
 app.post("/api/chat", async (req, res) => {
-	const apiKey = env.GROQ_API_KEY;
+	const apiKey = process.env.GROQ_API_KEY || env.GROQ_API_KEY;
 	if (!apiKey) {
-		res.status(500).json({ error: "GROQ_API_KEY is not set in .env" });
+		res.status(500).json({ error: "GROQ_API_KEY is not set" });
 		return;
 	}
 
@@ -72,7 +72,7 @@ if (isProd) {
 	app.use(vite.middlewares);
 }
 
-const port = 3000;
+const port = process.env.PORT || 3000;
 server.listen(port, () => {
 	console.log(`Pocketflow running at http://localhost:${port}`);
 });
