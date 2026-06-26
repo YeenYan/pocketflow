@@ -1,7 +1,6 @@
 <script setup>
-	import { ref, nextTick, onMounted } from "vue";
+	import { ref, nextTick } from "vue";
 	import { useRouter } from "vue-router";
-	import * as aiAssistant from "../services/aiAssistant.js";
 
 	const router = useRouter();
 	const input = ref("");
@@ -9,26 +8,6 @@
 	const loading = ref(false);
 	const error = ref("");
 	const messagesEl = ref(null);
-	const modelLoading = ref(false);
-	const modelProgress = ref(0);
-	const offlineMode = ref(false);
-
-	onMounted(async () => {
-		if (aiAssistant.isAIReady()) return;
-
-		modelLoading.value = true;
-		try {
-			await aiAssistant.initializeAI((pct) => {
-				modelProgress.value = pct;
-			});
-		} catch (err) {
-			if (!navigator.onLine) {
-				error.value = err.message;
-			}
-		} finally {
-			modelLoading.value = false;
-		}
-	});
 
 	async function sendMessage() {
 		const text = input.value.trim();
@@ -41,12 +20,21 @@
 		await scrollToBottom();
 
 		try {
-			const reply = await aiAssistant.chat(messages.value);
-			offlineMode.value = aiAssistant.isOfflineMode();
-			messages.value.push({ role: "assistant", content: reply });
-		} catch (err) {
-			error.value =
-				err.message || "Could not reach the assistant. Check your connection.";
+			const response = await fetch("/api/chat", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ messages: messages.value }),
+			});
+
+			const data = await response.json();
+			if (!response.ok) {
+				error.value = data.error || "Something went wrong.";
+				return;
+			}
+
+			messages.value.push({ role: "assistant", content: data.reply });
+		} catch {
+			error.value = "Could not reach the assistant. Check your connection.";
 		} finally {
 			loading.value = false;
 			await scrollToBottom();
@@ -75,13 +63,7 @@
 				←
 			</button>
 			<h1 class="chat-title">Pocketflow Assistant</h1>
-			<span v-if="offlineMode" class="offline-badge">Offline AI Mode</span>
 		</header>
-
-		<div v-if="modelLoading" class="model-loading">
-			<p class="model-loading-title">Loading AI model...</p>
-			<p class="model-loading-progress">{{ modelProgress }}%</p>
-		</div>
 
 		<div ref="messagesEl" class="messages">
 			<div v-if="messages.length === 0" class="welcome">
@@ -140,7 +122,6 @@
 		height: 100vh;
 		height: 100dvh;
 		background: #fff;
-		position: relative;
 	}
 
 	.chat-header {
@@ -170,43 +151,6 @@
 		font-size: 1rem;
 		font-weight: 600;
 		margin: 0;
-		flex: 1;
-	}
-
-	.offline-badge {
-		font-size: 0.7rem;
-		font-weight: 600;
-		padding: 0.25rem 0.5rem;
-		border-radius: 999px;
-		background: #fff3e0;
-		color: #e65100;
-		white-space: nowrap;
-	}
-
-	.model-loading {
-		position: absolute;
-		inset: 0;
-		z-index: 10;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		background: rgba(255, 255, 255, 0.92);
-		gap: 0.5rem;
-	}
-
-	.model-loading-title {
-		font-size: 1rem;
-		font-weight: 600;
-		margin: 0;
-		color: #1a1a1a;
-	}
-
-	.model-loading-progress {
-		font-size: 1.25rem;
-		font-weight: 600;
-		margin: 0;
-		color: #19c37d;
 	}
 
 	.messages {

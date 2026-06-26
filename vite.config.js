@@ -4,9 +4,6 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  optimizeDeps: {
-    exclude: ['@mlc-ai/web-llm'],
-  },
   plugins: [
     // Vue SFC support for .vue files
     vue(),
@@ -44,7 +41,6 @@ export default defineConfig(({ mode }) => ({
 
       // Workbox service worker configuration for offline support
       workbox: {
-        maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
         // Precache built assets in production only (dev-dist has no app files in dev)
         globPatterns:
           mode === 'production'
