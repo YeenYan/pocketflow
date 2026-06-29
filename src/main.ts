@@ -2,8 +2,10 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
-import Home from './pages/Home.vue'
-import Chat from './pages/Chat.vue'
+import DashboardPage from './pages/dashboard/DashboardPage.vue'
+import TrackerPage from './pages/tracker/TrackerPage.vue'
+import MePage from './pages/me/MePage.vue'
+import ChatPage from './pages/chat/ChatPage.vue'
 import './styles/main.css'
 import { initTheme } from './composables/useTheme'
 
@@ -12,8 +14,11 @@ initTheme()
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', component: Home },
-    { path: '/chat', component: Chat },
+    { path: '/', redirect: '/dashboard' },
+    { path: '/dashboard', component: DashboardPage },
+    { path: '/tracker', component: TrackerPage },
+    { path: '/me', component: MePage },
+    { path: '/chat', component: ChatPage },
   ],
 })
 

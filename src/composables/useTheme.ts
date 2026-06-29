@@ -15,14 +15,30 @@ function getStoredTheme(): ThemeMode {
 	return isValidTheme(stored) ? stored : 'light'
 }
 
-function applyThemeClass(theme: ThemeMode): void {
+function applyThemeClass(theme: ThemeMode, animate = false): void {
 	if (typeof document === 'undefined') return
 	const { classList } = document.documentElement
-	if (theme === 'dark') {
-		if (!classList.contains('dark')) classList.add('dark')
-	} else {
-		classList.remove('dark')
+
+	const apply = () => {
+		if (theme === 'dark') {
+			classList.add('dark')
+		} else {
+			classList.remove('dark')
+		}
 	}
+
+	if (!animate) {
+		apply()
+		return
+	}
+
+	classList.add('theme-transition')
+	requestAnimationFrame(() => {
+		apply()
+		window.setTimeout(() => {
+			classList.remove('theme-transition')
+		}, 400)
+	})
 }
 
 function persistTheme(theme: ThemeMode): void {
@@ -35,7 +51,7 @@ const currentTheme = ref<ThemeMode>(getStoredTheme())
 function setTheme(theme: ThemeMode): void {
 	if (currentTheme.value === theme) return
 	currentTheme.value = theme
-	applyThemeClass(theme)
+	applyThemeClass(theme, true)
 	persistTheme(theme)
 }
 

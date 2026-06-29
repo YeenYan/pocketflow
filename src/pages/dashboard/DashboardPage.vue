@@ -1,20 +1,19 @@
 <script setup lang="ts">
 	import { ref, computed, onMounted, onUnmounted } from "vue";
+	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import FadeIn from "../../components/containers/FadeIn.vue";
 
-	// Reactive state for live clock display
 	const currentDateTime = ref("");
 	const isOnline = ref(navigator.onLine);
 	const pwaStatus = ref("");
 	const notificationStatus = ref("");
 
-	// Update date/time every second
 	let clockInterval: ReturnType<typeof setInterval> | null = null;
 
 	function updateClock() {
 		currentDateTime.value = new Date().toLocaleString();
 	}
 
-	// Listen for browser online/offline events
 	function handleOnline() {
 		isOnline.value = true;
 	}
@@ -23,18 +22,17 @@
 		isOnline.value = false;
 	}
 
-	// Detect whether app runs in installed PWA mode or regular browser tab
 	function checkPwaStatus() {
 		const isStandalone =
 			window.matchMedia("(display-mode: standalone)").matches ||
-			(window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+			(window.navigator as Navigator & { standalone?: boolean }).standalone ===
+				true;
 
 		pwaStatus.value = isStandalone
 			? "Running in installed PWA mode (standalone)"
 			: "Running in browser mode";
 	}
 
-	// Request notification permission and show a local notification
 	async function testNotification() {
 		if (!("Notification" in window)) {
 			notificationStatus.value =
@@ -57,7 +55,6 @@
 		}
 	}
 
-	// Visual indicator class based on connection state
 	const statusClass = computed(() => (isOnline.value ? "online" : "offline"));
 	const statusText = computed(() =>
 		isOnline.value ? "Online Status" : "Offline Status",
@@ -79,67 +76,85 @@
 </script>
 
 <template>
-	<main class="home">
-		<h1 class="title">TEST APP</h1>
+	<div class="page-shell">
+		<GlassContainer class="page">
+			<FadeIn :delay="0">
+				<h1 class="title">TEST APP</h1>
+			</FadeIn>
 
-		<p class="datetime">{{ currentDateTime }}</p>
+			<FadeIn :delay="60">
+				<p class="datetime">{{ currentDateTime }}</p>
+			</FadeIn>
 
-		<p class="success">PWA is working successfully</p>
+			<FadeIn :delay="120">
+				<p class="success">PWA is working successfully</p>
+			</FadeIn>
 
-		<!-- Visible online/offline indicator -->
-		<div class="status-indicator" :class="statusClass">
-			<span class="status-dot"></span>
-			{{ statusText }}
-		</div>
+			<FadeIn :delay="180">
+				<div class="status-indicator" :class="statusClass">
+					<span class="status-dot"></span>
+					{{ statusText }}
+				</div>
+			</FadeIn>
 
-		<div class="actions">
-			<button type="button" class="btn" @click="testNotification">
-				Test Notification
-			</button>
+			<FadeIn :delay="240">
+				<div class="actions">
+					<button type="button" class="btn" @click="testNotification">
+						Test Notification
+					</button>
 
-			<button type="button" class="btn btn-secondary" @click="checkPwaStatus">
-				Check PWA Status
-			</button>
-		</div>
+					<button type="button" class="btn btn-secondary" @click="checkPwaStatus">
+						Check PWA Status
+					</button>
+				</div>
+			</FadeIn>
 
-		<p v-if="pwaStatus" class="info">{{ pwaStatus }}</p>
-		<p v-if="notificationStatus" class="info">{{ notificationStatus }}</p>
-
-		<router-link to="/chat" class="chat-widget" aria-label="Open financial assistant">
-			<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-				<path
-					d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"
-				/>
-			</svg>
-		</router-link>
-	</main>
+			<FadeIn v-if="pwaStatus" :delay="300">
+				<p class="info">{{ pwaStatus }}</p>
+			</FadeIn>
+			<FadeIn v-if="notificationStatus" :delay="300">
+				<p class="info">{{ notificationStatus }}</p>
+			</FadeIn>
+		</GlassContainer>
+	</div>
 </template>
 
 <style scoped>
-	.home {
+	.page-shell {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	.page {
 		max-width: 480px;
+		width: 100%;
+		max-height: 100%;
 		margin: 0 auto;
-		padding: 2rem 1.5rem;
 		text-align: center;
+		overflow: hidden;
 	}
 
 	.title {
-		font-size: 1.75rem;
-		margin: 0 0 1rem;
+		font-size: clamp(1.25rem, 5vw, 1.75rem);
+		margin: 0 0 0.5rem;
 		color: var(--color-textPrimary);
 	}
 
 	.datetime {
-		font-size: 1.125rem;
+		font-size: clamp(0.95rem, 3.5vw, 1.125rem);
 		color: var(--color-textSecondary);
-		margin: 0 0 1rem;
+		margin: 0 0 0.5rem;
 	}
 
 	.success {
-		font-size: 1rem;
+		font-size: 0.95rem;
 		color: var(--color-success);
 		font-weight: 600;
-		margin: 0 0 1.5rem;
+		margin: 0 0 1rem;
 	}
 
 	.status-indicator {
@@ -149,7 +164,7 @@
 		padding: 0.5rem 1rem;
 		border-radius: 999px;
 		font-weight: 600;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1rem;
 	}
 
 	.status-indicator.online {
@@ -172,13 +187,13 @@
 	.actions {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		margin-bottom: 1rem;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
 	}
 
 	.btn {
-		padding: 0.75rem 1.25rem;
-		font-size: 1rem;
+		padding: 0.625rem 1rem;
+		font-size: 0.95rem;
 		border: none;
 		border-radius: 8px;
 		cursor: pointer;
@@ -202,25 +217,5 @@
 		font-size: 0.9rem;
 		color: var(--color-textSecondary);
 		margin: 0.5rem 0 0;
-	}
-
-	.chat-widget {
-		position: fixed;
-		right: 1.25rem;
-		bottom: 1.25rem;
-		width: 56px;
-		height: 56px;
-		border-radius: 50%;
-		background: var(--color-accentSolid);
-		color: var(--color-onColor);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		box-shadow: var(--shadow-lg);
-		text-decoration: none;
-	}
-
-	.chat-widget:hover {
-		background: var(--color-primaryDark);
 	}
 </style>

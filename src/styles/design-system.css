@@ -51,6 +51,13 @@
 	--color-warningSolid: var(--color-amber-500);
 	--color-mutedSolid: var(--color-slate-500);
 	--color-userAvatar: var(--color-violet-600);
+
+	--color-glass-bg: rgb(255 255 255 / 0.45);
+	--color-glass-border: rgb(255 255 255 / 0.65);
+	--shadow-glass: 0 8px 32px rgb(15 23 42 / 0.08);
+	--blur-glass: 20px;
+	--color-blob-a: rgb(167 139 250 / 0.35);
+	--color-blob-b: rgb(244 114 182 / 0.3);
 }
 
 .dark {
@@ -98,11 +105,18 @@
 	--color-mutedSolid: var(--color-slate-400);
 	--color-userAvatar: var(--color-violet-500);
 
+	--color-glass-bg: rgb(255 255 255 / 0.08);
+	--color-glass-border: rgb(255 255 255 / 0.12);
+	--shadow-glass: 0 8px 32px rgb(0 0 0 / 0.35);
+	--blur-glass: 24px;
+	--color-blob-a: rgb(147 51 234 / 0.45);
+	--color-blob-b: rgb(236 72 153 / 0.35);
+
 	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
 	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
 	--shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
 }
 
 .dark body {
-	background: var(--color-bg);
+	background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bgBody) 100%);
 }

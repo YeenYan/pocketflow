@@ -1,6 +1,8 @@
 <script setup lang="ts">
 	import { ref, nextTick } from "vue";
 	import { useRouter } from "vue-router";
+	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import FadeIn from "../../components/containers/FadeIn.vue";
 
 	const router = useRouter();
 	const input = ref("");
@@ -58,18 +60,22 @@
 
 <template>
 	<div class="chat">
-		<header class="chat-header">
-			<button type="button" class="back-btn" @click="router.push('/')">
-				←
-			</button>
-			<h1 class="chat-title">Pocketflow Assistant</h1>
-		</header>
+		<FadeIn :delay="0">
+			<GlassContainer as="header" rounded="2xl" class="chat-header">
+				<button type="button" class="back-btn" @click="router.push('/dashboard')">
+					←
+				</button>
+				<h1 class="chat-title">Pocketflow Assistant</h1>
+			</GlassContainer>
+		</FadeIn>
 
 		<div ref="messagesEl" class="messages">
-			<div v-if="messages.length === 0" class="welcome">
-				<h2>How can I help with your finances today?</h2>
-				<p>Ask about budgeting, saving, debt, or spending habits.</p>
-			</div>
+			<FadeIn v-if="messages.length === 0" :delay="80">
+				<div class="welcome">
+					<h2>How can I help with your finances today?</h2>
+					<p>Ask about budgeting, saving, debt, or spending habits.</p>
+				</div>
+			</FadeIn>
 
 			<div
 				v-for="(msg, i) in messages"
@@ -87,31 +93,33 @@
 			</div>
 		</div>
 
-		<div class="input-area">
-			<p v-if="error" class="error">{{ error }}</p>
-			<div class="input-box">
-				<textarea
-					v-model="input"
-					class="input"
-					placeholder="Message Pocketflow Assistant..."
-					rows="1"
-					:disabled="loading"
-					@keydown="onKeydown"
-				></textarea>
-				<button
-					type="button"
-					class="send-btn"
-					:disabled="loading || !input.trim()"
-					@click="sendMessage"
-				>
-					↑
-				</button>
+		<FadeIn :delay="160">
+			<div class="input-area">
+				<p v-if="error" class="error">{{ error }}</p>
+				<GlassContainer rounded="3xl" class="input-box">
+					<textarea
+						v-model="input"
+						class="input"
+						placeholder="Message Pocketflow Assistant..."
+						rows="1"
+						:disabled="loading"
+						@keydown="onKeydown"
+					></textarea>
+					<button
+						type="button"
+						class="send-btn"
+						:disabled="loading || !input.trim()"
+						@click="sendMessage"
+					>
+						↑
+					</button>
+				</GlassContainer>
+				<p class="disclaimer">
+					AI advice is for guidance only. Consult a professional for legal or tax
+					matters.
+				</p>
 			</div>
-			<p class="disclaimer">
-				AI advice is for guidance only. Consult a professional for legal or tax
-				matters.
-			</p>
-		</div>
+		</FadeIn>
 	</div>
 </template>
 
@@ -119,18 +127,17 @@
 	.chat {
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
-		height: 100dvh;
-		background: var(--color-surface);
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.chat-header {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid var(--color-border);
-		background: var(--color-surface);
+		margin-bottom: 0.5rem;
+		flex-shrink: 0;
 	}
 
 	.back-btn {
@@ -155,8 +162,9 @@
 
 	.messages {
 		flex: 1;
+		min-height: 0;
 		overflow-y: auto;
-		padding: 1.5rem 1rem;
+		padding: 1rem;
 	}
 
 	.welcome {
@@ -238,9 +246,8 @@
 	}
 
 	.input-area {
-		padding: 0.75rem 1rem 1rem;
-		border-top: 1px solid var(--color-border);
-		background: var(--color-surface);
+		padding: 0 0 0.25rem;
+		flex-shrink: 0;
 	}
 
 	.error {
@@ -256,11 +263,6 @@
 		gap: 0.5rem;
 		max-width: 768px;
 		margin: 0 auto;
-		padding: 0.5rem;
-		border: 1px solid var(--color-inputBorder);
-		border-radius: 24px;
-		background: var(--color-inputBg);
-		box-shadow: var(--shadow-sm);
 	}
 
 	.input {
@@ -270,9 +272,10 @@
 		resize: none;
 		font-size: 1rem;
 		font-family: inherit;
-		padding: 0.5rem 0.75rem;
+		padding: 0.25rem 0.5rem;
 		max-height: 120px;
 		background: transparent;
+		color: var(--color-textPrimary);
 	}
 
 	.send-btn {
