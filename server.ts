@@ -23,7 +23,7 @@ app.post("/api/chat", async (req, res) => {
 		return;
 	}
 
-	const { messages } = req.body;
+	const { messages } = req.body as { messages?: unknown };
 	if (!Array.isArray(messages)) {
 		res.status(400).json({ error: "messages must be an array" });
 		return;
@@ -42,7 +42,10 @@ app.post("/api/chat", async (req, res) => {
 			}),
 		});
 
-		const data = await response.json();
+		const data = (await response.json()) as {
+			error?: { message?: string };
+			choices: { message: { content: string } }[];
+		};
 		if (!response.ok) {
 			res
 				.status(response.status)

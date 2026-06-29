@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import './design-system.css';
+
+body {
+	@apply m-0 min-h-screen bg-bg text-textPrimary antialiased;
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

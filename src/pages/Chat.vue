@@ -1,13 +1,13 @@
-<script setup>
+<script setup lang="ts">
 	import { ref, nextTick } from "vue";
 	import { useRouter } from "vue-router";
 
 	const router = useRouter();
 	const input = ref("");
-	const messages = ref([]);
+	const messages = ref<{ role: "user" | "assistant"; content: string }[]>([]);
 	const loading = ref(false);
 	const error = ref("");
-	const messagesEl = ref(null);
+	const messagesEl = ref<HTMLElement | null>(null);
 
 	async function sendMessage() {
 		const text = input.value.trim();
@@ -41,7 +41,7 @@
 		}
 	}
 
-	function onKeydown(e) {
+	function onKeydown(e: KeyboardEvent) {
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
 			sendMessage();
@@ -121,7 +121,7 @@
 		flex-direction: column;
 		height: 100vh;
 		height: 100dvh;
-		background: #fff;
+		background: var(--color-surface);
 	}
 
 	.chat-header {
@@ -129,8 +129,8 @@
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.75rem 1rem;
-		border-bottom: 1px solid #e5e5e5;
-		background: #fff;
+		border-bottom: 1px solid var(--color-border);
+		background: var(--color-surface);
 	}
 
 	.back-btn {
@@ -139,12 +139,12 @@
 		font-size: 1.25rem;
 		cursor: pointer;
 		padding: 0.25rem 0.5rem;
-		color: #1a1a1a;
+		color: var(--color-textPrimary);
 		border-radius: 6px;
 	}
 
 	.back-btn:hover {
-		background: #f0f0f0;
+		background: var(--color-surfaceHover);
 	}
 
 	.chat-title {
@@ -163,13 +163,13 @@
 		max-width: 640px;
 		margin: 2rem auto;
 		text-align: center;
-		color: #555;
+		color: var(--color-textSecondary);
 	}
 
 	.welcome h2 {
 		font-size: 1.25rem;
 		font-weight: 600;
-		color: #1a1a1a;
+		color: var(--color-textPrimary);
 		margin: 0 0 0.5rem;
 	}
 
@@ -200,15 +200,15 @@
 		justify-content: center;
 		font-size: 0.65rem;
 		font-weight: 700;
-		color: #fff;
+		color: var(--color-onColor);
 	}
 
 	.message-row.user .avatar {
-		background: #5436da;
+		background: var(--color-userAvatar);
 	}
 
 	.message-row.assistant .avatar {
-		background: #19c37d;
+		background: var(--color-accentSolid);
 	}
 
 	.bubble {
@@ -222,29 +222,29 @@
 	}
 
 	.message-row.user .bubble {
-		background: #f0f0f0;
-		color: #1a1a1a;
+		background: var(--color-surfaceHover);
+		color: var(--color-textPrimary);
 	}
 
 	.message-row.assistant .bubble {
 		background: transparent;
-		color: #1a1a1a;
+		color: var(--color-textPrimary);
 		padding-left: 0;
 	}
 
 	.typing {
-		color: #888;
+		color: var(--color-muted);
 		font-style: italic;
 	}
 
 	.input-area {
 		padding: 0.75rem 1rem 1rem;
-		border-top: 1px solid #e5e5e5;
-		background: #fff;
+		border-top: 1px solid var(--color-border);
+		background: var(--color-surface);
 	}
 
 	.error {
-		color: #c62828;
+		color: var(--color-dangerText);
 		font-size: 0.85rem;
 		margin: 0 0 0.5rem;
 		text-align: center;
@@ -257,10 +257,10 @@
 		max-width: 768px;
 		margin: 0 auto;
 		padding: 0.5rem;
-		border: 1px solid #d9d9d9;
+		border: 1px solid var(--color-inputBorder);
 		border-radius: 24px;
-		background: #fff;
-		box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+		background: var(--color-inputBg);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.input {
@@ -281,8 +281,8 @@
 		height: 36px;
 		border: none;
 		border-radius: 50%;
-		background: #1a1a1a;
-		color: #fff;
+		background: var(--color-textPrimary);
+		color: var(--color-onColor);
 		font-size: 1.1rem;
 		cursor: pointer;
 		display: flex;
@@ -291,18 +291,18 @@
 	}
 
 	.send-btn:disabled {
-		background: #d9d9d9;
+		background: var(--color-disabled);
 		cursor: not-allowed;
 	}
 
 	.send-btn:not(:disabled):hover {
-		background: #333;
+		background: var(--color-textSecondary);
 	}
 
 	.disclaimer {
 		text-align: center;
 		font-size: 0.75rem;
-		color: #999;
+		color: var(--color-muted);
 		margin: 0.5rem 0 0;
 	}
 </style>

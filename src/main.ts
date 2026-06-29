@@ -4,7 +4,10 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
 import Home from './pages/Home.vue'
 import Chat from './pages/Chat.vue'
-import './style.css'
+import './styles/main.css'
+import { initTheme } from './composables/useTheme'
+
+initTheme()
 
 const router = createRouter({
   history: createWebHistory(),

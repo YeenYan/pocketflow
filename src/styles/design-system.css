@@ -1,0 +1,108 @@
+/* Override the default dark variant to use class-based strategy */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.08);
+	--shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.12);
+}
+
+@theme {
+	--color-primary: var(--color-emerald-600);
+	--color-bg: var(--color-slate-50);
+	--color-bgBody: var(--color-slate-50);
+	--color-surface: #ffffff;
+	--color-textPrimary: var(--color-slate-900);
+	--color-textSecondary: var(--color-slate-600);
+	--color-border: var(--color-slate-200);
+
+	--color-success: var(--color-green-700);
+	--color-warning: var(--color-amber-500);
+	--color-danger: var(--color-red-600);
+	--color-info: var(--color-sky-600);
+	--color-accent: var(--color-emerald-500);
+	--color-muted: var(--color-slate-400);
+
+	--color-surfaceHover: var(--color-slate-100);
+	--color-surfaceActive: var(--color-slate-200);
+	--color-accentBg: var(--color-emerald-100);
+	--color-accentText: var(--color-emerald-700);
+	--color-inputBg: var(--color-slate-50);
+	--color-inputBorder: var(--color-slate-300);
+	--color-inputText: var(--color-slate-700);
+
+	--color-overlay: oklch(0.13 0.03 256 / 0.5);
+	--color-onColor: #ffffff;
+	--color-disabled: var(--color-slate-400);
+
+	--color-successBg: var(--color-green-100);
+	--color-successText: var(--color-green-800);
+	--color-dangerBg: var(--color-red-100);
+	--color-dangerText: var(--color-red-800);
+	--color-warningBg: var(--color-amber-100);
+	--color-warningText: var(--color-amber-900);
+	--color-infoBg: var(--color-sky-100);
+	--color-infoText: var(--color-sky-900);
+	--color-primaryDark: var(--color-emerald-700);
+
+	--color-accentSolid: var(--color-emerald-500);
+	--color-successSolid: var(--color-green-600);
+	--color-dangerSolid: var(--color-red-700);
+	--color-warningSolid: var(--color-amber-500);
+	--color-mutedSolid: var(--color-slate-500);
+	--color-userAvatar: var(--color-violet-600);
+}
+
+.dark {
+	--color-primary: var(--color-emerald-400);
+	--color-bg: var(--color-slate-950);
+	--color-bgBody: var(--color-slate-950);
+	--color-surface: var(--color-slate-900);
+	--color-textPrimary: var(--color-slate-50);
+	--color-textSecondary: var(--color-slate-400);
+	--color-border: var(--color-slate-700);
+
+	--color-success: var(--color-green-500);
+	--color-warning: var(--color-amber-400);
+	--color-danger: var(--color-red-500);
+	--color-info: var(--color-sky-400);
+	--color-accent: var(--color-emerald-400);
+	--color-muted: var(--color-slate-500);
+
+	--color-surfaceHover: var(--color-slate-800);
+	--color-surfaceActive: var(--color-slate-700);
+	--color-accentBg: var(--color-emerald-950);
+	--color-accentText: var(--color-emerald-300);
+	--color-inputBg: var(--color-slate-900);
+	--color-inputBorder: var(--color-slate-600);
+	--color-inputText: var(--color-slate-200);
+
+	--color-overlay: oklch(0.05 0.02 256 / 0.7);
+	--color-onColor: #ffffff;
+	--color-disabled: var(--color-slate-600);
+
+	--color-successBg: var(--color-green-950);
+	--color-successText: var(--color-green-300);
+	--color-dangerBg: var(--color-red-950);
+	--color-dangerText: var(--color-red-300);
+	--color-warningBg: var(--color-amber-950);
+	--color-warningText: var(--color-amber-300);
+	--color-infoBg: var(--color-sky-950);
+	--color-infoText: var(--color-sky-300);
+	--color-primaryDark: var(--color-emerald-600);
+
+	--color-accentSolid: var(--color-emerald-400);
+	--color-successSolid: var(--color-green-500);
+	--color-dangerSolid: var(--color-red-600);
+	--color-warningSolid: var(--color-amber-400);
+	--color-mutedSolid: var(--color-slate-400);
+	--color-userAvatar: var(--color-violet-500);
+
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+	--shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+
+.dark body {
+	background: var(--color-bg);
+}

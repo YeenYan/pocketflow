@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 	import { ref, computed, onMounted, onUnmounted } from "vue";
 
 	// Reactive state for live clock display
@@ -8,7 +8,7 @@
 	const notificationStatus = ref("");
 
 	// Update date/time every second
-	let clockInterval = null;
+	let clockInterval: ReturnType<typeof setInterval> | null = null;
 
 	function updateClock() {
 		currentDateTime.value = new Date().toLocaleString();
@@ -27,7 +27,7 @@
 	function checkPwaStatus() {
 		const isStandalone =
 			window.matchMedia("(display-mode: standalone)").matches ||
-			window.navigator.standalone === true;
+			(window.navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 		pwaStatus.value = isStandalone
 			? "Running in installed PWA mode (standalone)"
@@ -126,18 +126,18 @@
 	.title {
 		font-size: 1.75rem;
 		margin: 0 0 1rem;
-		color: #1a1a1a;
+		color: var(--color-textPrimary);
 	}
 
 	.datetime {
 		font-size: 1.125rem;
-		color: #555;
+		color: var(--color-textSecondary);
 		margin: 0 0 1rem;
 	}
 
 	.success {
 		font-size: 1rem;
-		color: #2e7d32;
+		color: var(--color-success);
 		font-weight: 600;
 		margin: 0 0 1.5rem;
 	}
@@ -153,13 +153,13 @@
 	}
 
 	.status-indicator.online {
-		background: #e8f5e9;
-		color: #2e7d32;
+		background: var(--color-successBg);
+		color: var(--color-successText);
 	}
 
 	.status-indicator.offline {
-		background: #ffebee;
-		color: #c62828;
+		background: var(--color-dangerBg);
+		color: var(--color-dangerText);
 	}
 
 	.status-dot {
@@ -182,25 +182,25 @@
 		border: none;
 		border-radius: 8px;
 		cursor: pointer;
-		background: #1976d2;
-		color: #fff;
+		background: var(--color-accentSolid);
+		color: var(--color-onColor);
 	}
 
 	.btn:hover {
-		background: #1565c0;
+		background: var(--color-primaryDark);
 	}
 
 	.btn-secondary {
-		background: #455a64;
+		background: var(--color-mutedSolid);
 	}
 
 	.btn-secondary:hover {
-		background: #37474f;
+		background: var(--color-surfaceActive);
 	}
 
 	.info {
 		font-size: 0.9rem;
-		color: #666;
+		color: var(--color-textSecondary);
 		margin: 0.5rem 0 0;
 	}
 
@@ -211,16 +211,16 @@
 		width: 56px;
 		height: 56px;
 		border-radius: 50%;
-		background: #19c37d;
-		color: #fff;
+		background: var(--color-accentSolid);
+		color: var(--color-onColor);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+		box-shadow: var(--shadow-lg);
 		text-decoration: none;
 	}
 
 	.chat-widget:hover {
-		background: #15a86a;
+		background: var(--color-primaryDark);
 	}
 </style>
