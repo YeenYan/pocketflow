@@ -2,7 +2,9 @@
 @import "./design-system.css";
 
 html {
-	height: 100%;
+	position: fixed;
+	inset: 0;
+	width: 100%;
 	overflow: hidden;
 	overscroll-behavior: none;
 	background: linear-gradient(
@@ -13,7 +15,10 @@ html {
 }
 
 body {
-	@apply m-0 h-dvh overflow-hidden text-textPrimary antialiased;
+	@apply m-0 overflow-hidden text-textPrimary antialiased;
+	position: fixed;
+	inset: 0;
+	width: 100%;
 	overscroll-behavior: none;
 	font-family:
 		system-ui,
@@ -35,7 +40,11 @@ body {
 
 .glass-layout {
 	position: fixed;
-	inset: 0;
+	left: 0;
+	right: 0;
+	width: 100%;
+	top: 0;
+	height: 100%;
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;

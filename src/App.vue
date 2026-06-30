@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SunIcon, MoonIcon, BellIcon } from '@heroicons/vue/24/outline'
 import GlassContainer from './components/containers/GlassContainer.vue'
@@ -11,6 +11,27 @@ const { currentTheme, toggleTheme } = useTheme()
 const router = useRouter()
 const route = useRoute()
 const pageTransition = ref('page-forward')
+const layoutStyle = ref<Record<string, string>>({})
+
+function syncLayoutViewport() {
+	const viewport = window.visualViewport
+	if (!viewport) return
+	layoutStyle.value = {
+		height: `${viewport.height}px`,
+		top: `${viewport.offsetTop}px`,
+	}
+}
+
+onMounted(() => {
+	syncLayoutViewport()
+	window.visualViewport?.addEventListener('resize', syncLayoutViewport)
+	window.visualViewport?.addEventListener('scroll', syncLayoutViewport)
+})
+
+onUnmounted(() => {
+	window.visualViewport?.removeEventListener('resize', syncLayoutViewport)
+	window.visualViewport?.removeEventListener('scroll', syncLayoutViewport)
+})
 
 const tabPaths = ['/dashboard', '/tracker', '/me']
 const showNav = computed(() => route.path !== '/chat')
@@ -45,7 +66,7 @@ async function testNotification() {
 </script>
 
 <template>
-	<div class="glass-layout flex flex-col">
+	<div class="glass-layout flex flex-col" :style="layoutStyle">
 		<header class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
 			<GlassContainer
 				as="button"
