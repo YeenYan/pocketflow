@@ -49,9 +49,9 @@
 		display: flex;
 		flex: 1;
 		min-height: 0;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
+		align-items: stretch;
+		justify-content: flex-start;
+		padding-top: 1rem;
 	}
 
 	.page {

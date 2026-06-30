@@ -4,10 +4,17 @@
 html {
 	height: 100%;
 	overflow: hidden;
+	overscroll-behavior: none;
+	background: linear-gradient(
+		180deg,
+		var(--color-bg) 0%,
+		var(--color-bgBody) 100%
+	);
 }
 
 body {
 	@apply m-0 h-dvh overflow-hidden text-textPrimary antialiased;
+	overscroll-behavior: none;
 	font-family:
 		system-ui,
 		-apple-system,
@@ -27,7 +34,16 @@ body {
 }
 
 .glass-layout {
-	@apply relative flex h-dvh flex-col overflow-hidden;
+	position: fixed;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.glass-layout > main {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
 }
 
 .glass-layout::before,

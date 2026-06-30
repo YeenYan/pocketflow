@@ -45,7 +45,7 @@ async function testNotification() {
 </script>
 
 <template>
-	<div class="glass-layout flex h-dvh flex-col">
+	<div class="glass-layout flex flex-col">
 		<header class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
 			<GlassContainer
 				as="button"
@@ -72,7 +72,7 @@ async function testNotification() {
 			</GlassContainer>
 		</header>
 		<main
-			class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4"
+			class="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
 			:class="showNav ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]' : 'pb-[max(1rem,env(safe-area-inset-bottom))]'"
 		>
 			<router-view v-slot="{ Component, route: viewRoute }">
