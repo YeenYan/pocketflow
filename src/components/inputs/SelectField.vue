@@ -128,7 +128,7 @@
 	}
 
 	.label {
-		font-size: 0.95rem;
+		font-size: 1rem;
 		color: var(--color-textPrimary);
 	}
 
@@ -143,7 +143,7 @@
 		border: 1px solid var(--color-inputBorder);
 		background: transparent;
 		color: var(--color-inputText);
-		font-size: 0.95rem;
+		font-size: 1rem;
 		font-family: inherit;
 		outline: none;
 		cursor: pointer;
@@ -195,7 +195,7 @@
 		border: none;
 		background: transparent;
 		color: var(--color-inputText);
-		font-size: 0.95rem;
+		font-size: 1rem;
 		font-family: inherit;
 		outline: none;
 	}
@@ -234,7 +234,7 @@
 	}
 
 	.option-text {
-		font-size: 0.95rem;
+		font-size: 1rem;
 		font-weight: 600;
 	}
 

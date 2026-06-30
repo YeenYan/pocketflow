@@ -50,7 +50,7 @@ function onInput(event: Event) {
 	}
 
 	.label {
-		font-size: 0.95rem;
+		font-size: 1rem;
 		color: var(--color-textPrimary);
 	}
 
@@ -61,7 +61,7 @@ function onInput(event: Event) {
 		border: 1px solid var(--color-inputBorder);
 		background: transparent;
 		color: var(--color-inputText);
-		font-size: 0.95rem;
+		font-size: 1rem;
 		font-family: inherit;
 		outline: none;
 	}

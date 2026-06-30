@@ -50,7 +50,7 @@ function onInput(event: Event) {
 	}
 
 	.label {
-		font-size: 0.95rem;
+		font-size: 1rem;
 		color: var(--color-textPrimary);
 	}
 
@@ -70,7 +70,7 @@ function onInput(event: Event) {
 	}
 
 	.peso {
-		font-size: 0.95rem;
+		font-size: 1rem;
 		color: var(--color-textSecondary);
 		flex-shrink: 0;
 	}
@@ -81,7 +81,7 @@ function onInput(event: Event) {
 		border: none;
 		background: transparent;
 		color: var(--color-inputText);
-		font-size: 0.95rem;
+		font-size: 1rem;
 		font-family: inherit;
 		outline: none;
 	}
