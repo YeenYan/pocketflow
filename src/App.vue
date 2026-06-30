@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { SunIcon, MoonIcon } from '@heroicons/vue/24/outline'
+import { SunIcon, MoonIcon, BellIcon } from '@heroicons/vue/24/outline'
 import GlassContainer from './components/containers/GlassContainer.vue'
 import BottomNav from './components/BottomNav.vue'
 import { useTheme } from './composables/useTheme'
@@ -29,11 +29,35 @@ router.beforeEach((to, from) => {
 	pageTransition.value =
 		toIdx >= 0 && fromIdx >= 0 && toIdx < fromIdx ? 'page-back' : 'page-forward'
 })
+
+async function testNotification() {
+	if (!('Notification' in window)) return
+
+	const permission = await Notification.requestPermission()
+
+	if (permission === 'granted') {
+		new Notification('My Test App', {
+			body: 'PWA notification test successful!',
+			icon: '/pwa-192x192.png',
+		})
+	}
+}
 </script>
 
 <template>
 	<div class="glass-layout flex h-dvh flex-col">
-		<header class="relative z-10 flex shrink-0 justify-end p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+		<header class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+			<GlassContainer
+				as="button"
+				type="button"
+				rounded="full"
+				:padding="false"
+				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				aria-label="Test notification"
+				@click="testNotification"
+			>
+				<BellIcon class="h-5 w-5" />
+			</GlassContainer>
 			<GlassContainer
 				as="button"
 				type="button"
