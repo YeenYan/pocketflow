@@ -3,10 +3,33 @@
 This guide is a **step-by-step build plan** for your budgeting features with minimal complexity.
 
 It follows your baseline:
+
 - `Expenses` (default 50%)
 - `Savings` (default 30%)
 - `Wants` (default 20%)
-- 2 cutoffs: `15` and `30`
+- 2 cutoffs per month/cycle only
+- default cutoff names: `1st cutoff`, `2nd cutoff`
+- user can rename cutoff labels (example: `15`, `30`)
+- first-time app setup asks for display name and profile picture
+- user can edit display name and change profile picture in `Me` page
+
+---
+
+## 0) First-time profile setup (`Me` page)
+
+First time user opens the app:
+- Ask for `Username` (display name in app)
+- Ask for `Profile Picture`
+- Save profile locally so next app open will skip setup.
+
+Profile update in app:
+- In `Me` page, user can:
+  - edit display name
+  - change profile picture
+
+Notes:
+- Keep this simple with one profile record only.
+- If profile is missing, show first-time setup screen.
 
 ---
 
@@ -30,10 +53,11 @@ src/
     tracker/
       TrackerPage.vue
       components/
-        SalaryInputCard.vue
+        CutoffInputCard.vue
         RuleDistributionCard.vue
         RulePieChartCard.vue
         TemplateListCard.vue
+        ItemBuilderCard.vue
         WantsTrackerCard.vue
         BudgetTrackerCard.vue
         UnexpectedExpensesCard.vue
@@ -49,6 +73,7 @@ src/
 ```
 
 Notes:
+
 - Keep all new logic inside `src/pages/tracker/`.
 - Do not add extra layers outside this feature.
 
@@ -63,15 +88,37 @@ Create `src/pages/tracker/types/budget.ts`:
   - `name` (`Expenses` | `Savings` | `Wants`)
   - `percent`
   - `itemCount`
-- `SalaryCutoff`
+- `UserProfile`
   - `id`
-  - `cutoff` (`15` | `30`)
-  - `salaryAmount`
+  - `displayName`
+  - `photoUrl` (or base64 image string)
+  - `createdAt`
+  - `updatedAt`
+- `CycleCutoff`
+  - `id`
+  - `monthKey` (example: `2026-06`)
+  - `slot` (`1` | `2`) // fixed two cutoffs only
+  - `label` (default `1st cutoff` / `2nd cutoff`, editable by user)
+  - `amount`
   - `createdAt`
 - `TemplateItem`
   - `id`
   - `ruleName`
   - `cutoff`
+  - `name`
+  - `amount`
+  - `createdAt`
+- `ItemBuilder`
+  - `id`
+  - `name`
+  - `amount` (optional; can be empty or default `0`)
+  - `categories` (array of `Expenses` | `Savings` | `Wants`)
+  - `isActive`
+  - `hasChildItems`
+  - `createdAt`
+- `ItemBuilderChild`
+  - `id`
+  - `parentItemId`
   - `name`
   - `amount`
   - `createdAt`
@@ -124,18 +171,25 @@ Create `src/pages/tracker/db/budgetDb.ts`:
 
 - Create Dexie instance (example name: `pocketflow-budget-db`).
 - Tables:
+  - `userProfiles`
   - `rules`
-  - `salaryCutoffs`
+  - `cycleCutoffs`
   - `templateItems`
+  - `itemBuilders`
+  - `itemBuilderChildren`
   - `budgetEntries`
   - `unexpectedExpenses`
   - `othersBudgets`
   - `othersExpenses`
 
 Recommended indexed fields:
+
+- `userProfiles: ++id, updatedAt`
 - `rules: ++id, name`
-- `salaryCutoffs: ++id, cutoff, createdAt`
+- `cycleCutoffs: ++id, monthKey, slot, label, createdAt`
 - `templateItems: ++id, ruleName, cutoff, name, createdAt`
+- `itemBuilders: ++id, name, isActive, hasChildItems, createdAt`
+- `itemBuilderChildren: ++id, parentItemId, createdAt`
 - `budgetEntries: ++id, monthKey, ruleName, cutoff, createdAt`
 - `unexpectedExpenses: ++id, monthKey, createdAt`
 - `othersBudgets: ++id, monthKey`
@@ -147,8 +201,8 @@ Recommended indexed fields:
 
 Create `src/pages/tracker/utils/budgetMath.ts` with simple functions:
 
-1. `distributeByRules(salaryAmount, rules)`
-   - Returns amount per rule using rule percent.
+1. `distributeByRules(cutoffAmount, rules)`
+   - Returns amount per rule using rule percent for one cutoff entry.
 
 2. `splitRuleByCutoff(ruleAmount)`
    - Splits rule amount into 2 parts for cutoffs `15` and `30`.
@@ -169,20 +223,28 @@ Keep formulas direct and readable.
 
 Use `TrackerPage.vue` as the parent container and pass state/handlers to cards.
 
-### Step 7.1 - Salary input and auto distribution
+### Step 7.1 - Cutoff input and auto distribution
 
-Create `SalaryInputCard.vue`:
-- Input salary amount for cutoff (`15` or `30`).
+Create `CutoffInputCard.vue`:
+
+- Always create exactly 2 cutoff slots per month/cycle.
+- Default labels:
+  - `1st cutoff`
+  - `2nd cutoff`
+- User can rename labels (example: `15`, `30`).
+- User enters amount per cutoff slot.
 - On save:
-  - store salary in `salaryCutoffs`.
-  - run distribution using current rules.
+  - store entries in `cycleCutoffs`.
+  - run distribution using current rules for each cutoff amount.
 
 Expected result:
-- User enters one amount, system auto-allocates to `Expenses`, `Savings`, `Wants`.
+
+- User enters amount per cutoff, and system auto-allocates to `Expenses`, `Savings`, `Wants`.
 
 ### Step 7.2 - Rule editor (50/30/20 editable)
 
 Create `RuleDistributionCard.vue`:
+
 - Table fields:
   - `Name` (fixed text)
   - `Percent` (editable input)
@@ -193,31 +255,21 @@ Create `RuleDistributionCard.vue`:
 ### Step 7.3 - Rule pie chart
 
 Create `RulePieChartCard.vue`:
+
 - Use `vue-chartjs` + `chart.js`.
 - Data source: `rules`.
 - Labels fixed: `Expenses`, `Savings`, `Wants`.
 - Values: current edited percentages.
 
-### Step 7.4 - Split each rule amount into cutoffs
+### Step 7.4 - Validate rule allocations per cutoff
 
-After distribution per rule, create 2 cutoff entries:
-- cutoff `15` (editable amount)
-- cutoff `30` (editable amount)
+For each cutoff entry, allocate by rules (`Expenses`, `Savings`, `Wants`).
 
 Flexible entry rule:
-- User can manually set both cutoff amounts.
-- Validate: `cutoff15 + cutoff30 <= parentRuleAmount`.
-- If exceeded, show error: `Total cutoff amount cannot exceed allocated rule amount.`
 
-Example:
-- Salary cutoff amount = `20,000`
-- Expenses 50% = `10,000` (parent rule amount)
-- Valid entries:
-  - `15`: `6,000`
-  - `30`: `4,000`
-- Invalid entries:
-  - `15`: `7,000`
-  - `30`: `4,000` (total `11,000` exceeds `10,000`)
+- User can manually adjust rule amounts inside a cutoff.
+- Validate: `sum(ruleAmountsForCutoff) <= cutoffAmount`.
+- If exceeded, show error: `Total rule amount cannot exceed cutoff amount.`
 
 Store entries in `budgetEntries`.
 
@@ -239,12 +291,47 @@ Create `TemplateListCard.vue`:
   - these become dropdown options later.
 
 Dropdown behavior:
+
 - When user adds a new name not in options, save it immediately.
 - Next entries can pick it from dropdown.
 
 ---
 
-## 9) Wants tracker
+## 9) Item builder (reusable under Expenses, Savings, Wants)
+
+Create `ItemBuilderCard.vue`:
+
+- Fields:
+  - `Item Name`
+  - `Item Amount` (optional; can be empty or default `0`)
+  - `Category` (checkbox multi-select):
+    - `Expenses`
+    - `Savings`
+    - `Wants`
+  - `Active` (toggle)
+  - `Have child items` (toggle)
+- Save parent item in `itemBuilders`.
+
+If `Have child items` is true:
+
+- Show parent progress bar.
+- Parent progress formula:
+  - `remaining = parentItemAmount - sum(childItemAmounts)`
+  - `usedPercent = sum(childItemAmounts) / parentItemAmount * 100`
+- Show `Add Child Item` button.
+- Child item fields:
+  - `Child Item Name`
+  - `Child Item Amount`
+- Save child items in `itemBuilderChildren`.
+
+Notes:
+
+- Parent amount can be optional. If empty, use default `0`.
+- If parent amount is `0`, keep progress at `0%` to avoid divide-by-zero.
+
+---
+
+## 10) Wants tracker
 
 Create `WantsTrackerCard.vue`:
 
@@ -259,7 +346,7 @@ Create `WantsTrackerCard.vue`:
 
 ---
 
-## 10) Budget tracker (overall)
+## 11) Budget tracker (overall)
 
 Create `BudgetTrackerCard.vue`:
 
@@ -275,24 +362,26 @@ Create `BudgetTrackerCard.vue`:
 
 ---
 
-## 11) Unexpected Expenses (auto-show on overrun)
+## 12) Unexpected Expenses (auto-show on overrun)
 
 Create `UnexpectedExpensesCard.vue`:
 
 Display this card **only when over budget exists**.
 
 Logic:
+
 - For each expense category, if `used > allocated`,
   - overrun = `allocated - used` (negative value).
   - create record in `unexpectedExpenses`.
 
 Fields:
+
 - `Expense Name`
 - `Amount` (negative, example `-1000`)
 
 ---
 
-## 12) Others monthly optional budget
+## 13) Others monthly optional budget
 
 Create `OthersBudgetCard.vue`:
 
@@ -306,31 +395,49 @@ Create `OthersBudgetCard.vue`:
 
 ---
 
-## 13) Suggested implementation order (do this exact order)
+## 14) Suggested implementation order (do this exact order)
 
 1. `types/budget.ts`
 2. `constants/budgetRules.ts`
 3. `db/budgetDb.ts`
-4. `utils/budgetMath.ts`
-5. `SalaryInputCard.vue`
-6. `RuleDistributionCard.vue`
-7. `RulePieChartCard.vue`
-8. `TemplateListCard.vue`
-9. `WantsTrackerCard.vue`
-10. `BudgetTrackerCard.vue`
-11. `UnexpectedExpensesCard.vue`
-12. `OthersBudgetCard.vue`
-13. connect all cards in `TrackerPage.vue`
+4. first-time profile setup + `Me` page edit (display name + picture)
+5. `utils/budgetMath.ts`
+6. `CutoffInputCard.vue`
+7. `RuleDistributionCard.vue`
+8. `RulePieChartCard.vue`
+9. `TemplateListCard.vue`
+10. `ItemBuilderCard.vue`
+11. `WantsTrackerCard.vue`
+12. `BudgetTrackerCard.vue`
+13. `UnexpectedExpensesCard.vue`
+14. `OthersBudgetCard.vue`
+15. connect all cards in `TrackerPage.vue`
 
 ---
 
-## 14) Validation checklist before done
+## 15) Validation checklist before done
 
+- First-time app open asks for display name and profile picture.
+- Profile data is saved locally and reused on next open.
+- `Me` page can edit display name and change profile picture.
 - Rule names are fixed to `Expenses`, `Savings`, `Wants`.
 - Rule percentages are editable and total always equals `100`.
-- Salary entry automatically distributes to rules.
-- Every rule amount is split into `15` and `30`.
+- Only 2 cutoffs are allowed per month/cycle.
+- Default cutoff names are `1st cutoff` and `2nd cutoff`, and labels are editable.
+- Each cutoff amount automatically distributes to rules.
+- For each cutoff, total rule allocation must not exceed cutoff amount.
 - Template list saves and appears in dropdown options.
+- Item Builder supports:
+  - item name
+  - optional/default item amount
+  - multi-category selection (`Expenses`, `Savings`, `Wants`)
+  - active toggle
+  - child-items toggle
+- If child-items toggle is on:
+  - parent progress bar is shown
+  - `Add Child Item` is available
+  - child item name/amount can be added
+- Parent progress uses `parent amount - total child amount`.
 - Wants tracker shows progress and purchase list.
 - Budget tracker shows overall progress and warning state.
 - Unexpected Expenses shows only when overrun happens.
@@ -339,11 +446,10 @@ Create `OthersBudgetCard.vue`:
 
 ---
 
-## 15) Keep implementation simple (important)
+## 16) Keep implementation simple (important)
 
 - Prefer direct logic in feature files.
 - Avoid extra abstractions.
 - Reuse the same naming everywhere.
 - Do not add new architecture outside this scope.
 - Build one step at a time, test each card before moving next.
-

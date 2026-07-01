@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>PocketFlow Userflow</title>
+		<style>
+			body {
+				margin: 0;
+				font-family: Arial, sans-serif;
+				background: #f3f5f9;
+				color: #263248;
+			}
+
+			.wrap {
+				width: 100%;
+				overflow: auto;
+			}
+
+			h1 {
+				margin: 14px 18px 4px;
+				font-size: 20px;
+			}
+
+			p {
+				margin: 0 18px 10px;
+				color: #5c6780;
+				font-size: 13px;
+			}
+
+			svg {
+				display: block;
+				min-width: 1900px;
+				background: #f3f5f9;
+			}
+
+			.phone {
+				fill: #ffffff;
+				stroke: #aeb7c8;
+				stroke-width: 2;
+			}
+
+			.phone-screen {
+				fill: #f9fbff;
+				stroke: #c6cedc;
+				stroke-width: 1.5;
+			}
+
+			.ui-line {
+				stroke: #cfd6e3;
+				stroke-width: 2;
+			}
+
+			.label {
+				font-size: 13px;
+				fill: #1f2a44;
+				font-weight: 600;
+			}
+
+			.small {
+				font-size: 11px;
+				fill: #5c6780;
+			}
+
+			.diamond {
+				fill: #ffffff;
+				stroke: #6e8cc8;
+				stroke-width: 2;
+			}
+
+			.arrow {
+				stroke: #728fcb;
+				stroke-width: 2;
+				fill: none;
+			}
+
+			.ok {
+				fill: #e7f7e8;
+				stroke: #9ed6a3;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<h1>PocketFlow Budget App - Userflow</h1>
+			<p>
+				Wireflow style overview of how the app works (2 cutoffs, rules, trackers,
+				and validations).
+			</p>
+
+			<svg viewBox="0 0 1900 1050" xmlns="http://www.w3.org/2000/svg">
+				<defs>
+					<marker
+						id="arrowHead"
+						markerWidth="10"
+						markerHeight="8"
+						refX="9"
+						refY="4"
+						orient="auto"
+					>
+						<polygon points="0,0 10,4 0,8" fill="#728fcb" />
+					</marker>
+				</defs>
+
+				<!-- Start -->
+				<rect x="34" y="84" rx="14" ry="14" width="74" height="30" class="ok" />
+				<text x="57" y="104" class="small">Start</text>
+
+				<!-- Dashboard -->
+				<text x="180" y="58" class="label">Dashboard</text>
+				<rect x="150" y="70" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="168"
+					y="110"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<line x1="178" y1="138" x2="282" y2="138" class="ui-line" />
+				<line x1="178" y1="160" x2="282" y2="160" class="ui-line" />
+				<line x1="178" y1="182" x2="282" y2="182" class="ui-line" />
+				<line x1="178" y1="214" x2="282" y2="214" class="ui-line" />
+				<line x1="178" y1="236" x2="282" y2="236" class="ui-line" />
+				<text x="186" y="272" class="small">Expenses | Savings | Wants</text>
+
+				<!-- Decision: first time -->
+				<polygon points="410,200 470,150 530,200 470,250" class="diamond" />
+				<text x="430" y="192" class="small">First time this</text>
+				<text x="430" y="206" class="small">month/cycle?</text>
+
+				<!-- Setup Cycle -->
+				<text x="620" y="58" class="label">Setup Cycle</text>
+				<rect x="600" y="70" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="618"
+					y="110"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<line x1="628" y1="138" x2="732" y2="138" class="ui-line" />
+				<line x1="628" y1="160" x2="732" y2="160" class="ui-line" />
+				<text x="628" y="184" class="small">1st cutoff (editable)</text>
+				<text x="628" y="202" class="small">2nd cutoff (editable)</text>
+				<text x="628" y="226" class="small">Amount per cutoff</text>
+
+				<!-- Rules -->
+				<text x="860" y="58" class="label">Rules + Pie Chart</text>
+				<rect x="840" y="70" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="858"
+					y="110"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="868" y="142" class="small">Expenses 50%</text>
+				<text x="868" y="162" class="small">Savings 30%</text>
+				<text x="868" y="182" class="small">Wants 20%</text>
+				<circle cx="920" cy="242" r="36" fill="#eef3ff" stroke="#b7c5e6" />
+				<path d="M920,242 L920,206 A36,36 0 0 1 950,259 Z" fill="#7fa2e8" />
+				<path d="M920,242 L950,259 A36,36 0 0 1 902,274 Z" fill="#8ac9ae" />
+				<path d="M920,242 L902,274 A36,36 0 0 1 920,206 Z" fill="#efb98b" />
+
+				<!-- Decision: percent total -->
+				<polygon points="1085,200 1145,150 1205,200 1145,250" class="diamond" />
+				<text x="1111" y="192" class="small">Total % =</text>
+				<text x="1125" y="207" class="small">100?</text>
+
+				<!-- Tracker Overview -->
+				<text x="1290" y="58" class="label">Tracker Overview</text>
+				<rect x="1270" y="70" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="1288"
+					y="110"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="1296" y="142" class="small">Cutoff 1 allocations</text>
+				<text x="1296" y="162" class="small">Cutoff 2 allocations</text>
+				<text x="1296" y="184" class="small">Manual adjust</text>
+
+				<!-- Decision: exceeds cutoff -->
+				<polygon points="1515,200 1575,150 1635,200 1575,250" class="diamond" />
+				<text x="1535" y="192" class="small">Rule totals</text>
+				<text x="1523" y="207" class="small">exceed cutoff?</text>
+
+				<!-- Unexpected Expenses -->
+				<text x="1700" y="58" class="label">Unexpected Expenses</text>
+				<rect x="1680" y="70" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="1698"
+					y="110"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="1706" y="144" class="small">Exceeded amount</text>
+				<text x="1706" y="166" class="small">Stored as negative</text>
+				<text x="1706" y="188" class="small">Example: -1000</text>
+
+				<!-- Bottom row screens -->
+				<text x="620" y="508" class="label">Template List</text>
+				<rect x="600" y="520" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="618"
+					y="560"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="625" y="592" class="small">Add name + amount</text>
+				<text x="625" y="614" class="small">Auto-save dropdown</text>
+
+				<text x="860" y="508" class="label">Wants Tracker</text>
+				<rect x="840" y="520" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="858"
+					y="560"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="866" y="592" class="small">Purchases list</text>
+				<rect x="866" y="612" width="96" height="8" rx="4" fill="#dbe3f5" />
+				<rect x="866" y="612" width="70" height="8" rx="4" fill="#7fa2e8" />
+
+				<text x="1100" y="508" class="label">Budget Tracker</text>
+				<rect x="1080" y="520" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="1098"
+					y="560"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="1106" y="592" class="small">Overall progress</text>
+				<rect x="1106" y="612" width="96" height="8" rx="4" fill="#dbe3f5" />
+				<rect x="1106" y="612" width="84" height="8" rx="4" fill="#efb98b" />
+				<text x="1106" y="636" class="small">Warn at 80% and 100%</text>
+
+				<text x="1348" y="508" class="label">Others (Optional)</text>
+				<rect x="1328" y="520" width="160" height="300" rx="20" class="phone" />
+				<rect
+					x="1346"
+					y="560"
+					width="124"
+					height="220"
+					rx="4"
+					class="phone-screen"
+				/>
+				<text x="1354" y="592" class="small">Optional budget</text>
+				<text x="1354" y="614" class="small">Add expense + amount</text>
+
+				<!-- End -->
+				<rect x="1610" y="640" rx="14" ry="14" width="210" height="36" class="ok" />
+				<text x="1632" y="662" class="small">Persist in Dexie + IndexedDB</text>
+
+				<!-- Arrows top -->
+				<path d="M108 99 L150 170" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M310 220 L410 200" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M530 200 L600 220" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M760 220 L840 220" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1000 220 L1085 200" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1205 200 L1270 220" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1430 220 L1515 200" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1635 200 L1680 220" class="arrow" marker-end="url(#arrowHead)" />
+
+				<!-- Decision branches -->
+				<text x="544" y="186" class="small">Yes</text>
+				<path
+					d="M470 250 L470 360 L230 360 L230 370"
+					class="arrow"
+					marker-end="url(#arrowHead)"
+				/>
+				<text x="478" y="308" class="small">No (use existing cycle)</text>
+
+				<text x="1216" y="188" class="small">Yes</text>
+				<path
+					d="M1145 250 L1145 370 L920 370 L920 370"
+					class="arrow"
+					marker-end="url(#arrowHead)"
+				/>
+				<text x="1155" y="322" class="small">No (show error, back to Rules)</text>
+
+				<text x="1646" y="188" class="small">Yes</text>
+				<path
+					d="M1575 250 L1575 420 L1430 420 L1430 520"
+					class="arrow"
+					marker-end="url(#arrowHead)"
+				/>
+				<text x="1583" y="390" class="small">No (continue)</text>
+
+				<!-- Bottom flow -->
+				<path d="M760 670 L840 670" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1000 670 L1080 670" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1240 670 L1328 670" class="arrow" marker-end="url(#arrowHead)" />
+				<path d="M1488 670 L1610 658" class="arrow" marker-end="url(#arrowHead)" />
+
+				<!-- Connection from tracker to templates -->
+				<path
+					d="M1350 370 L1350 470 L680 470 L680 520"
+					class="arrow"
+					marker-end="url(#arrowHead)"
+				/>
+			</svg>
+		</div>
+	</body>
+</html>
