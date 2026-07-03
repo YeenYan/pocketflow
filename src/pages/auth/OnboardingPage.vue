@@ -1,5 +1,5 @@
 <script setup lang="ts">
-	import { computed, ref, watch } from "vue";
+	import { computed, nextTick, ref, watch } from "vue";
 	import { useRouter } from "vue-router";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
@@ -14,23 +14,26 @@
 	const photoUrl = ref("");
 	const pinHashValue = ref("");
 	const useBiometric = ref(false);
-	const pin = ref("");
-	const confirmPin = ref("");
-	const pinError = ref("");
+	const pinDigits = ref(["", "", "", "", ""]);
+	const confirmPinDigits = ref(["", "", "", "", ""]);
+	const pinError = ref(false);
 	const saving = ref(false);
 
-	watch(pin, (v) => {
-		if (v.length > 5) pin.value = v.slice(0, 5);
-	});
+	const pinRefs: HTMLInputElement[] = [];
+	const confirmRefs: HTMLInputElement[] = [];
 
-	watch(confirmPin, (v) => {
-		if (v.length > 5) confirmPin.value = v.slice(0, 5);
-	});
+	const pin = computed(() => pinDigits.value.join(""));
+	const confirmPin = computed(() => confirmPinDigits.value.join(""));
 
 	const canNextStep1 = computed(() => displayName.value.trim().length >= 2);
-	const canNextStep3 = computed(
-		() => pin.value.length === 5 && confirmPin.value.length === 5,
-	);
+	const canNextStep3 = computed(() => pin.value.length === 5);
+	const canNextStep4 = computed(() => confirmPin.value.length === 5);
+
+	watch(step, async (value) => {
+		await nextTick();
+		if (value === 3) pinRefs[0]?.focus();
+		if (value === 4) confirmRefs[0]?.focus();
+	});
 
 	function onPhotoPick(event: Event) {
 		const file = (event.target as HTMLInputElement).files?.[0];
@@ -42,14 +45,49 @@
 		reader.readAsDataURL(file);
 	}
 
-	async function nextFromStep3() {
+	function onPinDigitInput(index: number, event: Event) {
+		const el = event.target as HTMLInputElement;
+		const value = el.value.replace(/\D/g, "").slice(-1);
+		pinDigits.value[index] = value;
+		el.value = value;
+		if (value && index < 4) pinRefs[index + 1]?.focus();
+	}
+
+	function onPinDigitKeydown(index: number, event: KeyboardEvent) {
+		if (event.key === "Backspace" && !pinDigits.value[index] && index > 0) {
+			pinRefs[index - 1]?.focus();
+		}
+	}
+
+	function onConfirmDigitInput(index: number, event: Event) {
+		const el = event.target as HTMLInputElement;
+		const value = el.value.replace(/\D/g, "").slice(-1);
+		confirmPinDigits.value[index] = value;
+		el.value = value;
+		pinError.value = false;
+		if (value && index < 4) confirmRefs[index + 1]?.focus();
+	}
+
+	function onConfirmDigitKeydown(index: number, event: KeyboardEvent) {
+		if (event.key === "Backspace" && !confirmPinDigits.value[index] && index > 0) {
+			confirmRefs[index - 1]?.focus();
+		}
+	}
+
+	function goToConfirmPin() {
+		confirmPinDigits.value = ["", "", "", "", ""];
+		pinError.value = false;
+		step.value = 4;
+	}
+
+	async function nextFromStep4() {
 		if (pin.value !== confirmPin.value) {
-			pinError.value = "PINs do not match";
+			pinError.value = true;
 			return;
 		}
-		pinError.value = "";
+		pinError.value = false;
 		pinHashValue.value = await hashPin(pin.value);
-		step.value = 4;
+		step.value = 5;
 	}
 
 	async function finish() {
@@ -126,28 +164,62 @@
 			<div v-else-if="step === 3" class="step">
 				<h1 class="title">PIN Code</h1>
 				<p class="subtitle">Create a 5-digit PIN</p>
-				<InputField
-					v-model="pin"
-					label="Enter PIN"
-					mode="number"
-					placeholder="•••••"
-				/>
-				<InputField
-					v-model="confirmPin"
-					label="Confirm PIN"
-					mode="number"
-					placeholder="•••••"
-				/>
-				<p v-if="pinError" class="error">{{ pinError }}</p>
+				<div class="pin-row">
+					<input
+						v-for="(digit, i) in pinDigits"
+						:key="'pin-' + i"
+						:ref="(el) => { if (el) pinRefs[i] = el as HTMLInputElement }"
+						:value="digit"
+						type="text"
+						inputmode="numeric"
+						maxlength="1"
+						class="pin-digit"
+						@input="onPinDigitInput(i, $event)"
+						@keydown="onPinDigitKeydown(i, $event)"
+					/>
+				</div>
 				<div class="actions">
 					<button type="button" class="btn" @click="step = 2">Back</button>
 					<button
 						type="button"
 						class="btn primary"
 						:disabled="!canNextStep3"
-						@click="nextFromStep3"
+						@click="goToConfirmPin"
 					>
 						Next
+					</button>
+				</div>
+			</div>
+
+			<div v-else-if="step === 4" class="step">
+				<h1 class="title">Confirm PIN</h1>
+				<p class="subtitle">Re-enter your 5-digit PIN</p>
+				<div class="pin-row" :class="{ 'pin-row-error': pinError }">
+					<input
+						v-for="(digit, i) in confirmPinDigits"
+						:key="'confirm-' + i"
+						:ref="(el) => { if (el) confirmRefs[i] = el as HTMLInputElement }"
+						:value="digit"
+						type="text"
+						inputmode="numeric"
+						maxlength="1"
+						class="pin-digit"
+						@input="onConfirmDigitInput(i, $event)"
+						@keydown="onConfirmDigitKeydown(i, $event)"
+					/>
+				</div>
+				<p v-if="pinError" class="error">
+					The PIN you entered does not match. Please try again.
+				</p>
+				<div class="actions">
+					<button type="button" class="btn" @click="step = 3">Back</button>
+					<button
+						type="button"
+						class="btn primary"
+						:disabled="!canNextStep4"
+						@click="nextFromStep4"
+					>
+						{{ pinError ? "Try Again" : "Next" }}
 					</button>
 				</div>
 			</div>
@@ -160,7 +232,7 @@
 					<input v-model="useBiometric" type="checkbox" class="toggle" />
 				</label>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 3">Back</button>
+					<button type="button" class="btn" @click="step = 4">Back</button>
 					<button
 						type="button"
 						class="btn primary"
@@ -174,7 +246,7 @@
 		</GlassContainer>
 
 		<div class="progress">
-			<div v-for="i in 4" :key="i" class="pill" :class="{ active: step >= i }" />
+			<div v-for="i in 5" :key="i" class="pill" :class="{ active: step >= i }" />
 		</div>
 	</div>
 </template>
@@ -225,12 +297,42 @@
 		font-size: clamp(1.25rem, 5vw, 1.75rem);
 		margin: 0;
 		color: var(--color-textPrimary);
+		text-align: center;
 	}
 
 	.subtitle {
 		margin: 0;
 		color: var(--color-textSecondary);
 		font-size: 0.95rem;
+		text-align: center;
+	}
+
+	.pin-row {
+		display: flex;
+		justify-content: center;
+		gap: 0.625rem;
+	}
+
+	.pin-digit {
+		width: 3rem;
+		height: 3.5rem;
+		border-radius: 0.75rem;
+		border: 1px solid var(--color-inputBorder);
+		background: transparent;
+		color: var(--color-inputText);
+		font-size: 1.25rem;
+		font-family: inherit;
+		text-align: center;
+		outline: none;
+	}
+
+	.pin-digit:focus {
+		border-color: var(--color-textPrimary);
+	}
+
+	.pin-row-error .pin-digit {
+		border-color: #f87171;
+		color: #f87171;
 	}
 
 	.photo-wrap {
@@ -314,5 +416,6 @@
 		margin: 0;
 		color: #f87171;
 		font-size: 0.875rem;
+		text-align: center;
 	}
 </style>
