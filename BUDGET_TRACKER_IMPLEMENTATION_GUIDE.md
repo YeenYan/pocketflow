@@ -2,6 +2,13 @@
 
 This guide is a **step-by-step build plan** for your budgeting features with minimal complexity.
 
+**Data strategy:**
+- **Dexie + IndexedDB** = all app data stored locally on device/browser
+
+Related guides:
+- `DATABASE_GUIDE.md` — local table design
+- `AUTHENTICATION_GUIDE.md` — onboarding wizard, PIN, and Face ID app lock
+
 It follows your baseline:
 
 - `Expenses` (default 50%)
@@ -10,26 +17,21 @@ It follows your baseline:
 - 2 cutoffs per month/cycle only
 - default cutoff names: `1st cutoff`, `2nd cutoff`
 - user can rename cutoff labels (example: `15`, `30`)
-- first-time app setup asks for display name and profile picture
-- user can edit display name and change profile picture in `Me` page
+- first-time user onboarding: display name, profile image, 5-digit PIN, optional Face ID (see `AUTHENTICATION_GUIDE.md`)
+- user can edit display name, profile image, PIN, and Face ID settings in `Me` page
 
 ---
 
-## 0) First-time profile setup (`Me` page)
+## 0) First-time profile setup
 
-First time user opens the app:
-- Ask for `Username` (display name in app)
-- Ask for `Profile Picture`
-- Save profile locally so next app open will skip setup.
+Use `AUTHENTICATION_GUIDE.md` for the full 4-step onboarding flow:
 
-Profile update in app:
-- In `Me` page, user can:
-  - edit display name
-  - change profile picture
+1. Display Name
+2. Profile Image
+3. PIN Code (5 digits)
+4. Enable Face ID toggle
 
-Notes:
-- Keep this simple with one profile record only.
-- If profile is missing, show first-time setup screen.
+After onboarding, user unlocks app with PIN and/or Face ID on return visits.
 
 ---
 
@@ -50,6 +52,8 @@ Use this structure only (minimal and clear):
 ```text
 src/
   pages/
+    me/
+      MePage.vue
     tracker/
       TrackerPage.vue
       components/

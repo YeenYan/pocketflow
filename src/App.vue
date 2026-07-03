@@ -5,6 +5,7 @@ import { SunIcon, MoonIcon, BellIcon } from '@heroicons/vue/24/outline'
 import GlassContainer from './components/containers/GlassContainer.vue'
 import BottomNav from './components/BottomNav.vue'
 import { useTheme } from './composables/useTheme'
+import { db, sessionUnlocked, setSessionUnlocked } from './db/budgetDb'
 
 const { currentTheme, toggleTheme } = useTheme()
 
@@ -22,19 +23,47 @@ function syncLayoutViewport() {
 	}
 }
 
+async function onVisibilityChange() {
+	if (document.visibilityState === 'hidden') {
+		const profile = await db.userProfiles.get(1)
+		if (profile?.lockEnabled && profile.onboardingCompleted) {
+			setSessionUnlocked(false)
+		}
+		return
+	}
+
+	if (document.visibilityState !== 'visible') return
+
+	const profile = await db.userProfiles.get(1)
+	if (
+		profile?.onboardingCompleted &&
+		profile.lockEnabled &&
+		!sessionUnlocked &&
+		route.path !== '/lock' &&
+		route.path !== '/onboarding'
+	) {
+		router.push('/lock')
+	}
+}
+
 onMounted(() => {
 	syncLayoutViewport()
 	window.visualViewport?.addEventListener('resize', syncLayoutViewport)
 	window.visualViewport?.addEventListener('scroll', syncLayoutViewport)
+	document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
 	window.visualViewport?.removeEventListener('resize', syncLayoutViewport)
 	window.visualViewport?.removeEventListener('scroll', syncLayoutViewport)
+	document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 const tabPaths = ['/dashboard', '/tracker', '/me']
-const showNav = computed(() => route.path !== '/chat')
+const hideChrome = computed(() =>
+	['/chat', '/onboarding', '/lock'].includes(route.path),
+)
+const showNav = computed(() => !hideChrome.value)
 
 router.beforeEach((to, from) => {
 	if (to.path === '/chat') {
@@ -67,7 +96,10 @@ async function testNotification() {
 
 <template>
 	<div class="glass-layout flex flex-col" :style="layoutStyle">
-		<header class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+		<header
+			v-if="showNav"
+			class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
+		>
 			<GlassContainer
 				as="button"
 				type="button"

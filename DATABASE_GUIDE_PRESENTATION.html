@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PocketFlow Database Guide Presentation</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #0f1320;
+        color: #e8ecf8;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .subtitle {
+        margin: 0 0 18px;
+        color: #aeb8d3;
+        font-size: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        background: #151b2d;
+        border: 1px solid #2f3958;
+        border-radius: 12px;
+        padding: 14px;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        color: #dbe5ff;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      li {
+        margin: 4px 0;
+        color: #c8d2ee;
+        font-size: 13px;
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        border: 1px solid #51608d;
+        border-radius: 999px;
+        padding: 2px 8px;
+        margin-right: 6px;
+        color: #cfe0ff;
+      }
+
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+      }
+
+      .table th,
+      .table td {
+        border: 1px solid #334066;
+        padding: 8px;
+        text-align: left;
+        font-size: 12px;
+      }
+
+      .table th {
+        background: #1b2340;
+        color: #e3ebff;
+      }
+
+      .muted {
+        color: #9aa9cd;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>PocketFlow Database Guide</h1>
+      <p class="subtitle">Clear HTML presentation based on <code>DATABASE_GUIDE.md</code></p>
+
+      <div class="card" style="margin-bottom: 14px">
+        <h2>Overview</h2>
+        <p class="muted">
+          Engine: Dexie.js + IndexedDB | DB Name: <code>pocketflow-budget-db</code> | Scope: local storage
+        </p>
+        <div>
+          <span class="tag">Profile</span>
+          <span class="tag">Rules & Cutoffs</span>
+          <span class="tag">Template & Builder</span>
+          <span class="tag">Tracker Entries</span>
+          <span class="tag">Unexpected</span>
+          <span class="tag">Others</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>1) userProfiles</h3>
+          <ul>
+            <li><code>id</code> (PK)</li>
+            <li><code>displayName</code></li>
+            <li><code>photoUrl</code> (optional)</li>
+            <li><code>createdAt</code>, <code>updatedAt</code></li>
+            <li>Index: <code>updatedAt</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>2) rules</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>name</code>, <code>percent</code>, <code>itemCount</code></li>
+            <li>Rule names: Expenses, Savings, Wants</li>
+            <li>Validation: total percent must be <code>100</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>3) cycleCutoffs</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>monthKey</code>, <code>slot</code>, <code>label</code>, <code>amount</code></li>
+            <li>Only 2 rows per <code>monthKey</code> (slot 1 and 2)</li>
+            <li>Default labels: 1st cutoff, 2nd cutoff</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>4) templateItems</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>ruleName</code>, <code>cutoff</code>, <code>name</code>, <code>amount</code></li>
+            <li>Reusable dropdown source</li>
+            <li>Auto-save new names for future use</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>5) itemBuilders</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>name</code>, <code>amount</code> (optional)</li>
+            <li><code>categories[]</code>, <code>isActive</code>, <code>hasChildItems</code></li>
+            <li>Used for parent builder item</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>6) itemBuilderChildren</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>parentItemId</code> (ref itemBuilders.id)</li>
+            <li><code>name</code>, <code>amount</code>, <code>createdAt</code></li>
+            <li>Used for child items under a parent</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>7) budgetEntries</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>monthKey</code>, <code>ruleName</code>, <code>cutoff</code></li>
+            <li><code>name</code>, <code>amount</code>, <code>createdAt</code></li>
+            <li>Validation: per-cutoff total must not exceed cutoff amount</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>8) unexpectedExpenses</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>monthKey</code>, <code>expenseName</code>, <code>amount</code></li>
+            <li><code>amount</code> is negative when overrun exists</li>
+            <li>Only created when budget is exceeded</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>9) othersBudgets</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>monthKey</code>, <code>budgetAllocated</code>, <code>createdAt</code></li>
+            <li>Optional monthly bucket</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>10) othersExpenses</h3>
+          <ul>
+            <li><code>id</code> (PK), <code>monthKey</code>, <code>expenseName</code>, <code>amount</code></li>
+            <li>Expense rows under Others budget</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 14px">
+        <h2>Relationships</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Parent</th>
+              <th>Child</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>itemBuilders</td>
+              <td>itemBuilderChildren</td>
+              <td><code>itemBuilderChildren.parentItemId -> itemBuilders.id</code></td>
+            </tr>
+            <tr>
+              <td>rules</td>
+              <td>budgetEntries</td>
+              <td><code>budgetEntries.ruleName -> rules.name</code></td>
+            </tr>
+            <tr>
+              <td>cycleCutoffs</td>
+              <td>budgetEntries</td>
+              <td><code>monthKey + cutoff/label</code></td>
+            </tr>
+            <tr>
+              <td>othersBudgets</td>
+              <td>othersExpenses</td>
+              <td><code>othersExpenses.monthKey -> othersBudgets.monthKey</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top: 14px">
+        <h2>Validation Rules</h2>
+        <ul>
+          <li>Rule percentages total must equal <code>100</code>.</li>
+          <li>Only 2 cutoffs per month/cycle.</li>
+          <li>Per cutoff allocation cannot exceed cutoff amount.</li>
+          <li>Unexpected expense is created only for overruns (negative amount).</li>
+          <li>Item builder parent progress uses parent amount versus child totals.</li>
+          <li>First app use requires profile setup (display name + profile picture).</li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
