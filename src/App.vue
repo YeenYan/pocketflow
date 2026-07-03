@@ -60,10 +60,11 @@ onUnmounted(() => {
 })
 
 const tabPaths = ['/dashboard', '/tracker', '/me']
-const hideChrome = computed(() =>
-	['/chat', '/onboarding', '/lock'].includes(route.path),
+const hideAllChrome = computed(() =>
+	['/onboarding', '/lock'].includes(route.path),
 )
-const showNav = computed(() => !hideChrome.value)
+const showNav = computed(() => !hideAllChrome.value && route.path !== '/chat')
+const showHeader = computed(() => !hideAllChrome.value)
 
 router.beforeEach((to, from) => {
 	if (to.path === '/chat') {
@@ -97,7 +98,7 @@ async function testNotification() {
 <template>
 	<div class="glass-layout flex flex-col" :style="layoutStyle">
 		<header
-			v-if="showNav"
+			v-if="showHeader"
 			class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
 		>
 			<GlassContainer

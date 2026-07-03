@@ -130,6 +130,7 @@
 		height: 100%;
 		min-height: 0;
 		overflow: hidden;
+		padding-top: 1rem;
 	}
 
 	.chat-header {

@@ -1,24 +1,22 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import GlassContainer from '../../components/containers/GlassContainer.vue'
-import InputField from '../../components/inputs/InputField.vue'
 import { db, setSessionUnlocked } from '../../db/budgetDb'
 import { verifyPin } from '../../utils/pinHash'
 import { unlockWithBiometric } from '../../utils/biometric'
 
 const router = useRouter()
 
-const pin = ref('')
+const pinDigits = ref(['', '', '', '', ''])
+const pinInputRef = ref<HTMLInputElement | null>(null)
 const pinError = ref('')
 const useBiometric = ref(false)
 const displayName = ref('')
 const photoUrl = ref('')
 const unlocking = ref(false)
 
-watch(pin, (v) => {
-	if (v.length > 5) pin.value = v.slice(0, 5)
-})
+const pin = computed(() => pinDigits.value.join(''))
 
 onMounted(async () => {
 	const profile = await db.userProfiles.get(1)
@@ -26,7 +24,24 @@ onMounted(async () => {
 	displayName.value = profile.displayName
 	photoUrl.value = profile.photoUrl || ''
 	useBiometric.value = profile.useBiometric
+	await nextTick()
+	pinInputRef.value?.focus()
 })
+
+function onPinInput(event: Event) {
+	const el = event.target as HTMLInputElement
+	const value = el.value.replace(/\D/g, '').slice(0, 5)
+	el.value = value
+	pinError.value = ''
+	for (let i = 0; i < 5; i++) {
+		pinDigits.value[i] = value[i] ?? ''
+	}
+}
+
+function clearPin() {
+	pinDigits.value = ['', '', '', '', '']
+	if (pinInputRef.value) pinInputRef.value.value = ''
+}
 
 async function unlockWithPin() {
 	if (pin.value.length !== 5) {
@@ -40,7 +55,8 @@ async function unlockWithPin() {
 	const ok = await verifyPin(pin.value, profile.pinHash)
 	if (!ok) {
 		pinError.value = 'Wrong PIN'
-		pin.value = ''
+		clearPin()
+		pinInputRef.value?.focus()
 		return
 	}
 
@@ -70,12 +86,27 @@ async function unlockWithFaceId() {
 				<p class="name">{{ displayName }}</p>
 			</div>
 
-			<InputField
-				v-model="pin"
-				label="PIN"
-				mode="number"
-				placeholder="•••••"
-			/>
+			<div
+				class="pin-row"
+				:class="{ 'pin-row-error': !!pinError }"
+				@click="pinInputRef?.focus()"
+			>
+				<span
+					v-for="(digit, i) in pinDigits"
+					:key="'pin-' + i"
+					class="pin-dot"
+					:class="{ filled: !!digit }"
+				/>
+				<input
+					ref="pinInputRef"
+					:value="pin"
+					type="text"
+					inputmode="numeric"
+					maxlength="5"
+					class="pin-input-hidden"
+					@input="onPinInput"
+				/>
+			</div>
 			<p v-if="pinError" class="error">{{ pinError }}</p>
 
 			<button type="button" class="btn primary" @click="unlockWithPin">
@@ -144,6 +175,40 @@ async function unlockWithFaceId() {
 	color: var(--color-textPrimary);
 }
 
+.pin-row {
+	position: relative;
+	display: flex;
+	justify-content: center;
+	gap: 1.25rem;
+	padding: 1.5rem 0;
+	cursor: text;
+}
+
+.pin-dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--color-inputBorder);
+	transition: background 0.15s ease;
+}
+
+.pin-dot.filled {
+	background: var(--color-textPrimary);
+}
+
+.pin-row-error .pin-dot.filled {
+	background: #f87171;
+}
+
+.pin-input-hidden {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+	border: 0;
+	padding: 0;
+}
+
 .btn {
 	padding: 0.875rem 1.25rem;
 	border-radius: 9999px;
@@ -170,6 +235,6 @@ async function unlockWithFaceId() {
 	margin: 0;
 	color: #f87171;
 	font-size: 0.875rem;
-	text-align: left;
+	text-align: center;
 }
 </style>

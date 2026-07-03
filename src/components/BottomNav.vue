@@ -17,7 +17,11 @@
 	];
 
 	const activeIndex = computed(() => {
-		const idx = items.findIndex((item) => item.path === route.path);
+		const idx = items.findIndex((item) =>
+			item.path === "/me"
+				? route.path.startsWith("/me")
+				: route.path === item.path,
+		);
 		return idx >= 0 ? idx : 0;
 	});
 

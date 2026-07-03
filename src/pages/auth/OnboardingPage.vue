@@ -3,6 +3,7 @@
 	import { useRouter } from "vue-router";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
+	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { hashPin } from "../../utils/pinHash";
 	import { canUseBiometric, unlockWithBiometric } from "../../utils/biometric";
@@ -19,8 +20,8 @@
 	const pinError = ref(false);
 	const saving = ref(false);
 
-	const pinRefs: HTMLInputElement[] = [];
-	const confirmRefs: HTMLInputElement[] = [];
+	const pinInputRef = ref<HTMLInputElement | null>(null);
+	const confirmInputRef = ref<HTMLInputElement | null>(null);
 
 	const pin = computed(() => pinDigits.value.join(""));
 	const confirmPin = computed(() => confirmPinDigits.value.join(""));
@@ -31,8 +32,8 @@
 
 	watch(step, async (value) => {
 		await nextTick();
-		if (value === 3) pinRefs[0]?.focus();
-		if (value === 4) confirmRefs[0]?.focus();
+		if (value === 3) pinInputRef.value?.focus();
+		if (value === 4) confirmInputRef.value?.focus();
 	});
 
 	function onPhotoPick(event: Event) {
@@ -45,32 +46,22 @@
 		reader.readAsDataURL(file);
 	}
 
-	function onPinDigitInput(index: number, event: Event) {
+	function onPinInput(event: Event) {
 		const el = event.target as HTMLInputElement;
-		const value = el.value.replace(/\D/g, "").slice(-1);
-		pinDigits.value[index] = value;
+		const value = el.value.replace(/\D/g, "").slice(0, 5);
 		el.value = value;
-		if (value && index < 4) pinRefs[index + 1]?.focus();
-	}
-
-	function onPinDigitKeydown(index: number, event: KeyboardEvent) {
-		if (event.key === "Backspace" && !pinDigits.value[index] && index > 0) {
-			pinRefs[index - 1]?.focus();
+		for (let i = 0; i < 5; i++) {
+			pinDigits.value[i] = value[i] ?? "";
 		}
 	}
 
-	function onConfirmDigitInput(index: number, event: Event) {
+	function onConfirmInput(event: Event) {
 		const el = event.target as HTMLInputElement;
-		const value = el.value.replace(/\D/g, "").slice(-1);
-		confirmPinDigits.value[index] = value;
+		const value = el.value.replace(/\D/g, "").slice(0, 5);
 		el.value = value;
 		pinError.value = false;
-		if (value && index < 4) confirmRefs[index + 1]?.focus();
-	}
-
-	function onConfirmDigitKeydown(index: number, event: KeyboardEvent) {
-		if (event.key === "Backspace" && !confirmPinDigits.value[index] && index > 0) {
-			confirmRefs[index - 1]?.focus();
+		for (let i = 0; i < 5; i++) {
+			confirmPinDigits.value[i] = value[i] ?? "";
 		}
 	}
 
@@ -81,6 +72,13 @@
 	}
 
 	async function nextFromStep4() {
+		if (pinError.value) {
+			pinDigits.value = ["", "", "", "", ""];
+			confirmPinDigits.value = ["", "", "", "", ""];
+			pinError.value = false;
+			step.value = 3;
+			return;
+		}
 		if (pin.value !== confirmPin.value) {
 			pinError.value = true;
 			return;
@@ -164,18 +162,21 @@
 			<div v-else-if="step === 3" class="step">
 				<h1 class="title">PIN Code</h1>
 				<p class="subtitle">Create a 5-digit PIN</p>
-				<div class="pin-row">
-					<input
+				<div class="pin-row" @click="pinInputRef?.focus()">
+					<span
 						v-for="(digit, i) in pinDigits"
 						:key="'pin-' + i"
-						:ref="(el) => { if (el) pinRefs[i] = el as HTMLInputElement }"
-						:value="digit"
+						class="pin-dot"
+						:class="{ filled: !!digit }"
+					/>
+					<input
+						ref="pinInputRef"
+						:value="pin"
 						type="text"
 						inputmode="numeric"
-						maxlength="1"
-						class="pin-digit"
-						@input="onPinDigitInput(i, $event)"
-						@keydown="onPinDigitKeydown(i, $event)"
+						maxlength="5"
+						class="pin-input-hidden"
+						@input="onPinInput"
 					/>
 				</div>
 				<div class="actions">
@@ -194,18 +195,25 @@
 			<div v-else-if="step === 4" class="step">
 				<h1 class="title">Confirm PIN</h1>
 				<p class="subtitle">Re-enter your 5-digit PIN</p>
-				<div class="pin-row" :class="{ 'pin-row-error': pinError }">
-					<input
+				<div
+					class="pin-row"
+					:class="{ 'pin-row-error': pinError }"
+					@click="confirmInputRef?.focus()"
+				>
+					<span
 						v-for="(digit, i) in confirmPinDigits"
 						:key="'confirm-' + i"
-						:ref="(el) => { if (el) confirmRefs[i] = el as HTMLInputElement }"
-						:value="digit"
+						class="pin-dot"
+						:class="{ filled: !!digit }"
+					/>
+					<input
+						ref="confirmInputRef"
+						:value="confirmPin"
 						type="text"
 						inputmode="numeric"
-						maxlength="1"
-						class="pin-digit"
-						@input="onConfirmDigitInput(i, $event)"
-						@keydown="onConfirmDigitKeydown(i, $event)"
+						maxlength="5"
+						class="pin-input-hidden"
+						@input="onConfirmInput"
 					/>
 				</div>
 				<p v-if="pinError" class="error">
@@ -229,7 +237,7 @@
 				<p class="subtitle">Unlock faster with biometrics (optional)</p>
 				<label class="toggle-row">
 					<span>Enable Face ID</span>
-					<input v-model="useBiometric" type="checkbox" class="toggle" />
+					<ToggleSwitch v-model="useBiometric" />
 				</label>
 				<div class="actions">
 					<button type="button" class="btn" @click="step = 4">Back</button>
@@ -308,31 +316,37 @@
 	}
 
 	.pin-row {
+		position: relative;
 		display: flex;
 		justify-content: center;
-		gap: 0.625rem;
+		gap: 1.25rem;
+		padding: 1.5rem 0;
+		cursor: text;
 	}
 
-	.pin-digit {
-		width: 3rem;
-		height: 3.5rem;
-		border-radius: 0.75rem;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-inputText);
-		font-size: 1.25rem;
-		font-family: inherit;
-		text-align: center;
-		outline: none;
+	.pin-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		transition: background 0.15s ease;
 	}
 
-	.pin-digit:focus {
-		border-color: var(--color-textPrimary);
+	.pin-dot.filled {
+		background: var(--color-textPrimary);
 	}
 
-	.pin-row-error .pin-digit {
-		border-color: #f87171;
-		color: #f87171;
+	.pin-row-error .pin-dot.filled {
+		background: #f87171;
+	}
+
+	.pin-input-hidden {
+		position: absolute;
+		opacity: 0;
+		width: 1px;
+		height: 1px;
+		border: 0;
+		padding: 0;
 	}
 
 	.photo-wrap {
@@ -405,11 +419,6 @@
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
 		color: var(--color-textPrimary);
-	}
-
-	.toggle {
-		width: 1.25rem;
-		height: 1.25rem;
 	}
 
 	.error {
