@@ -13,11 +13,13 @@
 	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { hashPin, verifyPin } from "../../utils/pinHash";
-	import { canUseBiometric } from "../../utils/biometric";
+	import { canUseBiometric, registerBiometric } from "../../utils/biometric";
 
 	const router = useRouter();
 
 	const useBiometric = ref(false);
+	const hasPin = ref(false);
+	const biometricError = ref("");
 	const activeModal = ref<"name" | "password" | null>(null);
 	const newName = ref("");
 	const currentPin = ref("");
@@ -28,7 +30,8 @@
 	onMounted(async () => {
 		const profile = await db.userProfiles.get(1);
 		if (!profile) return;
-		useBiometric.value = profile.useBiometric;
+		useBiometric.value = profile.useBiometric && !!profile.biometricCredentialId;
+		hasPin.value = !!profile.pinHash;
 		newName.value = profile.displayName;
 	});
 
@@ -72,10 +75,6 @@
 	}
 
 	async function savePassword() {
-		if (currentPin.value.length !== 5) {
-			formError.value = "Enter your current 5-digit PIN";
-			return;
-		}
 		if (newPin.value.length !== 5) {
 			formError.value = "Enter a new 5-digit PIN";
 			return;
@@ -88,11 +87,17 @@
 		const profile = await db.userProfiles.get(1);
 		if (!profile) return;
 
-		const ok = await verifyPin(currentPin.value, profile.pinHash);
-		if (!ok) {
-			formError.value = "Current PIN is wrong";
-			currentPin.value = "";
-			return;
+		if (profile.pinHash) {
+			if (currentPin.value.length !== 5) {
+				formError.value = "Enter your current 5-digit PIN";
+				return;
+			}
+			const ok = await verifyPin(currentPin.value, profile.pinHash);
+			if (!ok) {
+				formError.value = "Current PIN is wrong";
+				currentPin.value = "";
+				return;
+			}
 		}
 
 		await db.userProfiles.put({
@@ -101,6 +106,7 @@
 			updatedAt: new Date().toISOString(),
 		});
 
+		hasPin.value = true;
 		currentPin.value = "";
 		newPin.value = "";
 		confirmPin.value = "";
@@ -108,20 +114,44 @@
 	}
 
 	async function onBiometricChange() {
+		biometricError.value = "";
+		const profile = await db.userProfiles.get(1);
+		if (!profile) return;
+
 		if (useBiometric.value) {
 			const available = await canUseBiometric();
 			if (!available) {
 				useBiometric.value = false;
+				biometricError.value = "Face ID is not available on this device";
 				return;
 			}
+
+			const credentialId = await registerBiometric();
+			if (!credentialId) {
+				useBiometric.value = false;
+				biometricError.value = "Face ID setup was cancelled or failed";
+				return;
+			}
+
+			await db.userProfiles.put({
+				...profile,
+				useBiometric: true,
+				biometricCredentialId: credentialId,
+				updatedAt: new Date().toISOString(),
+			});
+			return;
 		}
 
-		const profile = await db.userProfiles.get(1);
-		if (!profile) return;
+		if (!profile.pinHash) {
+			useBiometric.value = true;
+			biometricError.value = "Set a PIN before turning off Face ID";
+			return;
+		}
 
 		await db.userProfiles.put({
 			...profile,
-			useBiometric: useBiometric.value,
+			useBiometric: false,
+			biometricCredentialId: undefined,
 			updatedAt: new Date().toISOString(),
 		});
 	}
@@ -155,7 +185,7 @@
 				<span class="icon-box icon-box-key">
 					<KeyIcon class="row-icon" />
 				</span>
-				<span class="row-label">Change Password</span>
+				<span class="row-label">{{ hasPin ? "Change PIN" : "Set PIN" }}</span>
 				<ChevronRightIcon class="row-chevron" />
 			</button>
 
@@ -166,6 +196,7 @@
 				<span class="row-label">Enable Face ID</span>
 				<ToggleSwitch v-model="useBiometric" @change="onBiometricChange" />
 			</div>
+			<p v-if="biometricError" class="error row-error">{{ biometricError }}</p>
 
 			<button type="button" class="account-row logout" @click="logout">
 				<span class="icon-box icon-box-logout">
@@ -183,7 +214,13 @@
 			>
 				<GlassContainer class="modal">
 					<h2 class="modal-title">
-						{{ activeModal === "name" ? "Change Name" : "Change Password" }}
+						{{
+							activeModal === "name"
+								? "Change Name"
+								: hasPin
+									? "Change PIN"
+									: "Set PIN"
+						}}
 					</h2>
 
 					<template v-if="activeModal === 'name'">
@@ -196,6 +233,7 @@
 
 					<template v-else>
 						<InputField
+							v-if="hasPin"
 							v-model="currentPin"
 							label="Current PIN"
 							mode="number"
@@ -432,5 +470,9 @@
 		color: #f87171;
 		font-size: 0.875rem;
 		text-align: center;
+	}
+
+	.row-error {
+		padding-bottom: 0.5rem;
 	}
 </style>

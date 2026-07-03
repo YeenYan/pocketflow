@@ -6,6 +6,7 @@ export interface UserProfile {
 	photoUrl?: string
 	pinHash: string
 	useBiometric: boolean
+	biometricCredentialId?: string
 	lockEnabled: boolean
 	onboardingCompleted: boolean
 	createdAt: string

@@ -1,12 +1,15 @@
 <script setup lang="ts">
-	import { computed, nextTick, ref, watch } from "vue";
+	import { computed, nextTick, onMounted, ref, watch } from "vue";
 	import { useRouter } from "vue-router";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { hashPin } from "../../utils/pinHash";
-	import { canUseBiometric, unlockWithBiometric } from "../../utils/biometric";
+	import {
+		canUseBiometric,
+		registerBiometric,
+	} from "../../utils/biometric";
 
 	const router = useRouter();
 
@@ -15,9 +18,11 @@
 	const photoUrl = ref("");
 	const pinHashValue = ref("");
 	const useBiometric = ref(false);
+	const biometricAvailable = ref(false);
 	const pinDigits = ref(["", "", "", "", ""]);
 	const confirmPinDigits = ref(["", "", "", "", ""]);
 	const pinError = ref(false);
+	const authError = ref("");
 	const saving = ref(false);
 
 	const pinInputRef = ref<HTMLInputElement | null>(null);
@@ -27,13 +32,18 @@
 	const confirmPin = computed(() => confirmPinDigits.value.join(""));
 
 	const canNextStep1 = computed(() => displayName.value.trim().length >= 2);
-	const canNextStep3 = computed(() => pin.value.length === 5);
-	const canNextStep4 = computed(() => confirmPin.value.length === 5);
+	const canNextStep4 = computed(() => pin.value.length === 5);
+	const canNextStep5 = computed(() => confirmPin.value.length === 5);
+
+	onMounted(async () => {
+		biometricAvailable.value = await canUseBiometric();
+		useBiometric.value = biometricAvailable.value;
+	});
 
 	watch(step, async (value) => {
 		await nextTick();
-		if (value === 3) pinInputRef.value?.focus();
-		if (value === 4) confirmInputRef.value?.focus();
+		if (value === 4) pinInputRef.value?.focus();
+		if (value === 5) confirmInputRef.value?.focus();
 	});
 
 	function onPhotoPick(event: Event) {
@@ -68,15 +78,20 @@
 	function goToConfirmPin() {
 		confirmPinDigits.value = ["", "", "", "", ""];
 		pinError.value = false;
-		step.value = 4;
+		step.value = 5;
 	}
 
-	async function nextFromStep4() {
+	async function skipPinAndFinish() {
+		pinHashValue.value = "";
+		await finish();
+	}
+
+	async function nextFromStep5() {
 		if (pinError.value) {
 			pinDigits.value = ["", "", "", "", ""];
 			confirmPinDigits.value = ["", "", "", "", ""];
 			pinError.value = false;
-			step.value = 3;
+			step.value = 4;
 			return;
 		}
 		if (pin.value !== confirmPin.value) {
@@ -85,22 +100,42 @@
 		}
 		pinError.value = false;
 		pinHashValue.value = await hashPin(pin.value);
-		step.value = 5;
+		await finish();
 	}
 
 	async function finish() {
 		if (saving.value) return;
+		authError.value = "";
+
+		if (!useBiometric.value && !pinHashValue.value) {
+			authError.value = "Enable Face ID or set a PIN to continue";
+			return;
+		}
+
 		saving.value = true;
 
 		let biometric = useBiometric.value;
+		let credentialId: string | undefined;
+
 		if (biometric) {
 			const available = await canUseBiometric();
 			if (!available) {
 				biometric = false;
 			} else {
-				const ok = await unlockWithBiometric();
-				if (!ok) biometric = false;
+				const id = await registerBiometric();
+				if (!id) {
+					biometric = false;
+				} else {
+					credentialId = id;
+				}
 			}
+		}
+
+		if (!biometric && !pinHashValue.value) {
+			authError.value =
+				"Face ID setup failed. Enable Face ID or set a PIN to continue";
+			saving.value = false;
+			return;
 		}
 
 		const now = new Date().toISOString();
@@ -110,6 +145,7 @@
 			photoUrl: photoUrl.value || undefined,
 			pinHash: pinHashValue.value,
 			useBiometric: biometric,
+			biometricCredentialId: credentialId,
 			lockEnabled: true,
 			onboardingCompleted: true,
 			createdAt: now,
@@ -160,8 +196,28 @@
 			</div>
 
 			<div v-else-if="step === 3" class="step">
+				<h1 class="title">Face ID</h1>
+				<p class="subtitle">Primary unlock method for this device</p>
+				<label class="toggle-row">
+					<span>Enable Face ID</span>
+					<ToggleSwitch
+						v-model="useBiometric"
+						:disabled="!biometricAvailable"
+					/>
+				</label>
+				<p v-if="!biometricAvailable" class="hint">
+					Face ID is not available in this browser. You can set a PIN next.
+				</p>
+				<p v-if="authError" class="error">{{ authError }}</p>
+				<div class="actions">
+					<button type="button" class="btn" @click="step = 2">Back</button>
+					<button type="button" class="btn primary" @click="step = 4">Next</button>
+				</div>
+			</div>
+
+			<div v-else-if="step === 4" class="step">
 				<h1 class="title">PIN Code</h1>
-				<p class="subtitle">Create a 5-digit PIN</p>
+				<p class="subtitle">Optional backup if Face ID is unavailable</p>
 				<div class="pin-row" @click="pinInputRef?.focus()">
 					<span
 						v-for="(digit, i) in pinDigits"
@@ -179,12 +235,21 @@
 						@input="onPinInput"
 					/>
 				</div>
+				<p v-if="authError" class="error">{{ authError }}</p>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 2">Back</button>
+					<button type="button" class="btn" @click="step = 3">Back</button>
+					<button
+						type="button"
+						class="btn"
+						:disabled="saving"
+						@click="skipPinAndFinish"
+					>
+						Skip
+					</button>
 					<button
 						type="button"
 						class="btn primary"
-						:disabled="!canNextStep3"
+						:disabled="!canNextStep4"
 						@click="goToConfirmPin"
 					>
 						Next
@@ -192,7 +257,7 @@
 				</div>
 			</div>
 
-			<div v-else-if="step === 4" class="step">
+			<div v-else class="step">
 				<h1 class="title">Confirm PIN</h1>
 				<p class="subtitle">Re-enter your 5-digit PIN</p>
 				<div
@@ -219,35 +284,16 @@
 				<p v-if="pinError" class="error">
 					The PIN you entered does not match. Please try again.
 				</p>
-				<div class="actions">
-					<button type="button" class="btn" @click="step = 3">Back</button>
-					<button
-						type="button"
-						class="btn primary"
-						:disabled="!canNextStep4"
-						@click="nextFromStep4"
-					>
-						{{ pinError ? "Try Again" : "Next" }}
-					</button>
-				</div>
-			</div>
-
-			<div v-else class="step">
-				<h1 class="title">Face ID</h1>
-				<p class="subtitle">Unlock faster with biometrics (optional)</p>
-				<label class="toggle-row">
-					<span>Enable Face ID</span>
-					<ToggleSwitch v-model="useBiometric" />
-				</label>
+				<p v-if="authError" class="error">{{ authError }}</p>
 				<div class="actions">
 					<button type="button" class="btn" @click="step = 4">Back</button>
 					<button
 						type="button"
 						class="btn primary"
-						:disabled="saving"
-						@click="finish"
+						:disabled="!canNextStep5 || saving"
+						@click="nextFromStep5"
 					>
-						Finish
+						{{ pinError ? "Try Again" : "Finish" }}
 					</button>
 				</div>
 			</div>
@@ -274,7 +320,7 @@
 	.progress {
 		display: flex;
 		gap: 0.5rem;
-		width: 100%;
+		width: 50%;
 		max-width: 480px;
 	}
 
@@ -419,6 +465,13 @@
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
 		color: var(--color-textPrimary);
+	}
+
+	.hint {
+		margin: 0;
+		color: var(--color-textSecondary);
+		font-size: 0.875rem;
+		text-align: center;
 	}
 
 	.error {

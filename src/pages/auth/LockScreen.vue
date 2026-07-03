@@ -12,9 +12,12 @@ const pinDigits = ref(['', '', '', '', ''])
 const pinInputRef = ref<HTMLInputElement | null>(null)
 const pinError = ref('')
 const useBiometric = ref(false)
+const hasPin = ref(false)
+const credentialId = ref('')
 const displayName = ref('')
 const photoUrl = ref('')
 const unlocking = ref(false)
+const showPin = ref(false)
 
 const pin = computed(() => pinDigits.value.join(''))
 
@@ -23,9 +26,20 @@ onMounted(async () => {
 	if (!profile) return
 	displayName.value = profile.displayName
 	photoUrl.value = profile.photoUrl || ''
-	useBiometric.value = profile.useBiometric
-	await nextTick()
-	pinInputRef.value?.focus()
+	useBiometric.value = profile.useBiometric && !!profile.biometricCredentialId
+	credentialId.value = profile.biometricCredentialId || ''
+	hasPin.value = !!profile.pinHash
+	showPin.value = hasPin.value && !useBiometric.value
+
+	if (useBiometric.value) {
+		await unlockWithFaceId()
+		return
+	}
+
+	if (hasPin.value) {
+		await nextTick()
+		pinInputRef.value?.focus()
+	}
 })
 
 function onPinInput(event: Event) {
@@ -50,7 +64,7 @@ async function unlockWithPin() {
 	}
 
 	const profile = await db.userProfiles.get(1)
-	if (!profile) return
+	if (!profile?.pinHash) return
 
 	const ok = await verifyPin(pin.value, profile.pinHash)
 	if (!ok) {
@@ -66,11 +80,22 @@ async function unlockWithPin() {
 }
 
 async function unlockWithFaceId() {
-	if (unlocking.value) return
+	if (unlocking.value || !credentialId.value) return
 	unlocking.value = true
-	const ok = await unlockWithBiometric()
+	pinError.value = ''
+	const ok = await unlockWithBiometric(credentialId.value)
 	unlocking.value = false
-	if (!ok) return
+	if (!ok) {
+		if (hasPin.value) {
+			showPin.value = true
+			pinError.value = 'Face ID cancelled. Enter PIN or try again.'
+			await nextTick()
+			pinInputRef.value?.focus()
+		} else {
+			pinError.value = 'Face ID failed. Try again.'
+		}
+		return
+	}
 
 	setSessionUnlocked(true)
 	router.push('/dashboard')
@@ -86,42 +111,54 @@ async function unlockWithFaceId() {
 				<p class="name">{{ displayName }}</p>
 			</div>
 
-			<div
-				class="pin-row"
-				:class="{ 'pin-row-error': !!pinError }"
-				@click="pinInputRef?.focus()"
-			>
-				<span
-					v-for="(digit, i) in pinDigits"
-					:key="'pin-' + i"
-					class="pin-dot"
-					:class="{ filled: !!digit }"
-				/>
-				<input
-					ref="pinInputRef"
-					:value="pin"
-					type="text"
-					inputmode="numeric"
-					maxlength="5"
-					class="pin-input-hidden"
-					@input="onPinInput"
-				/>
-			</div>
-			<p v-if="pinError" class="error">{{ pinError }}</p>
-
-			<button type="button" class="btn primary" @click="unlockWithPin">
-				Unlock
-			</button>
-
 			<button
 				v-if="useBiometric"
 				type="button"
-				class="btn"
+				class="btn primary"
 				:disabled="unlocking"
 				@click="unlockWithFaceId"
 			>
-				Unlock with Face ID
+				{{ unlocking ? 'Waiting for Face ID…' : 'Unlock with Face ID' }}
 			</button>
+
+			<template v-if="hasPin && showPin">
+				<div
+					class="pin-row"
+					:class="{ 'pin-row-error': !!pinError }"
+					@click="pinInputRef?.focus()"
+				>
+					<span
+						v-for="(digit, i) in pinDigits"
+						:key="'pin-' + i"
+						class="pin-dot"
+						:class="{ filled: !!digit }"
+					/>
+					<input
+						ref="pinInputRef"
+						:value="pin"
+						type="text"
+						inputmode="numeric"
+						maxlength="5"
+						class="pin-input-hidden"
+						@input="onPinInput"
+					/>
+				</div>
+
+				<button type="button" class="btn" :class="{ primary: !useBiometric }" @click="unlockWithPin">
+					Unlock with PIN
+				</button>
+			</template>
+
+			<button
+				v-if="hasPin && useBiometric && !showPin"
+				type="button"
+				class="btn"
+				@click="showPin = true"
+			>
+				Use PIN instead
+			</button>
+
+			<p v-if="pinError" class="error">{{ pinError }}</p>
 		</GlassContainer>
 	</div>
 </template>

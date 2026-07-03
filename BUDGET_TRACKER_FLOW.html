@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>PocketFlow Budget Tracker — Project Flow</title>
+		<style>
+			:root {
+				--bg: #0f1320;
+				--card: #151b2d;
+				--border: #2f3958;
+				--text: #e8ecf8;
+				--muted: #aeb8d3;
+				--accent: #6e8cc8;
+				--accent-soft: #1c2744;
+				--ok: #3d8b5a;
+				--ok-bg: #14261c;
+				--warn: #c9a227;
+				--warn-bg: #2a2410;
+				--danger: #c45c5c;
+				--danger-bg: #2a1616;
+				--setup: #5b8def;
+				--rules: #8b7cf0;
+				--money: #3db88a;
+				--track: #e0a84a;
+				--extra: #d67a9a;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				font-family: "Segoe UI", Arial, sans-serif;
+				background: var(--bg);
+				color: var(--text);
+				line-height: 1.45;
+			}
+
+			.wrap {
+				max-width: 1100px;
+				margin: 0 auto;
+				padding: 24px 18px 48px;
+			}
+
+			h1 {
+				margin: 0 0 6px;
+				font-size: 26px;
+			}
+
+			.subtitle {
+				margin: 0 0 22px;
+				color: var(--muted);
+				font-size: 14px;
+			}
+
+			.legend {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				margin-bottom: 28px;
+			}
+
+			.legend span {
+				font-size: 11px;
+				padding: 4px 10px;
+				border-radius: 999px;
+				border: 1px solid var(--border);
+				color: var(--muted);
+			}
+
+			.legend .setup {
+				border-color: #3a5a9a;
+				background: #152038;
+				color: #b8d0ff;
+			}
+			.legend .rules {
+				border-color: #5a4a9a;
+				background: #1a1630;
+				color: #d0c8ff;
+			}
+			.legend .money {
+				border-color: #2a6a50;
+				background: #12241c;
+				color: #b8f0d0;
+			}
+			.legend .track {
+				border-color: #8a6a20;
+				background: #241c10;
+				color: #ffe0a0;
+			}
+			.legend .extra {
+				border-color: #8a3a60;
+				background: #241018;
+				color: #ffc0d8;
+			}
+
+			.flow {
+				display: flex;
+				flex-direction: column;
+				gap: 0;
+			}
+
+			.phase {
+				position: relative;
+				padding-left: 28px;
+				border-left: 2px solid var(--border);
+				padding-bottom: 28px;
+			}
+
+			.phase:last-child {
+				border-left-color: transparent;
+				padding-bottom: 0;
+			}
+
+			.phase::before {
+				content: attr(data-step);
+				position: absolute;
+				left: -14px;
+				top: 0;
+				width: 26px;
+				height: 26px;
+				border-radius: 50%;
+				background: var(--card);
+				border: 2px solid var(--accent);
+				color: var(--text);
+				font-size: 11px;
+				font-weight: 700;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				line-height: 26px;
+				text-align: center;
+			}
+
+			.phase.setup::before {
+				border-color: #5b8def;
+			}
+			.phase.rules::before {
+				border-color: #8b7cf0;
+			}
+			.phase.money::before {
+				border-color: #3db88a;
+			}
+			.phase.track::before {
+				border-color: #e0a84a;
+			}
+			.phase.extra::before {
+				border-color: #d67a9a;
+			}
+
+			.phase-title {
+				margin: 0 0 4px;
+				font-size: 17px;
+			}
+
+			.phase-desc {
+				margin: 0 0 12px;
+				color: var(--muted);
+				font-size: 13px;
+			}
+
+			.cards {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+				gap: 10px;
+			}
+
+			.card {
+				background: var(--card);
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				padding: 12px 14px;
+			}
+
+			.card h3 {
+				margin: 0 0 8px;
+				font-size: 14px;
+				color: #dbe5ff;
+			}
+
+			.card ul {
+				margin: 0;
+				padding-left: 16px;
+			}
+
+			.card li {
+				margin: 3px 0;
+				font-size: 12px;
+				color: var(--muted);
+			}
+
+			.tag {
+				display: inline-block;
+				font-size: 10px;
+				border: 1px solid var(--border);
+				border-radius: 999px;
+				padding: 1px 7px;
+				margin-bottom: 8px;
+				color: #cfe0ff;
+			}
+
+			.arrow-down {
+				text-align: center;
+				color: var(--accent);
+				font-size: 18px;
+				margin: -8px 0 8px 14px;
+				padding-left: 28px;
+			}
+
+			.decision {
+				background: var(--accent-soft);
+				border: 1px dashed var(--accent);
+				border-radius: 12px;
+				padding: 12px 14px;
+				margin-top: 10px;
+			}
+
+			.decision strong {
+				display: block;
+				font-size: 13px;
+				margin-bottom: 6px;
+			}
+
+			.decision p {
+				margin: 0;
+				font-size: 12px;
+				color: var(--muted);
+			}
+
+			.split {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 10px;
+				margin-top: 10px;
+			}
+
+			@media (max-width: 640px) {
+				.split {
+					grid-template-columns: 1fr;
+				}
+			}
+
+			.branch {
+				border-radius: 12px;
+				padding: 12px 14px;
+				border: 1px solid var(--border);
+			}
+
+			.branch.yes {
+				background: var(--ok-bg);
+				border-color: var(--ok);
+			}
+
+			.branch.no {
+				background: #1a1e2c;
+			}
+
+			.branch.warn {
+				background: var(--warn-bg);
+				border-color: var(--warn);
+			}
+
+			.branch.danger {
+				background: var(--danger-bg);
+				border-color: var(--danger);
+			}
+
+			.branch h4 {
+				margin: 0 0 6px;
+				font-size: 13px;
+			}
+
+			.branch p,
+			.branch li {
+				margin: 0;
+				font-size: 12px;
+				color: var(--muted);
+			}
+
+			.branch ul {
+				margin: 4px 0 0;
+				padding-left: 16px;
+			}
+
+			.math {
+				font-family: ui-monospace, Consolas, monospace;
+				font-size: 11px;
+				background: #0c101c;
+				border-radius: 8px;
+				padding: 8px 10px;
+				margin-top: 8px;
+				color: #b8c8e8;
+				border: 1px solid #24304a;
+			}
+
+			.diagram {
+				width: 100%;
+				overflow-x: auto;
+				margin: 28px 0 8px;
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				background: #0c101c;
+			}
+
+			.diagram svg {
+				display: block;
+				min-width: 980px;
+				width: 100%;
+			}
+
+			.section-label {
+				margin: 32px 0 12px;
+				font-size: 18px;
+			}
+
+			.note {
+				margin-top: 24px;
+				padding: 12px 14px;
+				border-radius: 12px;
+				background: #151b2d;
+				border: 1px solid var(--border);
+				font-size: 12px;
+				color: var(--muted);
+			}
+
+			.note code {
+				color: #cfe0ff;
+				font-size: 11px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<h1>PocketFlow Budget Tracker — Project Flow</h1>
+			<p class="subtitle">
+				Visual flow from first open through rules, cutoffs, tracking, and optional
+				extras. Based on
+				<code>BUDGET_TRACKER_IMPLEMENTATION_GUIDE.md</code>. All data stays local
+				(Dexie + IndexedDB).
+			</p>
+
+			<div class="legend">
+				<span class="setup">Setup &amp; auth</span>
+				<span class="rules">Rules (50/30/20)</span>
+				<span class="money">Income &amp; allocation</span>
+				<span class="track">Tracking</span>
+				<span class="extra">Optional / overrun</span>
+			</div>
+
+			<h2 class="section-label">End-to-end flow</h2>
+
+			<div class="flow">
+				<!-- 1 -->
+				<div class="phase setup" data-step="1">
+					<h2 class="phase-title">First-time profile setup</h2>
+					<p class="phase-desc">
+						Shown only when onboarding is not completed. After finish, user enters
+						the main app.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">Onboarding</span>
+							<h3>4-step wizard</h3>
+							<ul>
+								<li>Display Name (required, min 2 chars)</li>
+								<li>Profile Image (optional)</li>
+								<li>PIN Code (5 digits)</li>
+								<li>Face ID toggle (optional)</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">Storage</span>
+							<h3>Save to Dexie</h3>
+							<ul>
+								<li><code>userProfiles</code> table</li>
+								<li>Mark onboarding completed</li>
+								<li>Route to Dashboard / Tracker</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- 2 -->
+				<div class="phase setup" data-step="2">
+					<h2 class="phase-title">Return visit — unlock</h2>
+					<p class="phase-desc">
+						If lock is enabled, user unlocks with PIN and/or Face ID before using
+						the app. Profile can be edited later on the Me page.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">Lock screen</span>
+							<h3>Unlock options</h3>
+							<ul>
+								<li>5-digit PIN</li>
+								<li>Face ID (if enabled)</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">Me page</span>
+							<h3>Edit anytime</h3>
+							<ul>
+								<li>Display name</li>
+								<li>Profile image</li>
+								<li>PIN / Face ID settings</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- 3 -->
+				<div class="phase rules" data-step="3">
+					<h2 class="phase-title">Enter / edit budget rules</h2>
+					<p class="phase-desc">
+						Baseline split is fixed names with editable percentages. Total must
+						equal 100% before save.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">RuleDistributionCard</span>
+							<h3>Default rules</h3>
+							<ul>
+								<li>Expenses — 50%</li>
+								<li>Savings — 30%</li>
+								<li>Wants — 20%</li>
+								<li>Names are fixed; percents editable</li>
+								<li>Validate: total = 100</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">RulePieChartCard</span>
+							<h3>Visual check</h3>
+							<ul>
+								<li>Pie chart from current rules</li>
+								<li>Labels: Expenses, Savings, Wants</li>
+								<li>Values: current percentages</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">Storage</span>
+							<h3>rules table</h3>
+							<ul>
+								<li>id, name, percent, itemCount</li>
+								<li>Used by every later allocation step</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<!-- 4 -->
+				<div class="phase money" data-step="4">
+					<h2 class="phase-title">Enter cutoff income (2 per month)</h2>
+					<p class="phase-desc">
+						Exactly two cutoff slots per month/cycle. User enters amounts; system
+						auto-distributes by current rules.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">CutoffInputCard</span>
+							<h3>User inputs</h3>
+							<ul>
+								<li>Slot 1 label (default: 1st cutoff)</li>
+								<li>Slot 1 amount</li>
+								<li>Slot 2 label (default: 2nd cutoff)</li>
+								<li>Slot 2 amount</li>
+								<li>Labels editable (e.g. 15, 30)</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">On save</span>
+							<h3>Auto distribution</h3>
+							<ul>
+								<li>Store in <code>cycleCutoffs</code></li>
+								<li>Run <code>distributeByRules(amount, rules)</code></li>
+								<li>Each cutoff → Expenses / Savings / Wants</li>
+							</ul>
+							<div class="math">
+								cutoffAmount × rule.percent / 100 → rule allocation
+							</div>
+						</div>
+					</div>
+					<div class="decision">
+						<strong>Flexible adjustment (optional)</strong>
+						<p>
+							User may manually tweak rule amounts inside a cutoff. Validate:
+							<code>sum(ruleAmountsForCutoff) ≤ cutoffAmount</code>. If exceeded:
+							“Total rule amount cannot exceed cutoff amount.” Store line items in
+							<code>budgetEntries</code>.
+						</p>
+					</div>
+				</div>
+
+				<!-- 5 -->
+				<div class="phase money" data-step="5">
+					<h2 class="phase-title">Build reusable templates &amp; items</h2>
+					<p class="phase-desc">
+						Prepare dropdown sources and reusable items under Expenses, Savings,
+						and Wants.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">TemplateListCard</span>
+							<h3>Template list</h3>
+							<ul>
+								<li>Sections: Expenses, Savings, Wants</li>
+								<li>Per section × per cutoff</li>
+								<li>Add name + amount</li>
+								<li>Save to <code>templateItems</code></li>
+								<li>New names become dropdown options</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">ItemBuilderCard</span>
+							<h3>Item builder</h3>
+							<ul>
+								<li>Item name</li>
+								<li>Amount (optional, default 0)</li>
+								<li>Categories (multi-select)</li>
+								<li>Active toggle</li>
+								<li>Have child items toggle</li>
+								<li>Save to <code>itemBuilders</code></li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">Child items</span>
+							<h3>If children enabled</h3>
+							<ul>
+								<li>Parent progress bar</li>
+								<li>Add child: name + amount</li>
+								<li>Save to <code>itemBuilderChildren</code></li>
+							</ul>
+							<div class="math">
+								remaining = parentAmount − sum(children)<br />
+								used% = sum(children) / parentAmount × 100<br />
+								(if parentAmount = 0 → 0%)
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- 6 -->
+				<div class="phase track" data-step="6">
+					<h2 class="phase-title">Track spending</h2>
+					<p class="phase-desc">
+						Live progress against allocated budgets for the month.
+					</p>
+					<div class="cards">
+						<div class="card">
+							<span class="tag">WantsTrackerCard</span>
+							<h3>Wants tracker</h3>
+							<ul>
+								<li>Allocated Wants for month</li>
+								<li>Used = sum of wants entries</li>
+								<li>Progress bar / % used</li>
+								<li>List: name, amount, date</li>
+								<li>Highlight when used ≥ allocated</li>
+							</ul>
+						</div>
+						<div class="card">
+							<span class="tag">BudgetTrackerCard</span>
+							<h3>Overall budget</h3>
+							<ul>
+								<li>Total allocated</li>
+								<li>Total used</li>
+								<li>Remaining</li>
+								<li>Percent used + main progress bar</li>
+							</ul>
+							<div class="math">
+								≥ 80% → almost runs out (warning)<br />
+								≥ 100% → exceeded (danger)
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- 7 -->
+				<div class="phase extra" data-step="7">
+					<h2 class="phase-title">Overrun &amp; optional extras</h2>
+					<p class="phase-desc">
+						Unexpected expenses appear only when over budget. Others is an optional
+						side budget.
+					</p>
+					<div class="split">
+						<div class="branch danger">
+							<h4>If used &gt; allocated (any expense category)</h4>
+							<ul>
+								<li>Show UnexpectedExpensesCard</li>
+								<li>overrun = allocated − used (negative)</li>
+								<li>Store in <code>unexpectedExpenses</code></li>
+								<li>Fields: expense name, amount (e.g. −1000)</li>
+							</ul>
+						</div>
+						<div class="branch no">
+							<h4>If within budget</h4>
+							<p>Unexpected Expenses card stays hidden.</p>
+						</div>
+					</div>
+					<div class="cards" style="margin-top: 10px">
+						<div class="card">
+							<span class="tag">OthersBudgetCard</span>
+							<h3>Optional “Others” budget</h3>
+							<ul>
+								<li>Optional: Budget Allocated</li>
+								<li>Log expenses: name + amount</li>
+								<li><code>othersBudgets</code> + <code>othersExpenses</code></li>
+								<li>Own progress bar</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<h2 class="section-label">Data flow diagram</h2>
+			<p class="subtitle" style="margin-bottom: 8px">
+				How inputs become allocations and trackers (left → right).
+			</p>
+
+			<div class="diagram">
+				<svg viewBox="0 0 1000 520" xmlns="http://www.w3.org/2000/svg">
+					<defs>
+						<marker
+							id="ah"
+							markerWidth="8"
+							markerHeight="6"
+							refX="7"
+							refY="3"
+							orient="auto"
+						>
+							<path d="M0,0 L8,3 L0,6 Z" fill="#6e8cc8" />
+						</marker>
+					</defs>
+
+					<!-- Column 1: Setup -->
+					<rect
+						x="20"
+						y="20"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#152038"
+						stroke="#5b8def"
+					/>
+					<text x="100" y="48" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Onboarding / Unlock
+					</text>
+					<text x="100" y="68" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						userProfiles
+					</text>
+
+					<!-- Column 2: Rules -->
+					<rect
+						x="240"
+						y="20"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#1a1630"
+						stroke="#8b7cf0"
+					/>
+					<text x="320" y="48" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Rules 50 / 30 / 20
+					</text>
+					<text x="320" y="68" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						rules (total = 100%)
+					</text>
+
+					<!-- Column 3: Cutoffs -->
+					<rect
+						x="460"
+						y="20"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#12241c"
+						stroke="#3db88a"
+					/>
+					<text x="540" y="48" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						2 Cutoff amounts
+					</text>
+					<text x="540" y="68" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						cycleCutoffs
+					</text>
+
+					<!-- Column 4: Distribution -->
+					<rect
+						x="680"
+						y="20"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#12241c"
+						stroke="#3db88a"
+					/>
+					<text x="760" y="42" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Auto distribute
+					</text>
+					<text x="760" y="58" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						Expenses / Savings / Wants
+					</text>
+					<text x="760" y="74" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						budgetEntries
+					</text>
+
+					<!-- Arrows row 1 -->
+					<line
+						x1="180"
+						y1="55"
+						x2="236"
+						y2="55"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+					<line
+						x1="400"
+						y1="55"
+						x2="456"
+						y2="55"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+					<line
+						x1="620"
+						y1="55"
+						x2="676"
+						y2="55"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+
+					<!-- Rules also feed distribution (down then across) -->
+					<path
+						d="M320 90 L320 120 L760 120 L760 90"
+						fill="none"
+						stroke="#8b7cf0"
+						stroke-width="1.5"
+						stroke-dasharray="4 3"
+						marker-end="url(#ah)"
+					/>
+					<text x="520" y="112" text-anchor="middle" fill="#a090e0" font-size="10">
+						rules % applied to each cutoff
+					</text>
+
+					<!-- Templates / Item builder -->
+					<rect
+						x="240"
+						y="160"
+						width="160"
+						height="80"
+						rx="10"
+						fill="#1a1630"
+						stroke="#8b7cf0"
+					/>
+					<text x="320" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Template list
+					</text>
+					<text x="320" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						templateItems
+					</text>
+					<text x="320" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						dropdown options
+					</text>
+
+					<rect
+						x="460"
+						y="160"
+						width="160"
+						height="80"
+						rx="10"
+						fill="#1a1630"
+						stroke="#8b7cf0"
+					/>
+					<text x="540" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Item builder
+					</text>
+					<text x="540" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						itemBuilders
+					</text>
+					<text x="540" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						+ children (optional)
+					</text>
+
+					<line
+						x1="320"
+						y1="90"
+						x2="320"
+						y2="156"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+					<line
+						x1="400"
+						y1="200"
+						x2="456"
+						y2="200"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+
+					<!-- Trackers -->
+					<rect
+						x="240"
+						y="300"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#241c10"
+						stroke="#e0a84a"
+					/>
+					<text x="320" y="328" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Wants tracker
+					</text>
+					<text x="320" y="348" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						used vs allocated
+					</text>
+
+					<rect
+						x="460"
+						y="300"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#241c10"
+						stroke="#e0a84a"
+					/>
+					<text x="540" y="328" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Budget tracker
+					</text>
+					<text x="540" y="348" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						overall progress
+					</text>
+
+					<!-- From distribution down to trackers -->
+					<path
+						d="M760 90 L760 335 L624 335"
+						fill="none"
+						stroke="#e0a84a"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+					<path
+						d="M760 280 L320 280 L320 296"
+						fill="none"
+						stroke="#e0a84a"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+
+					<!-- Decision: overrun -->
+					<polygon
+						points="760,400 820,435 760,470 700,435"
+						fill="#2a1616"
+						stroke="#c45c5c"
+						stroke-width="2"
+					/>
+					<text x="760" y="432" text-anchor="middle" fill="#e8ecf8" font-size="11" font-weight="600">
+						Over budget?
+					</text>
+					<text x="760" y="446" text-anchor="middle" fill="#aeb8d3" font-size="9">
+						used &gt; allocated
+					</text>
+
+					<line
+						x1="540"
+						y1="370"
+						x2="540"
+						y2="435"
+						stroke="#6e8cc8"
+						stroke-width="2"
+					/>
+					<path
+						d="M540 435 L696 435"
+						fill="none"
+						stroke="#6e8cc8"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+
+					<!-- Yes branch -->
+					<rect
+						x="860"
+						y="400"
+						width="120"
+						height="70"
+						rx="10"
+						fill="#2a1616"
+						stroke="#c45c5c"
+					/>
+					<text x="920" y="428" text-anchor="middle" fill="#e8ecf8" font-size="11" font-weight="600">
+						Unexpected
+					</text>
+					<text x="920" y="446" text-anchor="middle" fill="#e8ecf8" font-size="11" font-weight="600">
+						Expenses
+					</text>
+					<text x="920" y="462" text-anchor="middle" fill="#aeb8d3" font-size="9">
+						negative amounts
+					</text>
+
+					<line
+						x1="820"
+						y1="435"
+						x2="856"
+						y2="435"
+						stroke="#c45c5c"
+						stroke-width="2"
+						marker-end="url(#ah)"
+					/>
+					<text x="838" y="426" fill="#c45c5c" font-size="10">Yes</text>
+
+					<!-- No branch label -->
+					<text x="760" y="500" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						No → card hidden
+					</text>
+
+					<!-- Others optional -->
+					<rect
+						x="20"
+						y="400"
+						width="160"
+						height="70"
+						rx="10"
+						fill="#241018"
+						stroke="#d67a9a"
+					/>
+					<text x="100" y="428" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Others (optional)
+					</text>
+					<text x="100" y="448" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						othersBudgets /
+					</text>
+					<text x="100" y="462" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						othersExpenses
+					</text>
+					<text x="100" y="390" text-anchor="middle" fill="#d67a9a" font-size="10">
+						side path (not required)
+					</text>
+				</svg>
+			</div>
+
+			<h2 class="section-label">Typical user path (happy path)</h2>
+			<div class="cards">
+				<div class="card">
+					<h3>1 → 2 → 3 → 4</h3>
+					<ul>
+						<li>Complete onboarding (or unlock)</li>
+						<li>Confirm / edit rules (50/30/20)</li>
+						<li>Enter both cutoff amounts for the month</li>
+						<li>System allocates Expenses, Savings, Wants</li>
+					</ul>
+				</div>
+				<div class="card">
+					<h3>5 → 6</h3>
+					<ul>
+						<li>Add templates and item builders as needed</li>
+						<li>Log wants / expenses against allocations</li>
+						<li>Watch Wants + overall Budget progress</li>
+					</ul>
+				</div>
+				<div class="card">
+					<h3>7 (only if needed)</h3>
+					<ul>
+						<li>Overrun → Unexpected Expenses appears</li>
+						<li>Optional Others budget for side spending</li>
+					</ul>
+				</div>
+			</div>
+
+			<div class="note">
+				<strong style="color: #dbe5ff">Source:</strong>
+				<code>BUDGET_TRACKER_IMPLEMENTATION_GUIDE.md</code>
+				· Related:
+				<code>AUTHENTICATION_GUIDE.md</code>,
+				<code>DATABASE_GUIDE.md</code>
+				· Open this file in a browser to view. No build step required.
+			</div>
+		</div>
+	</body>
+</html>
