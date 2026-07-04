@@ -62,7 +62,6 @@ src/
         CutoffInputCard.vue
         RuleDistributionCard.vue
         RulePieChartCard.vue
-        TemplateListCard.vue
         ItemBuilderCard.vue
         WantsTrackerCard.vue
         BudgetTrackerCard.vue
@@ -105,13 +104,6 @@ Create `src/pages/tracker/types/budget.ts`:
   - `monthKey` (example: `2026-06`)
   - `slot` (`1` | `2`) // fixed two cutoffs only
   - `label` (default `1st cutoff` / `2nd cutoff`, editable by user)
-  - `amount`
-  - `createdAt`
-- `TemplateItem`
-  - `id`
-  - `ruleName`
-  - `cutoff`
-  - `name`
   - `amount`
   - `createdAt`
 - `ItemBuilder`
@@ -180,7 +172,6 @@ Create `src/pages/tracker/db/budgetDb.ts`:
   - `userProfiles`
   - `rules`
   - `cycleCutoffs`
-  - `templateItems`
   - `itemBuilders`
   - `itemBuilderChildren`
   - `budgetEntries`
@@ -193,7 +184,6 @@ Recommended indexed fields:
 - `userProfiles: ++id, updatedAt`
 - `rules: ++id, name`
 - `cycleCutoffs: ++id, monthKey, slot, label, createdAt`
-- `templateItems: ++id, ruleName, cutoff, name, createdAt`
 - `itemBuilders: ++id, name, isActive, hasChildItems, createdAt`
 - `itemBuilderChildren: ++id, parentItemId, createdAt`
 - `budgetEntries: ++id, monthKey, ruleName, cutoff, createdAt`
@@ -254,7 +244,7 @@ Create `RuleDistributionCard.vue`:
 - Table fields:
   - `Name` (fixed text)
   - `Percent` (editable input)
-  - `No. of items` (computed count of entries/template items)
+  - `No. of items` (computed count of active `itemBuilders` or entries)
 - Validate total percent = 100 before save.
 - Save updated rules in `rules` table.
 
@@ -281,29 +271,7 @@ Store entries in `budgetEntries`.
 
 ---
 
-## 8) Template list (reusable dropdown source)
-
-Create `TemplateListCard.vue`:
-
-- Sections:
-  - `Expenses`
-  - `Savings`
-  - `Wants`
-- Per section and per cutoff (`15` or `30`), allow adding:
-  - `Name`
-  - `Amount`
-- On save:
-  - insert into `templateItems`.
-  - these become dropdown options later.
-
-Dropdown behavior:
-
-- When user adds a new name not in options, save it immediately.
-- Next entries can pick it from dropdown.
-
----
-
-## 9) Item builder (reusable under Expenses, Savings, Wants)
+## 8) Item builder (reusable items + dropdown source)
 
 Create `ItemBuilderCard.vue`:
 
@@ -317,6 +285,12 @@ Create `ItemBuilderCard.vue`:
   - `Active` (toggle)
   - `Have child items` (toggle)
 - Save parent item in `itemBuilders`.
+
+When adding a budget entry under a rule:
+
+- Load dropdown options from active `itemBuilders` where `categories` includes the current rule.
+- If no item exists yet, user types a new name and save it to `itemBuilders`.
+- Next entries can pick it from the dropdown.
 
 If `Have child items` is true:
 
@@ -337,7 +311,7 @@ Notes:
 
 ---
 
-## 10) Wants tracker
+## 9) Wants tracker
 
 Create `WantsTrackerCard.vue`:
 
@@ -352,7 +326,7 @@ Create `WantsTrackerCard.vue`:
 
 ---
 
-## 11) Budget tracker (overall)
+## 10) Budget tracker (overall)
 
 Create `BudgetTrackerCard.vue`:
 
@@ -368,7 +342,7 @@ Create `BudgetTrackerCard.vue`:
 
 ---
 
-## 12) Unexpected Expenses (auto-show on overrun)
+## 11) Unexpected Expenses (auto-show on overrun)
 
 Create `UnexpectedExpensesCard.vue`:
 
@@ -387,7 +361,7 @@ Fields:
 
 ---
 
-## 13) Others monthly optional budget
+## 12) Others monthly optional budget
 
 Create `OthersBudgetCard.vue`:
 
@@ -401,7 +375,7 @@ Create `OthersBudgetCard.vue`:
 
 ---
 
-## 14) Suggested implementation order (do this exact order)
+## 13) Suggested implementation order (do this exact order)
 
 1. `types/budget.ts`
 2. `constants/budgetRules.ts`
@@ -411,17 +385,16 @@ Create `OthersBudgetCard.vue`:
 6. `CutoffInputCard.vue`
 7. `RuleDistributionCard.vue`
 8. `RulePieChartCard.vue`
-9. `TemplateListCard.vue`
-10. `ItemBuilderCard.vue`
-11. `WantsTrackerCard.vue`
-12. `BudgetTrackerCard.vue`
-13. `UnexpectedExpensesCard.vue`
-14. `OthersBudgetCard.vue`
-15. connect all cards in `TrackerPage.vue`
+9. `ItemBuilderCard.vue`
+10. `WantsTrackerCard.vue`
+11. `BudgetTrackerCard.vue`
+12. `UnexpectedExpensesCard.vue`
+13. `OthersBudgetCard.vue`
+14. connect all cards in `TrackerPage.vue`
 
 ---
 
-## 15) Validation checklist before done
+## 14) Validation checklist before done
 
 - First-time app open asks for display name and profile picture.
 - Profile data is saved locally and reused on next open.
@@ -432,7 +405,7 @@ Create `OthersBudgetCard.vue`:
 - Default cutoff names are `1st cutoff` and `2nd cutoff`, and labels are editable.
 - Each cutoff amount automatically distributes to rules.
 - For each cutoff, total rule allocation must not exceed cutoff amount.
-- Template list saves and appears in dropdown options.
+- Item Builder items appear in dropdown when adding entries under a matching rule.
 - Item Builder supports:
   - item name
   - optional/default item amount
@@ -452,7 +425,7 @@ Create `OthersBudgetCard.vue`:
 
 ---
 
-## 16) Keep implementation simple (important)
+## 15) Keep implementation simple (important)
 
 - Prefer direct logic in feature files.
 - Avoid extra abstractions.

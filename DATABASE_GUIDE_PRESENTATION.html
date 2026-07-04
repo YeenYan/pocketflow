@@ -149,25 +149,16 @@
         </div>
 
         <div class="card">
-          <h3>4) templateItems</h3>
-          <ul>
-            <li><code>id</code> (PK), <code>ruleName</code>, <code>cutoff</code>, <code>name</code>, <code>amount</code></li>
-            <li>Reusable dropdown source</li>
-            <li>Auto-save new names for future use</li>
-          </ul>
-        </div>
-
-        <div class="card">
-          <h3>5) itemBuilders</h3>
+          <h3>4) itemBuilders</h3>
           <ul>
             <li><code>id</code> (PK), <code>name</code>, <code>amount</code> (optional)</li>
             <li><code>categories[]</code>, <code>isActive</code>, <code>hasChildItems</code></li>
-            <li>Used for parent builder item</li>
+            <li>Reusable items + dropdown source when adding entries</li>
           </ul>
         </div>
 
         <div class="card">
-          <h3>6) itemBuilderChildren</h3>
+          <h3>5) itemBuilderChildren</h3>
           <ul>
             <li><code>id</code> (PK), <code>parentItemId</code> (ref itemBuilders.id)</li>
             <li><code>name</code>, <code>amount</code>, <code>createdAt</code></li>
@@ -176,7 +167,7 @@
         </div>
 
         <div class="card">
-          <h3>7) budgetEntries</h3>
+          <h3>6) budgetEntries</h3>
           <ul>
             <li><code>id</code> (PK), <code>monthKey</code>, <code>ruleName</code>, <code>cutoff</code></li>
             <li><code>name</code>, <code>amount</code>, <code>createdAt</code></li>
@@ -185,7 +176,7 @@
         </div>
 
         <div class="card">
-          <h3>8) unexpectedExpenses</h3>
+          <h3>7) unexpectedExpenses</h3>
           <ul>
             <li><code>id</code> (PK), <code>monthKey</code>, <code>expenseName</code>, <code>amount</code></li>
             <li><code>amount</code> is negative when overrun exists</li>
@@ -194,7 +185,7 @@
         </div>
 
         <div class="card">
-          <h3>9) othersBudgets</h3>
+          <h3>8) othersBudgets</h3>
           <ul>
             <li><code>id</code> (PK), <code>monthKey</code>, <code>budgetAllocated</code>, <code>createdAt</code></li>
             <li>Optional monthly bucket</li>
@@ -202,7 +193,7 @@
         </div>
 
         <div class="card">
-          <h3>10) othersExpenses</h3>
+          <h3>9) othersExpenses</h3>
           <ul>
             <li><code>id</code> (PK), <code>monthKey</code>, <code>expenseName</code>, <code>amount</code></li>
             <li>Expense rows under Others budget</li>

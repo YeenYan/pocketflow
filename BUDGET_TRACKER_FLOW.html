@@ -494,23 +494,12 @@
 
 				<!-- 5 -->
 				<div class="phase money" data-step="5">
-					<h2 class="phase-title">Build reusable templates &amp; items</h2>
+					<h2 class="phase-title">Build reusable items</h2>
 					<p class="phase-desc">
-						Prepare dropdown sources and reusable items under Expenses, Savings,
-						and Wants.
+						Create reusable items under Expenses, Savings, and Wants. Active items
+						also populate dropdown options when adding budget entries.
 					</p>
 					<div class="cards">
-						<div class="card">
-							<span class="tag">TemplateListCard</span>
-							<h3>Template list</h3>
-							<ul>
-								<li>Sections: Expenses, Savings, Wants</li>
-								<li>Per section × per cutoff</li>
-								<li>Add name + amount</li>
-								<li>Save to <code>templateItems</code></li>
-								<li>New names become dropdown options</li>
-							</ul>
-						</div>
 						<div class="card">
 							<span class="tag">ItemBuilderCard</span>
 							<h3>Item builder</h3>
@@ -521,6 +510,8 @@
 								<li>Active toggle</li>
 								<li>Have child items toggle</li>
 								<li>Save to <code>itemBuilders</code></li>
+								<li>Dropdown options when adding entries under a rule</li>
+								<li>New names saved to <code>itemBuilders</code></li>
 							</ul>
 						</div>
 						<div class="card">
@@ -745,9 +736,9 @@
 						rules % applied to each cutoff
 					</text>
 
-					<!-- Templates / Item builder -->
+					<!-- Item builder -->
 					<rect
-						x="240"
+						x="350"
 						y="160"
 						width="160"
 						height="80"
@@ -755,18 +746,18 @@
 						fill="#1a1630"
 						stroke="#8b7cf0"
 					/>
-					<text x="320" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
-						Template list
+					<text x="430" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Item builder
 					</text>
-					<text x="320" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
-						templateItems
+					<text x="430" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						itemBuilders
 					</text>
-					<text x="320" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
-						dropdown options
+					<text x="430" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						dropdown + children
 					</text>
 
 					<rect
-						x="460"
+						x="570"
 						y="160"
 						width="160"
 						height="80"
@@ -774,14 +765,14 @@
 						fill="#1a1630"
 						stroke="#8b7cf0"
 					/>
-					<text x="540" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
-						Item builder
+					<text x="650" y="190" text-anchor="middle" fill="#e8ecf8" font-size="12" font-weight="600">
+						Item builder children
 					</text>
-					<text x="540" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
-						itemBuilders
+					<text x="650" y="210" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						itemBuilderChildren
 					</text>
-					<text x="540" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
-						+ children (optional)
+					<text x="650" y="226" text-anchor="middle" fill="#aeb8d3" font-size="10">
+						optional breakdown
 					</text>
 
 					<line

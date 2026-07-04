@@ -21,8 +21,7 @@ Main modules stored in DB:
 
 - User profile
 - Rules and cutoffs
-- Reusable templates
-- Item builder (+ child items)
+- Item builder (+ child items; also used as dropdown source when adding entries)
 - Budget entries and trackers
 - Unexpected expenses
 - Others optional budget
@@ -34,13 +33,12 @@ Main modules stored in DB:
 1. `userProfiles`
 2. `rules`
 3. `cycleCutoffs`
-4. `templateItems`
-5. `itemBuilders`
-6. `itemBuilderChildren`
-7. `budgetEntries`
-8. `unexpectedExpenses`
-9. `othersBudgets`
-10. `othersExpenses`
+4. `itemBuilders`
+5. `itemBuilderChildren`
+6. `budgetEntries`
+7. `unexpectedExpenses`
+8. `othersBudgets`
+9. `othersExpenses`
 
 ---
 
@@ -120,36 +118,12 @@ Rules:
 
 ---
 
-## 3.4 `templateItems`
+## 3.4 `itemBuilders`
 
 Purpose:
 
-- Reusable list source for quick dropdown selections.
-
-Fields:
-
-- `id` (number, PK, auto increment)
-- `ruleName` (string; `Expenses` | `Savings` | `Wants`)
-- `cutoff` (string; usually cutoff label like `15` or `30`)
-- `name` (string)
-- `amount` (number)
-- `createdAt` (date/time)
-
-Indexes:
-
-- `++id`
-- `ruleName`
-- `cutoff`
-- `name`
-- `createdAt`
-
----
-
-## 3.5 `itemBuilders`
-
-Purpose:
-
-- Parent builder items usable under Expenses/Savings/Wants.
+- Reusable items under Expenses/Savings/Wants.
+- Also the dropdown source when adding a budget entry under a rule (filter by `categories` + `isActive`).
 
 Fields:
 
@@ -171,7 +145,7 @@ Indexes:
 
 ---
 
-## 3.6 `itemBuilderChildren`
+## 3.5 `itemBuilderChildren`
 
 Purpose:
 
@@ -199,7 +173,7 @@ Rules:
 
 ---
 
-## 3.7 `budgetEntries`
+## 3.6 `budgetEntries`
 
 Purpose:
 
@@ -229,7 +203,7 @@ Validation:
 
 ---
 
-## 3.8 `unexpectedExpenses`
+## 3.7 `unexpectedExpenses`
 
 Purpose:
 
@@ -251,7 +225,7 @@ Indexes:
 
 ---
 
-## 3.9 `othersBudgets`
+## 3.8 `othersBudgets`
 
 Purpose:
 
@@ -271,7 +245,7 @@ Indexes:
 
 ---
 
-## 3.10 `othersExpenses`
+## 3.9 `othersExpenses`
 
 Purpose:
 
@@ -297,6 +271,10 @@ Indexes:
 
 - `itemBuilders (1) -> (many) itemBuilderChildren`
   - Link: `itemBuilderChildren.parentItemId`
+
+- `itemBuilders.categories + isActive -> budget entry dropdown options`
+  - When adding an entry under a rule, show matching active items.
+  - If no item exists yet, user types a new name and save it to `itemBuilders`.
 
 - `cycleCutoffs (monthKey + label/slot) -> budgetEntries (monthKey + cutoff)`
   - Used for per-cutoff allocation validation.
@@ -363,7 +341,6 @@ db.version(1).stores({
 	userProfiles: "++id, updatedAt",
 	rules: "++id, name",
 	cycleCutoffs: "++id, monthKey, slot, label, createdAt",
-	templateItems: "++id, ruleName, cutoff, name, createdAt",
 	itemBuilders: "++id, name, isActive, hasChildItems, createdAt",
 	itemBuilderChildren: "++id, parentItemId, createdAt",
 	budgetEntries: "++id, monthKey, ruleName, cutoff, createdAt",

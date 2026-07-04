@@ -134,164 +134,60 @@ body {
 	left: 50%;
 	bottom: max(1rem, env(safe-area-inset-bottom));
 	z-index: 50;
-	width: calc(100% - 2rem);
-	max-width: 400px;
+	width: calc(100% - 3rem);
+	max-width: 300px;
 	transform: translateX(-50%);
-	padding-top: 1.4rem;
-}
-
-.bottom-nav-fab {
-	position: absolute;
-	left: 50%;
-	top: 0;
-	z-index: 2;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 3.5rem;
-	height: 3.5rem;
-	border: none;
-	border-radius: 50%;
-	background: var(--color-accentSolid);
-	color: var(--color-onColor);
-	box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
-	transform: translateX(-50%);
-	cursor: pointer;
-	-webkit-tap-highlight-color: transparent;
-}
-
-.bottom-nav-fab:active {
-	transform: translateX(-50%) scale(0.94);
-}
-
-.bottom-nav-fab-icon {
-	width: 1.5rem;
-	height: 1.5rem;
-}
-
-.bottom-nav-fab-slot {
-	flex-shrink: 0;
-	width: 3.5rem;
-}
-
-.bottom-nav-border {
-	padding: 1px;
-	border-radius: 999px;
-	background: linear-gradient(
-		160deg,
-		rgb(255 255 255 / 0.5),
-		rgb(255 255 255 / 0.08) 45%,
-		rgb(255 255 255 / 0.28) 100%
-	);
-	box-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
 }
 
 .bottom-nav-pill {
-	position: relative;
 	display: flex;
 	justify-content: space-around;
-	align-items: stretch;
-	padding: 0.3rem;
-	background: rgb(12 12 18 / 0.55) !important;
-	border: none !important;
-	box-shadow: none !important;
-	backdrop-filter: blur(28px);
-	-webkit-backdrop-filter: blur(28px);
-}
-
-:root:not(.dark) .bottom-nav-pill {
-	background: rgb(255 255 255 / 0.5) !important;
+	align-items: center;
+	padding: 0.75rem 1rem;
 }
 
 .bottom-nav-item {
-	position: relative;
-	z-index: 1;
 	display: flex;
 	flex: 1;
 	flex-direction: column;
 	align-items: center;
+	justify-content: center;
 	gap: 0.35rem;
-	padding: 0.35rem 0.25rem;
-	border-radius: 999px;
-	font-size: 0.65rem;
-	font-weight: 500;
-	color: #fff;
+	padding: 0.25rem;
+	color: var(--color-muted);
 	text-decoration: none;
 	-webkit-tap-highlight-color: transparent;
 	transition:
-		color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-		transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+		color 0.2s ease,
+		transform 0.15s ease;
 }
 
 .bottom-nav-item:active {
 	transform: scale(0.92);
 }
 
-.bottom-nav-icon-wrap {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 2.25rem;
-	height: 2.25rem;
-	border-radius: 50%;
-	background: #fff;
-	color: #12121a;
-	transition:
-		width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		background-color 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		color 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.bottom-nav-item.active .bottom-nav-icon-wrap {
-	background: transparent;
-	color: rgb(251 182 206);
-}
-
 .bottom-nav-icon {
-	width: 1.15rem;
-	height: 1.15rem;
-	transition:
-		width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-		height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.bottom-nav-item.active .bottom-nav-icon {
-	width: 1.8rem;
-	height: 1.8rem;
-}
-
-.bottom-nav-label {
-	color: #fff;
-	line-height: 1;
-	transition: color 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+	width: 1.35rem;
+	height: 1.35rem;
 }
 
 .bottom-nav-item.active {
-	color: rgb(251 182 206);
+	color: var(--color-accentSolid);
 }
 
-.bottom-nav-item.active .bottom-nav-label {
-	color: rgb(251 182 206);
+.bottom-nav-dot {
+	width: 0.25rem;
+	height: 0.25rem;
+	border-radius: 50%;
+	background: currentColor;
 }
 
 :root:not(.dark) .bottom-nav-item {
-	color: var(--color-textPrimary);
-}
-
-:root:not(.dark) .bottom-nav-label {
-	color: var(--color-textPrimary);
+	color: var(--color-muted);
 }
 
 :root:not(.dark) .bottom-nav-item.active {
-	color: rgb(190 80 120);
-}
-
-:root:not(.dark) .bottom-nav-item.active .bottom-nav-icon-wrap,
-:root:not(.dark) .bottom-nav-item.active .bottom-nav-label {
-	color: rgb(190 80 120);
+	color: var(--color-accentSolid);
 }
 
 @keyframes fade-in-up {
@@ -339,13 +235,8 @@ html.theme-transition * {
 	}
 
 	.bottom-nav-item,
-	.bottom-nav-icon-wrap,
-	.bottom-nav-label {
+	.bottom-nav-icon {
 		transition: none;
-	}
-
-	.bottom-nav-fab:active {
-		transform: translateX(-50%);
 	}
 
 	html.theme-transition,

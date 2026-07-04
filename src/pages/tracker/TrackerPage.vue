@@ -2,6 +2,7 @@
 	import { computed, onMounted, ref } from "vue";
 	import {
 		PlusIcon,
+		PencilIcon,
 		ChevronLeftIcon,
 		ChevronRightIcon,
 	} from "@heroicons/vue/24/outline";
@@ -11,6 +12,8 @@
 	import AmountField from "../../components/inputs/AmountField.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
 	import {
+		buildCutoffAllocations,
+		createId,
 		db,
 		FIXED_RULES,
 		type CycleCutoff,
@@ -18,15 +21,81 @@
 		type RuleName,
 	} from "../../db/budgetDb";
 
-	ChartJS.register(ArcElement, Tooltip);
+	// =============================================================================
+	// CHART — active arc shadow plugin
+	// =============================================================================
+	const activeArcShadowPlugin = {
+		id: "activeArcShadow",
+		beforeDatasetDraw(
+			chart: { data: { datasets: { activeIndex?: number }[] } },
+			args: {
+				index: number;
+				meta: { data: { hidden?: boolean }[] };
+			},
+		) {
+			const activeIndex = chart.data.datasets[args.index]?.activeIndex;
+			if (activeIndex == null || activeIndex < 0) return;
+			const arc = args.meta.data[activeIndex];
+			if (arc) arc.hidden = true;
+		},
+		afterDatasetDraw(
+			chart: {
+				ctx: CanvasRenderingContext2D;
+				data: { datasets: { activeIndex?: number }[] };
+			},
+			args: {
+				index: number;
+				meta: {
+					data: {
+						hidden?: boolean;
+						innerRadius: number;
+						outerRadius: number;
+						draw: (ctx: CanvasRenderingContext2D) => void;
+					}[];
+				};
+			},
+		) {
+			const activeIndex = chart.data.datasets[args.index]?.activeIndex;
+			if (activeIndex == null || activeIndex < 0) return;
+			const arc = args.meta.data[activeIndex];
+			if (!arc) return;
+			arc.hidden = false;
+			const prevInner = arc.innerRadius;
+			const prevOuter = arc.outerRadius;
+			arc.innerRadius = prevInner - 4;
+			const ctx = chart.ctx;
+			ctx.save();
+			ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+			ctx.shadowBlur = 12;
+			ctx.shadowOffsetX = 0;
+			ctx.shadowOffsetY = 3;
+			arc.draw(ctx);
+			ctx.restore();
+			arc.innerRadius = prevInner;
+			arc.outerRadius = prevOuter;
+		},
+	};
 
+	ChartJS.register(ArcElement, Tooltip, activeArcShadowPlugin);
+
+	// =============================================================================
+	// CONSTANTS
+	// =============================================================================
 	const RULE_ORDER: RuleName[] = ["Expenses", "Savings", "Wants"];
 	const RULE_COLORS: Record<RuleName, string> = {
 		Expenses: "#d96b6b",
 		Savings: "#99f6e4",
 		Wants: "#c4b5fd",
 	};
+	const RULE_COLORS_MUTED: Record<RuleName, string> = {
+		Expenses: "#6e4a4a",
+		Savings: "#3d5c57",
+		Wants: "#4f4a66",
+	};
 
+	// =============================================================================
+	// STATE
+	// =============================================================================
 	const activeTab = ref<RuleName>("Expenses");
 	const tabs = RULE_ORDER;
 
@@ -49,17 +118,9 @@
 	const formError = ref("");
 	const saving = ref(false);
 
-	const orderedRules = computed(() =>
-		RULE_ORDER.map(
-			(name) =>
-				rules.value.find((r) => r.name === name) ?? {
-					name,
-					percent: 0,
-					itemCount: 0,
-				},
-		),
-	);
-
+	// =============================================================================
+	// PERIOD NAV — computed
+	// =============================================================================
 	const monthKeys = computed(() => {
 		const keys = [
 			...new Set(cutoffs.value.map((c) => c.monthKey).filter(Boolean)),
@@ -87,29 +148,104 @@
 		return index >= 0 && index < monthKeys.value.length - 1;
 	});
 
-	const totalAmount = computed(() =>
-		viewCutoffs.value.reduce((sum, c) => sum + (c.amount || 0), 0),
-	);
-
-	const displayAmount = computed(() =>
-		`₱${totalAmount.value.toLocaleString("en-PH")}`,
-	);
-
-	const displayDate = computed(() =>
-		viewCutoffs.value.length > 0 ? viewMonthKey.value : "--",
-	);
-
-	const displayLabels = computed(() => {
-		const labels = viewCutoffs.value.map((c) => c.label).filter((l) => l.trim());
-		return labels.length > 0 ? labels.join(", ") : "--";
+	// =============================================================================
+	// BUDGET SECTION — computed
+	// =============================================================================
+	const activeCutoff = computed(() => {
+		const list = viewCutoffs.value;
+		if (list.length === 0) return null;
+		return list.reduce((latest, c) =>
+			!latest || c.createdAt > latest.createdAt ? c : latest,
+		);
 	});
 
+	const totalAmount = computed(() => activeCutoff.value?.amount || 0);
+
+	const budgetTitle = computed(() =>
+		activeCutoff.value ? `${activeCutoff.value.label} - Budget` : "Budget",
+	);
+
+	const displayCutoffDate = computed(() => {
+		const date = activeCutoff.value?.date;
+		if (!date) return "--";
+		const d = new Date(date + "T00:00:00");
+		return d.toLocaleDateString("en-US", {
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+		});
+	});
+
+	const displayAmount = computed(
+		() => `₱${totalAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const spentAmount = computed(() => 0);
+
+	const displaySpent = computed(
+		() => `₱${spentAmount.value.toLocaleString("en-PH")} spent already`,
+	);
+
+	const progressPercent = computed(() => {
+		if (totalAmount.value <= 0) return 0;
+		return Math.min(100, (spentAmount.value / totalAmount.value) * 100);
+	});
+
+	// =============================================================================
+	// RULE SECTION — computed (chart + progress)
+	// =============================================================================
+	const activeRulePercent = computed(
+		() => activeCutoff.value?.allocations?.[activeTab.value]?.percent ?? 0,
+	);
+
+	const activeRuleAmount = computed(
+		() => activeCutoff.value?.allocations?.[activeTab.value]?.amount ?? 0,
+	);
+
+	const displayActiveAmount = computed(
+		() => `₱${activeRuleAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const ruleSpentAmount = computed(() => 0);
+
+	const ruleLeftAmount = computed(() =>
+		Math.max(0, activeRuleAmount.value - ruleSpentAmount.value),
+	);
+
+	const ruleProgressPercent = computed(() => {
+		if (activeRuleAmount.value <= 0) return 0;
+		return Math.min(
+			100,
+			Math.round((ruleSpentAmount.value / activeRuleAmount.value) * 100),
+		);
+	});
+
+	const displayRuleSpent = computed(
+		() => `₱${ruleSpentAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const displayRuleLeft = computed(
+		() => `₱${ruleLeftAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	// =============================================================================
+	// CHART — data & options
+	// =============================================================================
 	const chartData = computed(() => ({
-		labels: orderedRules.value.map((r) => r.name),
+		labels: RULE_ORDER,
 		datasets: [
 			{
-				data: orderedRules.value.map((r) => r.percent),
-				backgroundColor: orderedRules.value.map((r) => RULE_COLORS[r.name]),
+				data: RULE_ORDER.map(
+					(name) => activeCutoff.value?.allocations?.[name]?.percent ?? 0,
+				),
+				backgroundColor: RULE_ORDER.map((name) =>
+					name === activeTab.value
+						? RULE_COLORS[name]
+						: RULE_COLORS_MUTED[name],
+				),
+				offset: RULE_ORDER.map((name) => (name === activeTab.value ? 5 : 0)),
+				activeIndex: RULE_ORDER.indexOf(activeTab.value),
+				clip: false as const,
 				borderWidth: 0,
 				spacing: 4,
 				borderRadius: 8,
@@ -120,10 +256,14 @@
 	const chartOptions = {
 		responsive: true,
 		maintainAspectRatio: true,
-		cutout: "72%",
+		cutout: "82%",
+		layout: { padding: 14 },
 		plugins: { legend: { display: false }, tooltip: { enabled: true } },
 	};
 
+	// =============================================================================
+	// PERIOD NAV — actions
+	// =============================================================================
 	function todayDate() {
 		const now = new Date();
 		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -146,6 +286,9 @@
 		}
 	}
 
+	// =============================================================================
+	// ADD CUTOFF MODAL — actions
+	// =============================================================================
 	function openModal() {
 		formAmount.value = "";
 		formName.value = "";
@@ -191,10 +334,13 @@
 
 		saving.value = true;
 		await db.cycleCutoffs.add({
+			id: createId(),
 			monthKey,
 			slot,
 			label: name,
 			amount,
+			date,
+			allocations: buildCutoffAllocations(amount, rules.value),
 			createdAt: new Date().toISOString(),
 		});
 		await loadCutoffs();
@@ -203,6 +349,9 @@
 		closeModal();
 	}
 
+	// =============================================================================
+	// INIT
+	// =============================================================================
 	onMounted(async () => {
 		let existingRules = await db.rules.toArray();
 		if (existingRules.length === 0) {
@@ -211,12 +360,23 @@
 		}
 		rules.value = existingRules;
 		await loadCutoffs();
+		for (const cutoff of cutoffs.value) {
+			if (cutoff.allocations) continue;
+			const allocations = buildCutoffAllocations(cutoff.amount, rules.value);
+			await db.cycleCutoffs.update(cutoff.id, { allocations });
+			cutoff.allocations = allocations;
+		}
 	});
 </script>
 
 <template>
-	<div class="page-shell">
-		<div class="period-nav">
+	<div
+		class="mx-auto flex w-full max-w-[480px] flex-1 min-h-0 flex-col items-stretch pt-0"
+	>
+		<!-- ================================================================== -->
+		<!-- PERIOD NAV                                                        -->
+		<!-- ================================================================== -->
+		<div class="mb-3 flex items-center justify-between">
 			<GlassContainer
 				as="button"
 				type="button"
@@ -230,7 +390,9 @@
 			>
 				<ChevronLeftIcon class="h-5 w-5" />
 			</GlassContainer>
-			<span class="period-label">{{ periodLabel }}</span>
+			<span class="flex-1 text-center text-base font-semibold text-textPrimary">
+				{{ periodLabel }}
+			</span>
 			<GlassContainer
 				as="button"
 				type="button"
@@ -246,30 +408,48 @@
 			</GlassContainer>
 		</div>
 
-		<div class="top-row">
+		<!-- ================================================================== -->
+		<!-- BUDGET SECTION                                                      -->
+		<!-- ================================================================== -->
+		<GlassContainer class="relative mt-[1rem]">
 			<GlassContainer
 				as="button"
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="plus-btn"
-				aria-label="Add"
+				class="plus-btn absolute right-[.6rem] top-[.6rem]"
+				:aria-label="activeCutoff ? 'Edit cutoff' : 'Add cutoff'"
 				@click="openModal"
 			>
-				<PlusIcon class="h-5 w-5" />
+				<PencilIcon v-if="activeCutoff" class="h-5 w-5" />
+				<PlusIcon v-else class="h-5 w-5" />
 			</GlassContainer>
-		</div>
-
-		<div class="chart-wrap">
-			<Doughnut :data="chartData" :options="chartOptions" />
-			<div class="chart-center">
-				<p class="amount">{{ displayAmount }}</p>
-				<p class="label">{{ displayDate }}</p>
-				<p class="label">{{ displayLabels }}</p>
+			<p class="m-0 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary">
+				{{ budgetTitle }}
+			</p>
+			<p class="mb-0 text-xs text-textSecondary">
+				Cutoff Date: {{ displayCutoffDate }}
+			</p>
+			<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
+				{{ displayAmount }}
+			</p>
+			<p class="mt-[0.35rem] mb-[.3rem] text-[0.85rem] text-textSecondary">
+				{{ displaySpent }}
+			</p>
+			<div class="progress-track">
+				<div class="progress-fill" :style="{ width: progressPercent + '%' }" />
 			</div>
-		</div>
+		</GlassContainer>
 
-		<div class="tabs">
+		<!-- ================================================================== -->
+		<!-- DIVIDER (budget → tabs)                                             -->
+		<!-- ================================================================== -->
+		<div class="my-[1.5rem] h-px bg-inputBorder" />
+
+		<!-- ================================================================== -->
+		<!-- TABS                                                                -->
+		<!-- ================================================================== -->
+		<div class="mb-4 flex w-full gap-2">
 			<button
 				v-for="tab in tabs"
 				:key="tab"
@@ -282,10 +462,76 @@
 			</button>
 		</div>
 
+		<!-- ================================================================== -->
+		<!-- RULE SECTION (chart + progress)                                     -->
+		<!-- ================================================================== -->
+		<GlassContainer class="relative mb-4">
+			<GlassContainer
+				as="button"
+				type="button"
+				rounded="full"
+				:padding="false"
+				class="plus-btn absolute right-[.6rem] top-[.6rem]"
+				aria-label="Add"
+			>
+				<PlusIcon class="h-5 w-5" />
+			</GlassContainer>
+			<p
+				class="m-0 mb-4 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary"
+			>
+				{{ activeTab }}
+			</p>
+
+			<div class="chart-wrap">
+				<Doughnut
+					:key="`${activeCutoff?.id ?? 'none'}-${activeTab}`"
+					:data="chartData"
+					:options="chartOptions"
+				/>
+				<div class="chart-center">
+					<p class="m-0 text-[0.85rem] font-semibold text-textPrimary">
+						{{ activeRulePercent }}%
+					</p>
+					<p class="mt-[0.15rem] mb-0 text-[0.85rem] text-textSecondary">
+						{{ activeTab }}
+					</p>
+					<p class="mt-[0.15rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
+						{{ displayActiveAmount }}
+					</p>
+				</div>
+			</div>
+
+			<div class="rule-progress">
+				<p class="rule-progress-pct">%{{ ruleProgressPercent }}</p>
+				<div class="rule-progress-track">
+					<div
+						class="rule-progress-fill"
+						:style="{
+							width: ruleProgressPercent + '%',
+							background: RULE_COLORS[activeTab],
+						}"
+					/>
+				</div>
+				<div class="rule-progress-meta">
+					<span class="rule-progress-spent">-{{ displayRuleSpent }} spent</span>
+					<span class="rule-progress-left">{{ displayRuleLeft }} left</span>
+				</div>
+			</div>
+		</GlassContainer>
+
+		<!-- ================================================================== -->
+		<!-- ADD CUTOFF MODAL                                                    -->
+		<!-- ================================================================== -->
 		<Teleport to="body">
-			<div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-				<GlassContainer class="modal">
-					<h2 class="modal-title">Add Cutoff</h2>
+			<div
+				v-if="showModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Add Cutoff
+					</h2>
 
 					<AmountField
 						v-model="formAmount"
@@ -298,14 +544,16 @@
 						:options="cutoffOptions"
 						placeholder="Select cutoff"
 					/>
-					<label class="field">
-						<span class="field-label">Date</span>
+					<label class="flex w-full min-w-0 flex-col gap-2">
+						<span class="text-base text-textPrimary">Date</span>
 						<input v-model="formDate" type="date" class="field-input" />
 					</label>
 
-					<p v-if="formError" class="error">{{ formError }}</p>
+					<p v-if="formError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ formError }}
+					</p>
 
-					<div class="modal-actions">
+					<div class="flex gap-3">
 						<button type="button" class="btn" @click="closeModal">Cancel</button>
 						<button
 							type="button"
@@ -323,25 +571,9 @@
 </template>
 
 <style scoped>
-	.page-shell {
-		display: flex;
-		flex: 1;
-		min-height: 0;
-		flex-direction: column;
-		align-items: stretch;
-		padding-top: 0;
-		max-width: 480px;
-		width: 100%;
-		margin: 0 auto;
-	}
-
-	.period-nav {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.75rem;
-	}
-
+	/* ========================================================================= */
+	/* PERIOD NAV                                                                 */
+	/* ========================================================================= */
 	.period-btn {
 		padding: 0.5rem;
 		color: var(--color-textPrimary);
@@ -354,31 +586,59 @@
 		pointer-events: none;
 	}
 
-	.period-label {
-		flex: 1;
-		text-align: center;
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.top-row {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		margin-bottom: 1rem;
-	}
-
+	/* ========================================================================= */
+	/* BUDGET SECTION                                                             */
+	/* ========================================================================= */
 	.plus-btn {
-		padding: 0.5rem;
+		padding: 0.7rem;
 		color: var(--color-onColor);
 		background: var(--color-accentSolid);
+		flex-shrink: 0;
 	}
 
+	.progress-track {
+		height: 0.5rem;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		height: 100%;
+		border-radius: 9999px;
+		background: var(--color-accentSolid);
+		transition: width 0.2s;
+	}
+
+	/* ========================================================================= */
+	/* TABS                                                                       */
+	/* ========================================================================= */
+	.tab {
+		flex: 1;
+		padding: 0.5rem;
+		border: 1px solid var(--color-border);
+		border-radius: 9999px;
+		background: none;
+		font-size: 0.95rem;
+		font-family: inherit;
+		color: var(--color-textSecondary);
+		text-align: center;
+		cursor: pointer;
+	}
+
+	.tab.active {
+		border-color: transparent;
+		background: var(--color-textPrimary);
+		color: var(--color-bg);
+	}
+
+	/* ========================================================================= */
+	/* RULE SECTION — chart                                                       */
+	/* ========================================================================= */
 	.chart-wrap {
 		position: relative;
-		width: min(220px, 70vw);
-		margin: 0 auto 1.5rem;
+		width: min(170px, 50vw);
+		margin: 0 auto 1.25rem;
 	}
 
 	.chart-center {
@@ -391,83 +651,57 @@
 		pointer-events: none;
 	}
 
-	.amount {
-		margin: 0;
-		font-size: 1.75rem;
-		font-weight: 700;
+	/* ========================================================================= */
+	/* RULE SECTION — progress bar                                                */
+	/* ========================================================================= */
+	.rule-progress-pct {
+		margin: 0 0 0.35rem;
+		font-size: 0.85rem;
+		font-weight: 600;
 		color: var(--color-textPrimary);
+		text-align: right;
 	}
 
-	.label {
-		margin: 0.15rem 0 0;
+	.rule-progress-track {
+		height: 0.5rem;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
+		overflow: hidden;
+	}
+
+	.rule-progress-fill {
+		height: 100%;
+		border-radius: 9999px;
+		transition: width 0.2s;
+	}
+
+	.rule-progress-meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+	}
+
+	.rule-progress-spent {
 		font-size: 0.85rem;
 		color: var(--color-textSecondary);
 	}
 
-	.tabs {
-		display: flex;
-		justify-content: center;
-		gap: 0.5rem;
-	}
-
-	.tab {
-		padding: 0.5rem 1rem;
-		border: 1px solid var(--color-border);
-		border-radius: 9999px;
-		background: none;
-		font-size: 0.95rem;
-		font-family: inherit;
-		color: var(--color-textSecondary);
-		cursor: pointer;
-	}
-
-	.tab.active {
-		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
-	}
-
-	.modal-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 50;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 1rem;
-		background: var(--color-overlay);
-	}
-
-	.modal {
-		width: 100%;
-		max-width: 400px;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.modal-title {
-		margin: 0;
-		font-size: 1.125rem;
+	.rule-progress-left {
+		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
-		text-align: center;
 	}
 
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		width: 100%;
-	}
-
-	.field-label {
-		font-size: 1rem;
-		color: var(--color-textPrimary);
-	}
-
+	/* ========================================================================= */
+	/* ADD CUTOFF MODAL                                                           */
+	/* ========================================================================= */
 	.field-input {
 		width: 100%;
+		min-width: 0;
+		max-width: 100%;
+		box-sizing: border-box;
 		padding: 0.875rem 1.25rem;
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
@@ -480,11 +714,6 @@
 
 	.field-input:focus {
 		border-color: var(--color-textSecondary);
-	}
-
-	.modal-actions {
-		display: flex;
-		gap: 0.75rem;
 	}
 
 	.btn {
@@ -508,12 +737,5 @@
 	.btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
-	}
-
-	.error {
-		margin: 0;
-		color: #f87171;
-		font-size: 0.875rem;
-		text-align: center;
 	}
 </style>
