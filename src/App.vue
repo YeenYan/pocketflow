@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { SunIcon, MoonIcon, BellIcon } from '@heroicons/vue/24/outline'
+import { SunIcon, MoonIcon, BellIcon, ChatBubbleLeftRightIcon } from '@heroicons/vue/24/outline'
 import GlassContainer from './components/containers/GlassContainer.vue'
 import BottomNav from './components/BottomNav.vue'
 import { useTheme } from './composables/useTheme'
@@ -59,7 +59,7 @@ onUnmounted(() => {
 	document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
-const tabPaths = ['/dashboard', '/tracker', '/me']
+const tabPaths = ['/dashboard', '/tracker', '/reports', '/me']
 const hideAllChrome = computed(() =>
 	['/onboarding', '/lock'].includes(route.path),
 )
@@ -100,6 +100,18 @@ async function testNotification() {
 			class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
 		>
 			<GlassContainer
+				v-if="showNav"
+				as="button"
+				type="button"
+				rounded="full"
+				:padding="false"
+				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				aria-label="Open financial assistant"
+				@click="router.push('/chat')"
+			>
+				<ChatBubbleLeftRightIcon class="h-5 w-5" />
+			</GlassContainer>
+			<GlassContainer
 				v-if="!hideAllChrome"
 				as="button"
 				type="button"
@@ -135,17 +147,5 @@ async function testNotification() {
 			</router-view>
 		</main>
 		<BottomNav v-if="showNav" />
-		<router-link
-			v-if="showNav"
-			to="/chat"
-			class="chat-widget glass"
-			aria-label="Open financial assistant"
-		>
-			<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
-				<path
-					d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"
-				/>
-			</svg>
-		</router-link>
 	</div>
 </template>

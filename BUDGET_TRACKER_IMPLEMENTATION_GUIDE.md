@@ -3,9 +3,11 @@
 This guide is a **step-by-step build plan** for your budgeting features with minimal complexity.
 
 **Data strategy:**
+
 - **Dexie + IndexedDB** = all app data stored locally on device/browser
 
 Related guides:
+
 - `DATABASE_GUIDE.md` — local table design
 - `AUTHENTICATION_GUIDE.md` — onboarding wizard, PIN, and Face ID app lock
 

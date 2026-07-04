@@ -1,46 +1,66 @@
 <script setup lang="ts">
-	import { computed } from "vue";
-	import { useRoute } from "vue-router";
+	import { useRoute, useRouter } from "vue-router";
 	import {
 		RectangleGroupIcon,
 		BanknotesIcon,
+		ChartBarIcon,
 		UserIcon,
+		PlusIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "./containers/GlassContainer.vue";
 
 	const route = useRoute();
+	const router = useRouter();
 
-	const items = [
+	const leftItems = [
 		{ path: "/dashboard", label: "Dashboard", icon: RectangleGroupIcon },
 		{ path: "/tracker", label: "Tracker", icon: BanknotesIcon },
+	];
+
+	const rightItems = [
+		{ path: "/reports", label: "Reports", icon: ChartBarIcon },
 		{ path: "/me", label: "Me", icon: UserIcon },
 	];
 
-	const activeIndex = computed(() => {
-		const idx = items.findIndex((item) =>
-			item.path === "/me"
-				? route.path.startsWith("/me")
-				: route.path === item.path,
-		);
-		return idx >= 0 ? idx : 0;
-	});
-
-	const indicatorStyle = computed(() => ({
-		transform: `translateX(${activeIndex.value * 100}%)`,
-	}));
+	function isActive(path: string) {
+		if (path === "/me") return route.path.startsWith("/me");
+		return route.path === path;
+	}
 </script>
 
 <template>
 	<nav class="bottom-nav">
+		<button
+			type="button"
+			class="bottom-nav-fab"
+			aria-label="Add"
+			@click="router.push('/tracker')"
+		>
+			<PlusIcon class="bottom-nav-fab-icon" />
+		</button>
 		<div class="bottom-nav-border">
 			<GlassContainer rounded="full" :padding="false" class="bottom-nav-pill">
-				<div class="bottom-nav-indicator" :style="indicatorStyle" />
 				<router-link
-					v-for="item in items"
+					v-for="item in leftItems"
 					:key="item.path"
 					:to="item.path"
 					class="bottom-nav-item"
-					:class="{ active: route.path === item.path }"
+					:class="{ active: isActive(item.path) }"
+				>
+					<span class="bottom-nav-icon-wrap">
+						<component :is="item.icon" class="bottom-nav-icon" />
+					</span>
+					<span class="bottom-nav-label">{{ item.label }}</span>
+				</router-link>
+
+				<div class="bottom-nav-fab-slot" aria-hidden="true" />
+
+				<router-link
+					v-for="item in rightItems"
+					:key="item.path"
+					:to="item.path"
+					class="bottom-nav-item"
+					:class="{ active: isActive(item.path) }"
 				>
 					<span class="bottom-nav-icon-wrap">
 						<component :is="item.icon" class="bottom-nav-icon" />

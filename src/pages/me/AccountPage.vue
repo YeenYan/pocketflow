@@ -207,11 +207,7 @@
 		</GlassContainer>
 
 		<Teleport to="body">
-			<div
-				v-if="activeModal"
-				class="modal-overlay"
-				@click.self="closeModal"
-			>
+			<div v-if="activeModal" class="modal-overlay" @click.self="closeModal">
 				<GlassContainer class="modal">
 					<h2 class="modal-title">
 						{{

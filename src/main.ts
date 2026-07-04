@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
 import DashboardPage from './pages/dashboard/DashboardPage.vue'
 import TrackerPage from './pages/tracker/TrackerPage.vue'
+import ReportsPage from './pages/reports/ReportsPage.vue'
 import MePage from './pages/me/MePage.vue'
 import AccountPage from './pages/me/AccountPage.vue'
 import ChatPage from './pages/chat/ChatPage.vue'
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: DashboardPage },
     { path: '/tracker', component: TrackerPage },
+    { path: '/reports', component: ReportsPage },
     { path: '/me', component: MePage },
     { path: '/me/account', component: AccountPage },
     { path: '/chat', component: ChatPage },
