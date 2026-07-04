@@ -41,18 +41,29 @@ export interface CycleCutoff {
 }
 
 export interface ItemBuilder {
-	id?: number;
+	id: string;
 	name: string;
-	amount?: number;
 	categories: string[];
 	isActive: boolean;
 	hasChildItems: boolean;
+	icon?: string;
+	color?: string;
 	createdAt: string;
 }
 
 export interface ItemBuilderChild {
 	id?: number;
-	parentItemId: number;
+	parentItemId: string;
+	name: string;
+	amount: number;
+	createdAt: string;
+}
+
+export interface BudgetEntry {
+	id: string;
+	cutoffId: string;
+	monthKey: string;
+	ruleName: RuleName;
 	name: string;
 	amount: number;
 	createdAt: string;
@@ -102,12 +113,17 @@ type LegacyCutoffRuleAllocation = {
 
 let legacyCutoffsForMigration: LegacyCycleCutoff[] = [];
 
+type LegacyItemBuilder = Omit<ItemBuilder, "id"> & { id?: number };
+
+let legacyItemBuildersForMigration: LegacyItemBuilder[] = [];
+
 class BudgetDatabase extends Dexie {
 	userProfiles!: Table<UserProfile>;
 	rules!: Table<Rule>;
 	cycleCutoffs!: Table<CycleCutoff>;
 	itemBuilders!: Table<ItemBuilder>;
 	itemBuilderChildren!: Table<ItemBuilderChild>;
+	budgetEntries!: Table<BudgetEntry>;
 
 	constructor() {
 		super("pocketflow-budget-db");
@@ -184,6 +200,43 @@ class BudgetDatabase extends Dexie {
 			itemBuilders: "++id, name, isActive, hasChildItems, createdAt",
 			itemBuilderChildren: "++id, parentItemId, createdAt",
 		});
+		this.version(7).stores({
+			budgetEntries: "id, cutoffId, monthKey, ruleName, createdAt",
+		});
+		this.version(8)
+			.stores({
+				itemBuilders: null,
+			})
+			.upgrade(async (tx) => {
+				legacyItemBuildersForMigration = await tx.table("itemBuilders").toArray();
+			});
+		this.version(9)
+			.stores({
+				itemBuilders: "id, name, isActive, hasChildItems, createdAt",
+				itemBuilderChildren: "++id, parentItemId, createdAt",
+			})
+			.upgrade(async (tx) => {
+				const idMap = new Map<number, string>();
+				for (const row of legacyItemBuildersForMigration) {
+					const id = createId();
+					if (typeof row.id === "number") idMap.set(row.id, id);
+					const { id: _id, ...rest } = row;
+					await tx.table("itemBuilders").add({ ...rest, id });
+				}
+				const children = await tx.table("itemBuilderChildren").toArray();
+				for (const child of children) {
+					const parentItemId =
+						typeof child.parentItemId === "number"
+							? idMap.get(child.parentItemId)
+							: child.parentItemId;
+					if (parentItemId && parentItemId !== child.parentItemId) {
+						await tx
+							.table("itemBuilderChildren")
+							.update(child.id, { parentItemId });
+					}
+				}
+				legacyItemBuildersForMigration = [];
+			});
 	}
 }
 

@@ -5,21 +5,159 @@
 		PencilIcon,
 		ChevronLeftIcon,
 		ChevronRightIcon,
+		XMarkIcon,
 	} from "@heroicons/vue/24/outline";
+	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import { Doughnut } from "vue-chartjs";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import AmountField from "../../components/inputs/AmountField.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
+	import InputField from "../../components/inputs/InputField.vue";
+	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
+	import CircleCheckbox from "../../components/inputs/CircleCheckbox.vue";
 	import {
 		buildCutoffAllocations,
 		createId,
 		db,
 		FIXED_RULES,
 		type CycleCutoff,
+		type ItemBuilder,
+		type BudgetEntry,
 		type Rule,
 		type RuleName,
 	} from "../../db/budgetDb";
+
+	const ICON_OPTIONS = Object.keys(OutlineIcons).filter((key) =>
+		key.endsWith("Icon"),
+	);
+
+	const ITEM_COLOR_OPTIONS = [
+		{
+			value: "slate-500",
+			swatch: "bg-slate-500",
+			wrap:
+				"bg-slate-500/15 dark:bg-slate-500/25 text-slate-700 dark:text-slate-200",
+		},
+		{
+			value: "gray-500",
+			swatch: "bg-gray-500",
+			wrap: "bg-gray-500/15 dark:bg-gray-500/25 text-gray-700 dark:text-gray-200",
+		},
+		{
+			value: "zinc-500",
+			swatch: "bg-zinc-500",
+			wrap: "bg-zinc-500/15 dark:bg-zinc-500/25 text-zinc-700 dark:text-zinc-200",
+		},
+		{
+			value: "neutral-500",
+			swatch: "bg-neutral-500",
+			wrap:
+				"bg-neutral-500/15 dark:bg-neutral-500/25 text-neutral-700 dark:text-neutral-200",
+		},
+		{
+			value: "stone-500",
+			swatch: "bg-stone-500",
+			wrap:
+				"bg-stone-500/15 dark:bg-stone-500/25 text-stone-700 dark:text-stone-200",
+		},
+		{
+			value: "red-500",
+			swatch: "bg-red-500",
+			wrap: "bg-red-500/15 dark:bg-red-500/25 text-red-700 dark:text-red-300",
+		},
+		{
+			value: "orange-500",
+			swatch: "bg-orange-500",
+			wrap:
+				"bg-orange-500/15 dark:bg-orange-500/25 text-orange-700 dark:text-orange-300",
+		},
+		{
+			value: "amber-500",
+			swatch: "bg-amber-500",
+			wrap:
+				"bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300",
+		},
+		{
+			value: "yellow-500",
+			swatch: "bg-yellow-500",
+			wrap:
+				"bg-yellow-500/15 dark:bg-yellow-500/25 text-yellow-700 dark:text-yellow-300",
+		},
+		{
+			value: "lime-500",
+			swatch: "bg-lime-500",
+			wrap: "bg-lime-500/15 dark:bg-lime-500/25 text-lime-700 dark:text-lime-300",
+		},
+		{
+			value: "green-500",
+			swatch: "bg-green-500",
+			wrap:
+				"bg-green-500/15 dark:bg-green-500/25 text-green-700 dark:text-green-300",
+		},
+		{
+			value: "emerald-500",
+			swatch: "bg-emerald-500",
+			wrap:
+				"bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300",
+		},
+		{
+			value: "teal-500",
+			swatch: "bg-teal-500",
+			wrap: "bg-teal-500/15 dark:bg-teal-500/25 text-teal-700 dark:text-teal-300",
+		},
+		{
+			value: "cyan-500",
+			swatch: "bg-cyan-500",
+			wrap: "bg-cyan-500/15 dark:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300",
+		},
+		{
+			value: "sky-500",
+			swatch: "bg-sky-500",
+			wrap: "bg-sky-500/15 dark:bg-sky-500/25 text-sky-700 dark:text-sky-300",
+		},
+		{
+			value: "blue-500",
+			swatch: "bg-blue-500",
+			wrap: "bg-blue-500/15 dark:bg-blue-500/25 text-blue-700 dark:text-blue-300",
+		},
+		{
+			value: "indigo-500",
+			swatch: "bg-indigo-500",
+			wrap:
+				"bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300",
+		},
+		{
+			value: "violet-500",
+			swatch: "bg-violet-500",
+			wrap:
+				"bg-violet-500/15 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300",
+		},
+		{
+			value: "purple-500",
+			swatch: "bg-purple-500",
+			wrap:
+				"bg-purple-500/15 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300",
+		},
+		{
+			value: "fuchsia-500",
+			swatch: "bg-fuchsia-500",
+			wrap:
+				"bg-fuchsia-500/15 dark:bg-fuchsia-500/25 text-fuchsia-700 dark:text-fuchsia-300",
+		},
+		{
+			value: "pink-500",
+			swatch: "bg-pink-500",
+			wrap: "bg-pink-500/15 dark:bg-pink-500/25 text-pink-700 dark:text-pink-300",
+		},
+		{
+			value: "rose-500",
+			swatch: "bg-rose-500",
+			wrap: "bg-rose-500/15 dark:bg-rose-500/25 text-rose-700 dark:text-rose-300",
+		},
+	];
+
+	const DEFAULT_ITEM_COLOR = "emerald-500";
 
 	// =============================================================================
 	// CHART — active arc shadow plugin
@@ -93,6 +231,13 @@
 		Wants: "#4f4a66",
 	};
 
+	function progressFillColor(percent: number) {
+		if (percent > 75) return "var(--color-progress-red)";
+		if (percent > 50) return "var(--color-progress-orange)";
+		if (percent > 25) return "var(--color-progress-yellow)";
+		return "var(--color-progress-green)";
+	}
+
 	// =============================================================================
 	// STATE
 	// =============================================================================
@@ -101,6 +246,8 @@
 
 	const rules = ref<Rule[]>([]);
 	const cutoffs = ref<CycleCutoff[]>([]);
+	const itemBuilders = ref<ItemBuilder[]>([]);
+	const budgetEntries = ref<BudgetEntry[]>([]);
 
 	const now = new Date();
 	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -117,6 +264,24 @@
 	const formDate = ref("");
 	const formError = ref("");
 	const saving = ref(false);
+
+	const showItemModal = ref(false);
+	const itemFormId = ref("");
+	const itemFormAmount = ref("");
+	const itemFormError = ref("");
+	const savingItem = ref(false);
+
+	const showCreateItemDrawer = ref(false);
+	const createFormName = ref("");
+	const createCatExpenses = ref(false);
+	const createCatSavings = ref(false);
+	const createCatWants = ref(false);
+	const createIsActive = ref(true);
+	const createHasChildItems = ref(false);
+	const createIcon = ref("HomeIcon");
+	const createColor = ref(DEFAULT_ITEM_COLOR);
+	const createFormError = ref("");
+	const savingCreateItem = ref(false);
 
 	// =============================================================================
 	// PERIOD NAV — computed
@@ -180,7 +345,13 @@
 		() => `₱${totalAmount.value.toLocaleString("en-PH")}`,
 	);
 
-	const spentAmount = computed(() => 0);
+	const spentAmount = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return 0;
+		return budgetEntries.value
+			.filter((entry) => entry.cutoffId === cutoffId)
+			.reduce((sum, entry) => sum + entry.amount, 0);
+	});
 
 	const displaySpent = computed(
 		() => `₱${spentAmount.value.toLocaleString("en-PH")} spent already`,
@@ -188,7 +359,10 @@
 
 	const progressPercent = computed(() => {
 		if (totalAmount.value <= 0) return 0;
-		return Math.min(100, (spentAmount.value / totalAmount.value) * 100);
+		return Math.min(
+			100,
+			Math.round((spentAmount.value / totalAmount.value) * 100),
+		);
 	});
 
 	// =============================================================================
@@ -206,7 +380,31 @@
 		() => `₱${activeRuleAmount.value.toLocaleString("en-PH")}`,
 	);
 
-	const ruleSpentAmount = computed(() => 0);
+	const activeRuleEntries = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return [];
+		return budgetEntries.value
+			.filter(
+				(entry) =>
+					entry.cutoffId === cutoffId && entry.ruleName === activeTab.value,
+			)
+			.map((entry) => {
+				const builder = itemBuilders.value.find((item) => item.name === entry.name);
+				const color = builder?.color ?? DEFAULT_ITEM_COLOR;
+				const colorOption =
+					ITEM_COLOR_OPTIONS.find((option) => option.value === color) ??
+					ITEM_COLOR_OPTIONS.find((option) => option.value === DEFAULT_ITEM_COLOR)!;
+				return {
+					...entry,
+					icon: builder?.icon ?? "HomeIcon",
+					iconWrapClass: colorOption.wrap,
+				};
+			});
+	});
+
+	const ruleSpentAmount = computed(() =>
+		activeRuleEntries.value.reduce((sum, entry) => sum + entry.amount, 0),
+	);
 
 	const ruleLeftAmount = computed(() =>
 		Math.max(0, activeRuleAmount.value - ruleSpentAmount.value),
@@ -228,6 +426,23 @@
 		() => `₱${ruleLeftAmount.value.toLocaleString("en-PH")}`,
 	);
 
+	const itemBuilderOptions = computed(() =>
+		itemBuilders.value
+			.filter((item) => item.isActive && item.categories.includes(activeTab.value))
+			.map((item) => {
+				const color = item.color ?? DEFAULT_ITEM_COLOR;
+				const colorOption =
+					ITEM_COLOR_OPTIONS.find((entry) => entry.value === color) ??
+					ITEM_COLOR_OPTIONS.find((entry) => entry.value === DEFAULT_ITEM_COLOR)!;
+				return {
+					value: item.id,
+					label: item.name,
+					icon: item.icon ?? "HomeIcon",
+					iconWrapClass: colorOption.wrap,
+				};
+			}),
+	);
+
 	// =============================================================================
 	// CHART — data & options
 	// =============================================================================
@@ -239,9 +454,7 @@
 					(name) => activeCutoff.value?.allocations?.[name]?.percent ?? 0,
 				),
 				backgroundColor: RULE_ORDER.map((name) =>
-					name === activeTab.value
-						? RULE_COLORS[name]
-						: RULE_COLORS_MUTED[name],
+					name === activeTab.value ? RULE_COLORS[name] : RULE_COLORS_MUTED[name],
 				),
 				offset: RULE_ORDER.map((name) => (name === activeTab.value ? 5 : 0)),
 				activeIndex: RULE_ORDER.indexOf(activeTab.value),
@@ -271,6 +484,14 @@
 
 	async function loadCutoffs() {
 		cutoffs.value = await db.cycleCutoffs.toArray();
+	}
+
+	async function loadItemBuilders() {
+		itemBuilders.value = await db.itemBuilders.toArray();
+	}
+
+	async function loadBudgetEntries() {
+		budgetEntries.value = await db.budgetEntries.toArray();
 	}
 
 	function goPrev() {
@@ -350,6 +571,112 @@
 	}
 
 	// =============================================================================
+	// ADD ITEM MODAL — actions
+	// =============================================================================
+	function openItemModal() {
+		itemFormId.value = "";
+		itemFormAmount.value = "";
+		itemFormError.value = "";
+		showItemModal.value = true;
+	}
+
+	function closeItemModal() {
+		itemFormError.value = "";
+		showItemModal.value = false;
+	}
+
+	function openCreateItemDrawer() {
+		createFormName.value = "";
+		createCatExpenses.value = activeTab.value === "Expenses";
+		createCatSavings.value = activeTab.value === "Savings";
+		createCatWants.value = activeTab.value === "Wants";
+		createIsActive.value = true;
+		createHasChildItems.value = false;
+		createIcon.value = "HomeIcon";
+		createColor.value = DEFAULT_ITEM_COLOR;
+		createFormError.value = "";
+		showCreateItemDrawer.value = true;
+	}
+
+	function closeCreateItemDrawer() {
+		createFormError.value = "";
+		showCreateItemDrawer.value = false;
+	}
+
+	async function saveCreateItem() {
+		const name = createFormName.value.trim();
+		const categories: RuleName[] = [];
+		if (createCatExpenses.value) categories.push("Expenses");
+		if (createCatSavings.value) categories.push("Savings");
+		if (createCatWants.value) categories.push("Wants");
+
+		if (!name) {
+			createFormError.value = "Enter item name";
+			return;
+		}
+		if (categories.length === 0) {
+			createFormError.value = "Select at least one category";
+			return;
+		}
+
+		savingCreateItem.value = true;
+		const id = createId();
+		await db.itemBuilders.add({
+			id,
+			name,
+			categories,
+			isActive: createIsActive.value,
+			hasChildItems: createHasChildItems.value,
+			icon: createIcon.value,
+			color: createColor.value,
+			createdAt: new Date().toISOString(),
+		});
+		await loadItemBuilders();
+		itemFormId.value = id;
+		savingCreateItem.value = false;
+		closeCreateItemDrawer();
+	}
+
+	async function saveItem() {
+		if (!activeCutoff.value) {
+			itemFormError.value = "Add a cutoff first";
+			return;
+		}
+		if (!itemFormId.value) {
+			itemFormError.value = "Select an item";
+			return;
+		}
+
+		const amount = Number(itemFormAmount.value);
+		if (!itemFormAmount.value || Number.isNaN(amount) || amount <= 0) {
+			itemFormError.value = "Enter a valid amount";
+			return;
+		}
+
+		const builder = itemBuilders.value.find(
+			(item) => item.id === itemFormId.value,
+		);
+		if (!builder) {
+			itemFormError.value = "Select an item";
+			return;
+		}
+
+		savingItem.value = true;
+		await db.budgetEntries.add({
+			id: createId(),
+			cutoffId: activeCutoff.value.id,
+			monthKey: activeCutoff.value.monthKey,
+			ruleName: activeTab.value,
+			name: builder.name,
+			amount,
+			createdAt: new Date().toISOString(),
+		});
+		await loadBudgetEntries();
+		savingItem.value = false;
+		closeItemModal();
+	}
+
+	// =============================================================================
 	// INIT
 	// =============================================================================
 	onMounted(async () => {
@@ -360,6 +687,8 @@
 		}
 		rules.value = existingRules;
 		await loadCutoffs();
+		await loadItemBuilders();
+		await loadBudgetEntries();
 		for (const cutoff of cutoffs.value) {
 			if (cutoff.allocations) continue;
 			const allocations = buildCutoffAllocations(cutoff.amount, rules.value);
@@ -371,12 +700,12 @@
 
 <template>
 	<div
-		class="mx-auto flex w-full max-w-[480px] flex-1 min-h-0 flex-col items-stretch pt-0"
+		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
 		<!-- ================================================================== -->
 		<!-- PERIOD NAV                                                        -->
 		<!-- ================================================================== -->
-		<div class="mb-3 flex items-center justify-between">
+		<div class="mb-3 flex shrink-0 items-center justify-between">
 			<GlassContainer
 				as="button"
 				type="button"
@@ -408,116 +737,166 @@
 			</GlassContainer>
 		</div>
 
-		<!-- ================================================================== -->
-		<!-- BUDGET SECTION                                                      -->
-		<!-- ================================================================== -->
-		<GlassContainer class="relative mt-[1rem]">
-			<GlassContainer
-				as="button"
-				type="button"
-				rounded="full"
-				:padding="false"
-				class="plus-btn absolute right-[.6rem] top-[.6rem]"
-				:aria-label="activeCutoff ? 'Edit cutoff' : 'Add cutoff'"
-				@click="openModal"
-			>
-				<PencilIcon v-if="activeCutoff" class="h-5 w-5" />
-				<PlusIcon v-else class="h-5 w-5" />
-			</GlassContainer>
-			<p class="m-0 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary">
-				{{ budgetTitle }}
-			</p>
-			<p class="mb-0 text-xs text-textSecondary">
-				Cutoff Date: {{ displayCutoffDate }}
-			</p>
-			<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
-				{{ displayAmount }}
-			</p>
-			<p class="mt-[0.35rem] mb-[.3rem] text-[0.85rem] text-textSecondary">
-				{{ displaySpent }}
-			</p>
-			<div class="progress-track">
-				<div class="progress-fill" :style="{ width: progressPercent + '%' }" />
-			</div>
-		</GlassContainer>
-
-		<!-- ================================================================== -->
-		<!-- DIVIDER (budget → tabs)                                             -->
-		<!-- ================================================================== -->
-		<div class="my-[1.5rem] h-px bg-inputBorder" />
-
-		<!-- ================================================================== -->
-		<!-- TABS                                                                -->
-		<!-- ================================================================== -->
-		<div class="mb-4 flex w-full gap-2">
-			<button
-				v-for="tab in tabs"
-				:key="tab"
-				type="button"
-				class="tab"
-				:class="{ active: activeTab === tab }"
-				@click="activeTab = tab"
-			>
-				{{ tab }}
-			</button>
-		</div>
-
-		<!-- ================================================================== -->
-		<!-- RULE SECTION (chart + progress)                                     -->
-		<!-- ================================================================== -->
-		<GlassContainer class="relative mb-4">
-			<GlassContainer
-				as="button"
-				type="button"
-				rounded="full"
-				:padding="false"
-				class="plus-btn absolute right-[.6rem] top-[.6rem]"
-				aria-label="Add"
-			>
-				<PlusIcon class="h-5 w-5" />
-			</GlassContainer>
-			<p
-				class="m-0 mb-4 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary"
-			>
-				{{ activeTab }}
-			</p>
-
-			<div class="chart-wrap">
-				<Doughnut
-					:key="`${activeCutoff?.id ?? 'none'}-${activeTab}`"
-					:data="chartData"
-					:options="chartOptions"
-				/>
-				<div class="chart-center">
-					<p class="m-0 text-[0.85rem] font-semibold text-textPrimary">
-						{{ activeRulePercent }}%
+		<div class="tracker-fixed shrink-0">
+			<!-- ================================================================== -->
+			<!-- BUDGET SECTION                                                      -->
+			<!-- ================================================================== -->
+			<GlassContainer class="relative mt-[1rem]">
+				<GlassContainer
+					as="button"
+					type="button"
+					rounded="full"
+					:padding="false"
+					class="plus-btn absolute right-[.6rem] top-[.6rem]"
+					:aria-label="activeCutoff ? 'Edit cutoff' : 'Add cutoff'"
+					@click="openModal"
+				>
+					<PencilIcon v-if="activeCutoff" class="h-5 w-5" />
+					<PlusIcon v-else class="h-5 w-5" />
+				</GlassContainer>
+				<p class="m-0 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary">
+					{{ budgetTitle }}
+				</p>
+				<p class="mb-0 text-xs text-textSecondary">
+					Cutoff Date: {{ displayCutoffDate }}
+				</p>
+				<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
+					{{ displayAmount }}
+				</p>
+				<div class="flex items-center justify-between mb-[.]">
+					<p class="mt-[0.35rem] mb-0 text-[0.85rem] text-textSecondary">
+						{{ displaySpent }}
 					</p>
-					<p class="mt-[0.15rem] mb-0 text-[0.85rem] text-textSecondary">
-						{{ activeTab }}
-					</p>
-					<p class="mt-[0.15rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
-						{{ displayActiveAmount }}
-					</p>
+					<p class="progress-pct">{{ progressPercent }}%</p>
 				</div>
-			</div>
-
-			<div class="rule-progress">
-				<p class="rule-progress-pct">%{{ ruleProgressPercent }}</p>
-				<div class="rule-progress-track">
+				<div class="progress-track">
 					<div
-						class="rule-progress-fill"
+						class="progress-fill"
 						:style="{
-							width: ruleProgressPercent + '%',
-							background: RULE_COLORS[activeTab],
+							width: progressPercent + '%',
+							background: progressFillColor(progressPercent),
 						}"
 					/>
 				</div>
-				<div class="rule-progress-meta">
-					<span class="rule-progress-spent">-{{ displayRuleSpent }} spent</span>
-					<span class="rule-progress-left">{{ displayRuleLeft }} left</span>
-				</div>
+			</GlassContainer>
+
+			<!-- ================================================================== -->
+			<!-- TABS                                                                -->
+			<!-- ================================================================== -->
+			<div class="mt-4 mb-4 flex w-full shrink-0 gap-2">
+				<button
+					v-for="tab in tabs"
+					:key="tab"
+					type="button"
+					class="tab"
+					:class="{ active: activeTab === tab }"
+					@click="activeTab = tab"
+				>
+					{{ tab }}
+				</button>
 			</div>
-		</GlassContainer>
+		</div>
+
+		<!-- ================================================================== -->
+		<!-- SCROLLABLE CONTENT (rule + items)                                   -->
+		<!-- ================================================================== -->
+		<div class="tracker-scroll min-h-0 flex-1">
+			<!-- ================================================================== -->
+			<!-- RULE SECTION (chart + progress)                                     -->
+			<!-- ================================================================== -->
+			<GlassContainer class="relative mb-4">
+				<GlassContainer
+					as="button"
+					type="button"
+					rounded="full"
+					:padding="false"
+					class="plus-btn add-btn absolute right-[.6rem] top-[.6rem] p-[1rem]"
+					aria-label="Add item"
+					@click="openItemModal"
+				>
+					<PlusIcon class="h-5 w-5" />
+				</GlassContainer>
+				<p
+					class="m-0 mb-4 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary"
+				>
+					{{ activeTab }}
+				</p>
+
+				<div class="rule-body">
+					<div class="chart-wrap">
+						<Doughnut
+							:key="`${activeCutoff?.id ?? 'none'}-${activeTab}`"
+							:data="chartData"
+							:options="chartOptions"
+						/>
+						<div class="chart-center">
+							<p class="m-0 w-full text-center text-[1rem] font-bold text-textPrimary">
+								{{ activeRulePercent }}%
+							</p>
+							<p class="mb-0 w-full text-center text-[0.85rem] text-textPrimary">
+								{{ activeTab }}
+							</p>
+						</div>
+					</div>
+					<div class="flex min-w-0 flex-1 flex-col gap-2">
+						<div>
+							<p class="m-0 text-[0.85rem] text-textSecondary">
+								Budget for {{ activeTab }}
+							</p>
+							<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
+								{{ displayActiveAmount }}
+							</p>
+						</div>
+						<div>
+							<p class="m-0 text-[0.85rem] text-textSecondary">Budget left</p>
+							<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
+								{{ displayRuleLeft }}
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="rule-progress">
+					<div class="flex items-center justify-between">
+						<span class="rule-progress-spent">-{{ displayRuleSpent }} spent</span>
+						<p class="rule-progress-pct">{{ ruleProgressPercent }}%</p>
+					</div>
+					<div class="rule-progress-track">
+						<div
+							class="rule-progress-fill"
+							:style="{
+								width: ruleProgressPercent + '%',
+								background: progressFillColor(ruleProgressPercent),
+							}"
+						/>
+					</div>
+				</div>
+			</GlassContainer>
+
+			<!-- ================================================================== -->
+			<!-- ITEMS LIST SECTION                                                  -->
+			<!-- ================================================================== -->
+			<GlassContainer class="mb-4">
+				<p class="m-0 mb-3 text-sm text-textSecondary">Items</p>
+				<ul v-if="activeRuleEntries.length" class="item-list">
+					<li v-for="entry in activeRuleEntries" :key="entry.id" class="item-row">
+						<span class="item-icon-wrap" :class="entry.iconWrapClass">
+							<component
+								:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
+								class="item-icon"
+							/>
+						</span>
+						<div class="item-row-main">
+							<span class="item-row-name">{{ entry.name }}</span>
+						</div>
+						<span class="item-row-amount">
+							₱{{ entry.amount.toLocaleString("en-PH") }}
+						</span>
+					</li>
+				</ul>
+				<p v-else class="m-0 text-sm text-textSecondary">No items yet</p>
+			</GlassContainer>
+		</div>
 
 		<!-- ================================================================== -->
 		<!-- ADD CUTOFF MODAL                                                    -->
@@ -567,6 +946,174 @@
 				</GlassContainer>
 			</div>
 		</Teleport>
+
+		<!-- ================================================================== -->
+		<!-- ADD ITEM MODAL                                                      -->
+		<!-- ================================================================== -->
+		<Teleport to="body">
+			<div
+				v-if="showItemModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeItemModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-6">
+					<div class="flex items-center justify-between gap-3">
+						<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+							Add Item
+						</h2>
+						<button
+							type="button"
+							class="outline max-w-[11rem] py-[.6rem] px-[1rem] rounded-full"
+							@click="openCreateItemDrawer"
+						>
+							+ Create New Item
+						</button>
+					</div>
+
+					<SelectField
+						v-model="itemFormId"
+						label="Item Name"
+						:options="itemBuilderOptions"
+						placeholder="Search item"
+					/>
+
+					<AmountField v-model="itemFormAmount" label="Amount" placeholder="0.00" />
+
+					<p v-if="itemFormError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ itemFormError }}
+					</p>
+
+					<div class="flex gap-3">
+						<button type="button" class="btn" @click="closeItemModal">Cancel</button>
+						<button
+							type="button"
+							class="btn primary"
+							:disabled="savingItem"
+							@click="saveItem"
+						>
+							Save
+						</button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<!-- ================================================================== -->
+		<!-- CREATE NEW ITEM DRAWER                                              -->
+		<!-- ================================================================== -->
+		<Teleport to="body">
+			<div
+				v-if="showCreateItemDrawer"
+				class="fixed inset-0 z-[60] flex items-end justify-center bg-overlay"
+				@click.self="closeCreateItemDrawer"
+			>
+				<GlassContainer
+					class="drawer-sheet flex w-full max-w-[480px] flex-col gap-4 rounded-t-[1.25rem] rounded-b-none pb-6"
+				>
+					<div class="drawer-handle" />
+					<div class="flex items-center justify-between gap-3">
+						<h2 class="m-0 text-lg font-semibold text-textPrimary">
+							Create New Item
+						</h2>
+						<button
+							type="button"
+							class="drawer-close"
+							aria-label="Close"
+							@click="closeCreateItemDrawer"
+						>
+							<XMarkIcon class="h-5 w-5" />
+						</button>
+					</div>
+
+					<InputField
+						v-model="createFormName"
+						label="Name"
+						placeholder="Item name"
+						mode="text"
+					/>
+
+					<div class="subtitle-divider">
+						<span>Categories</span>
+					</div>
+
+					<div class="flex flex-wrap gap-4">
+						<CircleCheckbox v-model="createCatExpenses" label="Expenses" />
+						<CircleCheckbox v-model="createCatSavings" label="Savings" />
+						<CircleCheckbox v-model="createCatWants" label="Wants" />
+					</div>
+
+					<div class="subtitle-divider">
+						<span>Settings</span>
+					</div>
+
+					<div class="flex items-center justify-between gap-3">
+						<span class="text-base text-textPrimary">Active</span>
+						<ToggleSwitch v-model="createIsActive" />
+					</div>
+					<div class="flex items-center justify-between gap-3">
+						<span class="text-base text-textPrimary">Have child items</span>
+						<ToggleSwitch v-model="createHasChildItems" />
+					</div>
+
+					<div class="subtitle-divider">
+						<span>Color</span>
+					</div>
+
+					<div class="icon-grid">
+						<button
+							v-for="color in ITEM_COLOR_OPTIONS"
+							:key="color.value"
+							type="button"
+							class="color-btn"
+							:class="{ selected: createColor === color.value }"
+							:title="color.value"
+							@click="createColor = color.value"
+						>
+							<span class="color-swatch" :class="color.swatch" />
+						</button>
+					</div>
+
+					<div class="subtitle-divider">
+						<span>Icon</span>
+					</div>
+
+					<div class="icon-grid">
+						<button
+							v-for="iconName in ICON_OPTIONS"
+							:key="iconName"
+							type="button"
+							class="icon-btn"
+							:class="{ selected: createIcon === iconName }"
+							:title="iconName"
+							@click="createIcon = iconName"
+						>
+							<component
+								:is="OutlineIcons[iconName as keyof typeof OutlineIcons]"
+								class="h-5 w-5"
+							/>
+						</button>
+					</div>
+
+					<p v-if="createFormError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ createFormError }}
+					</p>
+
+					<div class="flex gap-3">
+						<button type="button" class="btn" @click="closeCreateItemDrawer">
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="btn primary"
+							:disabled="savingCreateItem"
+							@click="saveCreateItem"
+						>
+							Save
+						</button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
 	</div>
 </template>
 
@@ -586,6 +1133,15 @@
 		pointer-events: none;
 	}
 
+	.tracker-scroll {
+		flex: 1 1 0;
+		min-height: 0;
+		overflow-y: auto;
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
+		padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+	}
+
 	/* ========================================================================= */
 	/* BUDGET SECTION                                                             */
 	/* ========================================================================= */
@@ -594,6 +1150,19 @@
 		color: var(--color-onColor);
 		background: var(--color-accentSolid);
 		flex-shrink: 0;
+	}
+
+	.add-btn {
+		padding: 1rem;
+	}
+
+	.progress-pct,
+	.rule-progress-pct {
+		margin: 0.35rem 0;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+		text-align: right;
 	}
 
 	.progress-track {
@@ -606,8 +1175,9 @@
 	.progress-fill {
 		height: 100%;
 		border-radius: 9999px;
-		background: var(--color-accentSolid);
-		transition: width 0.2s;
+		transition:
+			width 0.2s,
+			background-color 0.2s;
 	}
 
 	/* ========================================================================= */
@@ -633,35 +1203,38 @@
 	}
 
 	/* ========================================================================= */
-	/* RULE SECTION — chart                                                       */
+	/* RULE SECTION — chart + stats                                               */
 	/* ========================================================================= */
+	.rule-body {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
 	.chart-wrap {
 		position: relative;
-		width: min(170px, 50vw);
-		margin: 0 auto 1.25rem;
+		width: min(140px, 38vw);
+		aspect-ratio: 1;
+		flex-shrink: 0;
 	}
 
 	.chart-center {
 		position: absolute;
-		inset: 0;
+		top: 50%;
+		left: 50%;
+		width: 58%;
+		transform: translate(-50%, -50%);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		text-align: center;
 		pointer-events: none;
 	}
 
 	/* ========================================================================= */
 	/* RULE SECTION — progress bar                                                */
 	/* ========================================================================= */
-	.rule-progress-pct {
-		margin: 0 0 0.35rem;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-		text-align: right;
-	}
-
 	.rule-progress-track {
 		height: 0.5rem;
 		border-radius: 9999px;
@@ -672,7 +1245,9 @@
 	.rule-progress-fill {
 		height: 100%;
 		border-radius: 9999px;
-		transition: width 0.2s;
+		transition:
+			width 0.2s,
+			background-color 0.2s;
 	}
 
 	.rule-progress-meta {
@@ -689,9 +1264,68 @@
 	}
 
 	.rule-progress-left {
-		font-size: 0.85rem;
+		font-size: 1rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
+	}
+
+	/* ========================================================================= */
+	/* ITEMS LIST SECTION                                                         */
+	/* ========================================================================= */
+	.item-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.item-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.item-icon-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 0.5rem;
+		flex-shrink: 0;
+	}
+
+	.item-icon {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.item-row-main {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.item-row-name {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.item-row-meta {
+		font-size: 0.8rem;
+		color: var(--color-textSecondary);
+	}
+
+	.item-row-amount {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+		flex-shrink: 0;
 	}
 
 	/* ========================================================================= */
@@ -734,8 +1368,116 @@
 		color: var(--color-bg);
 	}
 
+	.btn.outline {
+		border-color: var(--color-textPrimary);
+		background: transparent;
+		color: var(--color-textPrimary);
+	}
+
 	.btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	/* ========================================================================= */
+	/* CREATE ITEM DRAWER                                                         */
+	/* ========================================================================= */
+	.drawer-sheet {
+		max-height: 90dvh;
+		overflow-y: auto;
+		animation: drawer-up 0.28s ease-out;
+	}
+
+	.drawer-handle {
+		width: 2.5rem;
+		height: 0.25rem;
+		margin: 0 auto;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
+	}
+
+	.drawer-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		border: none;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.subtitle-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		font-size: 0.85rem;
+		color: var(--color-textSecondary);
+	}
+
+	.subtitle-divider::before,
+	.subtitle-divider::after {
+		content: "";
+		flex: 1;
+		height: 1px;
+		background: var(--color-inputBorder);
+	}
+
+	.icon-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(2.5rem, 1fr));
+		gap: 0.5rem;
+		max-height: 8rem;
+		overflow-y: auto;
+		padding: 0.25rem;
+	}
+
+	.icon-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 0.5rem;
+		background: transparent;
+		color: var(--color-textSecondary);
+		cursor: pointer;
+	}
+
+	.icon-btn.selected {
+		border-color: var(--color-accentSolid);
+		background: var(--color-accentSolid);
+		color: var(--color-onColor);
+	}
+
+	.color-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.35rem;
+		border: 2px solid transparent;
+		border-radius: 9999px;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.color-btn.selected {
+		border-color: var(--color-textPrimary);
+	}
+
+	.color-swatch {
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 50%;
+	}
+
+	@keyframes drawer-up {
+		from {
+			transform: translateY(100%);
+		}
+		to {
+			transform: translateY(0);
+		}
 	}
 </style>

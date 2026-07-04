@@ -169,9 +169,9 @@
         <div class="card">
           <h3>6) budgetEntries</h3>
           <ul>
-            <li><code>id</code> (PK), <code>monthKey</code>, <code>ruleName</code>, <code>cutoff</code></li>
-            <li><code>name</code>, <code>amount</code>, <code>createdAt</code></li>
-            <li>Validation: per-cutoff total must not exceed cutoff amount</li>
+            <li><code>id</code> (PK, UUID), <code>cutoffId</code> (ref cycleCutoffs.id)</li>
+            <li><code>monthKey</code>, <code>ruleName</code>, <code>name</code>, <code>amount</code>, <code>createdAt</code></li>
+            <li>Validation: per-rule entry total must not exceed that rule's allocation for the cutoff</li>
           </ul>
         </div>
 
@@ -225,7 +225,7 @@
             <tr>
               <td>cycleCutoffs</td>
               <td>budgetEntries</td>
-              <td><code>monthKey + cutoff/label</code></td>
+              <td><code>budgetEntries.cutoffId -> cycleCutoffs.id</code></td>
             </tr>
             <tr>
               <td>othersBudgets</td>

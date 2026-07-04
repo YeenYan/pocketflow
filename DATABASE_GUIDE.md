@@ -177,29 +177,29 @@ Rules:
 
 Purpose:
 
-- Final allocated/adjusted entries per month, cutoff, and rule.
+- Line items under a rule for a specific cutoff (example: Expenses → Internet ₱1500).
 
 Fields:
 
-- `id` (number, PK, auto increment)
-- `monthKey` (string)
-- `ruleName` (string)
-- `cutoff` (string)
+- `id` (string, PK, UUID)
+- `cutoffId` (string; FK-style reference to `cycleCutoffs.id`)
+- `monthKey` (string, ex: `2026-07`)
+- `ruleName` (string; `Expenses` | `Savings` | `Wants`)
 - `name` (string)
 - `amount` (number)
 - `createdAt` (date/time)
 
 Indexes:
 
-- `++id`
+- `id`
+- `cutoffId`
 - `monthKey`
 - `ruleName`
-- `cutoff`
 - `createdAt`
 
 Validation:
 
-- For each cutoff: sum of related rule amounts must not exceed cutoff amount.
+- For each cutoff: sum of related entry amounts per rule must not exceed that rule's allocated amount.
 
 ---
 
@@ -276,8 +276,8 @@ Indexes:
   - When adding an entry under a rule, show matching active items.
   - If no item exists yet, user types a new name and save it to `itemBuilders`.
 
-- `cycleCutoffs (monthKey + label/slot) -> budgetEntries (monthKey + cutoff)`
-  - Used for per-cutoff allocation validation.
+- `cycleCutoffs.id -> budgetEntries.cutoffId`
+  - Links each line item to its cutoff.
 
 - `rules.name -> budgetEntries.ruleName`
   - Defines category ownership (`Expenses`, `Savings`, `Wants`).
@@ -343,7 +343,7 @@ db.version(1).stores({
 	cycleCutoffs: "++id, monthKey, slot, label, createdAt",
 	itemBuilders: "++id, name, isActive, hasChildItems, createdAt",
 	itemBuilderChildren: "++id, parentItemId, createdAt",
-	budgetEntries: "++id, monthKey, ruleName, cutoff, createdAt",
+	budgetEntries: "id, cutoffId, monthKey, ruleName, createdAt",
 	unexpectedExpenses: "++id, monthKey, createdAt",
 	othersBudgets: "++id, monthKey",
 	othersExpenses: "++id, monthKey, createdAt",

@@ -52,6 +52,11 @@
 	--color-mutedSolid: var(--color-slate-500);
 	--color-userAvatar: var(--color-violet-600);
 
+	--color-progress-green: var(--color-green-500);
+	--color-progress-yellow: var(--color-yellow-400);
+	--color-progress-orange: var(--color-orange-500);
+	--color-progress-red: var(--color-red-500);
+
 	--color-glass-bg: rgb(255 255 255 / 0.45);
 	--color-glass-border: rgb(255 255 255 / 0.65);
 	--shadow-glass: 0 8px 32px rgb(15 23 42 / 0.08);
@@ -104,6 +109,11 @@
 	--color-warningSolid: var(--color-amber-400);
 	--color-mutedSolid: var(--color-slate-400);
 	--color-userAvatar: var(--color-violet-500);
+
+	--color-progress-green: var(--color-green-400);
+	--color-progress-yellow: var(--color-yellow-300);
+	--color-progress-orange: var(--color-orange-400);
+	--color-progress-red: var(--color-red-400);
 
 	--color-glass-bg: rgb(255 255 255 / 0.08);
 	--color-glass-border: rgb(255 255 255 / 0.12);

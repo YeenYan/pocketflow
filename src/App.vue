@@ -137,8 +137,17 @@ async function testNotification() {
 			</GlassContainer>
 		</header>
 		<main
-			class="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
-			:class="showNav ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]' : 'pb-[max(1rem,env(safe-area-inset-bottom))]'"
+			class="relative z-10 flex min-h-0 flex-1 flex-col px-4"
+			:class="[
+				route.path === '/tracker'
+					? 'overflow-hidden pb-0'
+					: [
+							showNav
+								? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
+								: 'pb-[max(1rem,env(safe-area-inset-bottom))]',
+							'overflow-y-auto',
+						],
+			]"
 		>
 			<router-view v-slot="{ Component, route: viewRoute }">
 				<Transition :name="pageTransition" mode="out-in">

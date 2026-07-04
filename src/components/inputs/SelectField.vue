@@ -1,11 +1,18 @@
 <script setup lang="ts">
 	import { ref, computed, onMounted, onUnmounted } from "vue";
 	import { ChevronDownIcon } from "@heroicons/vue/24/outline";
+	import * as OutlineIcons from "@heroicons/vue/24/outline";
 
 	const props = withDefaults(
 		defineProps<{
 			label: string;
-			options: { value: string; label: string; hint?: string }[];
+			options: {
+				value: string;
+				label: string;
+				hint?: string;
+				icon?: string;
+				iconWrapClass?: string;
+			}[];
 			placeholder?: string;
 			disabled?: boolean;
 		}>(),
@@ -71,6 +78,11 @@
 
 	onMounted(() => document.addEventListener("click", onDocumentClick));
 	onUnmounted(() => document.removeEventListener("click", onDocumentClick));
+
+	function iconComponent(name?: string) {
+		if (!name) return null;
+		return OutlineIcons[name as keyof typeof OutlineIcons] ?? null;
+	}
 </script>
 
 <template>
@@ -84,8 +96,20 @@
 			:disabled="disabled"
 			@click.stop="toggleOpen"
 		>
-			<span class="trigger-text" :class="{ placeholder: !selectedOption }">
-				{{ selectedOption?.label ?? placeholder }}
+			<span class="trigger-content">
+				<span
+					v-if="selectedOption?.icon && iconComponent(selectedOption.icon)"
+					class="icon-wrap"
+					:class="selectedOption.iconWrapClass"
+				>
+					<component
+						:is="iconComponent(selectedOption.icon)"
+						class="option-icon-inner"
+					/>
+				</span>
+				<span class="trigger-text" :class="{ placeholder: !selectedOption }">
+					{{ selectedOption?.label ?? placeholder }}
+				</span>
 			</span>
 			<ChevronDownIcon class="arrow" :class="{ open }" />
 		</button>
@@ -103,10 +127,20 @@
 					<li v-for="option in filteredOptions" :key="option.value">
 						<button
 							type="button"
-							class="option"
+							class="option flex items-center gap-3"
 							:class="{ selected: option.value === model }"
 							@click="selectOption(option.value)"
 						>
+							<span
+								v-if="option.icon && iconComponent(option.icon)"
+								class="icon-wrap"
+								:class="option.iconWrapClass"
+							>
+								<component
+									:is="iconComponent(option.icon)"
+									class="option-icon-inner"
+								/>
+							</span>
 							<span class="option-text">
 								<span class="option-label">{{ option.label }}</span>
 							</span>
@@ -162,6 +196,28 @@
 
 	.trigger-text.placeholder {
 		color: var(--color-textSecondary);
+	}
+
+	.trigger-content {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.icon-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		border-radius: 0.375rem;
+		flex-shrink: 0;
+	}
+
+	.option-icon-inner {
+		width: 1.25rem;
+		height: 1.25rem;
 	}
 
 	.arrow {

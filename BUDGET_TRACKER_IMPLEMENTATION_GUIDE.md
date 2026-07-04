@@ -121,10 +121,10 @@ Create `src/pages/tracker/types/budget.ts`:
   - `amount`
   - `createdAt`
 - `BudgetEntry`
-  - `id`
+  - `id` (UUID)
+  - `cutoffId` (ref `cycleCutoffs.id`)
   - `monthKey` (example: `2026-06`)
   - `ruleName`
-  - `cutoff`
   - `name`
   - `amount`
   - `createdAt`
@@ -186,7 +186,7 @@ Recommended indexed fields:
 - `cycleCutoffs: ++id, monthKey, slot, label, createdAt`
 - `itemBuilders: ++id, name, isActive, hasChildItems, createdAt`
 - `itemBuilderChildren: ++id, parentItemId, createdAt`
-- `budgetEntries: ++id, monthKey, ruleName, cutoff, createdAt`
+- `budgetEntries: id, cutoffId, monthKey, ruleName, createdAt`
 - `unexpectedExpenses: ++id, monthKey, createdAt`
 - `othersBudgets: ++id, monthKey`
 - `othersExpenses: ++id, monthKey, createdAt`
