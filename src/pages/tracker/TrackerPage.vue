@@ -516,6 +516,11 @@
 		await loadBudgetEntries();
 	}
 
+	async function deleteBudgetEntry(id: string) {
+		await db.budgetEntries.delete(id);
+		await reloadTracker();
+	}
+
 	function goPrev() {
 		const index = monthKeys.value.indexOf(viewMonthKey.value);
 		if (index > 0) viewMonthKey.value = monthKeys.value[index - 1];
@@ -733,8 +738,7 @@
 
 	async function removeEditItem() {
 		savingEditItem.value = true;
-		await db.budgetEntries.delete(editItemId.value);
-		await loadBudgetEntries();
+		await deleteBudgetEntry(editItemId.value);
 		savingEditItem.value = false;
 		closeEditItemModal();
 	}
@@ -770,10 +774,7 @@
 	async function onItemSwipeEnd(id: string) {
 		const offset = itemSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
-			itemSwipeOffsets.value = {};
-			itemSwipeActiveId = "";
-			await db.budgetEntries.delete(id);
-			await reloadTracker();
+			await removeSwipedItem(id);
 			return;
 		}
 		itemSwipeOffsets.value[id] =
@@ -796,8 +797,7 @@
 	async function removeSwipedItem(id: string) {
 		itemSwipeOffsets.value = {};
 		itemSwipeActiveId = "";
-		await db.budgetEntries.delete(id);
-		await reloadTracker();
+		await deleteBudgetEntry(id);
 	}
 
 	// =============================================================================
@@ -1192,7 +1192,7 @@
 						</button>
 						<button
 							type="button"
-							class="btn success"
+							class="btn primary"
 							:disabled="savingEditItem"
 							@click="saveEditItem"
 						>
@@ -1635,19 +1635,13 @@
 
 	.btn.primary {
 		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
+		background-color: var(--color-primaryDark);
+		color: var(--color-onColor);
 	}
 
 	.btn.danger {
 		border-color: transparent;
 		background: #f87171;
-		color: #fff;
-	}
-
-	.btn.success {
-		border-color: transparent;
-		background: var(--color-progress-green);
 		color: #fff;
 	}
 

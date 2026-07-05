@@ -43,7 +43,7 @@
 	--color-warningText: var(--color-amber-900);
 	--color-infoBg: var(--color-sky-100);
 	--color-infoText: var(--color-sky-900);
-	--color-primaryDark: var(--color-emerald-700);
+	--color-primaryDark: #047857;
 
 	--color-accentSolid: var(--color-emerald-500);
 	--color-successSolid: var(--color-green-600);
@@ -101,7 +101,7 @@
 	--color-warningText: var(--color-amber-300);
 	--color-infoBg: var(--color-sky-950);
 	--color-infoText: var(--color-sky-300);
-	--color-primaryDark: var(--color-emerald-600);
+	--color-primaryDark: #059669;
 
 	--color-accentSolid: var(--color-emerald-400);
 	--color-successSolid: var(--color-green-500);
@@ -128,5 +128,9 @@
 }
 
 .dark body {
-	background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bgBody) 100%);
+	background: linear-gradient(
+		180deg,
+		var(--color-bg) 0%,
+		var(--color-bgBody) 100%
+	);
 }
