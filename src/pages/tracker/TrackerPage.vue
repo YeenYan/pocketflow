@@ -158,6 +158,7 @@
 	];
 
 	const DEFAULT_ITEM_COLOR = "emerald-500";
+	const ITEM_SWIPE_DELETE_WIDTH = 72;
 
 	// =============================================================================
 	// CHART — active arc shadow plugin
@@ -270,6 +271,21 @@
 	const itemFormAmount = ref("");
 	const itemFormError = ref("");
 	const savingItem = ref(false);
+
+	const showEditItemModal = ref(false);
+	const editItemId = ref("");
+	const editItemName = ref("");
+	const editItemIcon = ref("HomeIcon");
+	const editItemIconWrapClass = ref("");
+	const editItemAmount = ref("");
+	const editItemError = ref("");
+	const savingEditItem = ref(false);
+
+	const itemSwipeOffsets = ref<Record<string, number>>({});
+	let itemSwipeStartX = 0;
+	let itemSwipeStartOffset = 0;
+	let itemSwipeActiveId = "";
+	let itemSwipeMoved = false;
 
 	const showCreateItemDrawer = ref(false);
 	const createFormName = ref("");
@@ -494,6 +510,12 @@
 		budgetEntries.value = await db.budgetEntries.toArray();
 	}
 
+	async function reloadTracker() {
+		await loadCutoffs();
+		await loadItemBuilders();
+		await loadBudgetEntries();
+	}
+
 	function goPrev() {
 		const index = monthKeys.value.indexOf(viewMonthKey.value);
 		if (index > 0) viewMonthKey.value = monthKeys.value[index - 1];
@@ -674,6 +696,108 @@
 		await loadBudgetEntries();
 		savingItem.value = false;
 		closeItemModal();
+	}
+
+	function openEditItemModal(
+		entry: BudgetEntry & { icon: string; iconWrapClass: string },
+	) {
+		itemSwipeOffsets.value = {};
+		itemSwipeActiveId = "";
+		editItemId.value = entry.id;
+		editItemName.value = entry.name;
+		editItemIcon.value = entry.icon;
+		editItemIconWrapClass.value = entry.iconWrapClass;
+		editItemAmount.value = String(entry.amount);
+		editItemError.value = "";
+		showEditItemModal.value = true;
+	}
+
+	function closeEditItemModal() {
+		editItemError.value = "";
+		showEditItemModal.value = false;
+	}
+
+	async function saveEditItem() {
+		const amount = Number(editItemAmount.value);
+		if (!editItemAmount.value || Number.isNaN(amount) || amount <= 0) {
+			editItemError.value = "Enter a valid amount";
+			return;
+		}
+
+		savingEditItem.value = true;
+		await db.budgetEntries.update(editItemId.value, { amount });
+		await reloadTracker();
+		savingEditItem.value = false;
+		closeEditItemModal();
+	}
+
+	async function removeEditItem() {
+		savingEditItem.value = true;
+		await db.budgetEntries.delete(editItemId.value);
+		await loadBudgetEntries();
+		savingEditItem.value = false;
+		closeEditItemModal();
+	}
+
+	function itemSwipeOffset(id: string) {
+		return itemSwipeOffsets.value[id] ?? 0;
+	}
+
+	function onItemSwipeStart(id: string, event: TouchEvent) {
+		const touch = event.touches[0];
+		if (!touch) return;
+		itemSwipeStartX = touch.clientX;
+		itemSwipeStartOffset = itemSwipeOffset(id);
+		itemSwipeActiveId = id;
+		itemSwipeMoved = false;
+		for (const key of Object.keys(itemSwipeOffsets.value)) {
+			if (key !== id) itemSwipeOffsets.value[key] = 0;
+		}
+	}
+
+	function onItemSwipeMove(id: string, event: TouchEvent) {
+		if (itemSwipeActiveId !== id) return;
+		const touch = event.touches[0];
+		if (!touch) return;
+		const delta = touch.clientX - itemSwipeStartX;
+		if (Math.abs(delta) > 6) itemSwipeMoved = true;
+		itemSwipeOffsets.value[id] = Math.min(
+			0,
+			Math.max(-ITEM_SWIPE_DELETE_WIDTH, itemSwipeStartOffset + delta),
+		);
+	}
+
+	async function onItemSwipeEnd(id: string) {
+		const offset = itemSwipeOffset(id);
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+			itemSwipeOffsets.value = {};
+			itemSwipeActiveId = "";
+			await db.budgetEntries.delete(id);
+			await reloadTracker();
+			return;
+		}
+		itemSwipeOffsets.value[id] =
+			offset < -ITEM_SWIPE_DELETE_WIDTH / 2 ? -ITEM_SWIPE_DELETE_WIDTH : 0;
+		itemSwipeActiveId = "";
+	}
+
+	function onItemRowClick(
+		entry: BudgetEntry & { icon: string; iconWrapClass: string },
+		id: string,
+	) {
+		if (itemSwipeOffset(id) < 0) {
+			itemSwipeOffsets.value[id] = 0;
+			return;
+		}
+		if (itemSwipeMoved) return;
+		openEditItemModal(entry);
+	}
+
+	async function removeSwipedItem(id: string) {
+		itemSwipeOffsets.value = {};
+		itemSwipeActiveId = "";
+		await db.budgetEntries.delete(id);
+		await reloadTracker();
 	}
 
 	// =============================================================================
@@ -877,21 +1001,44 @@
 			<!-- ITEMS LIST SECTION                                                  -->
 			<!-- ================================================================== -->
 			<GlassContainer class="mb-4">
-				<p class="m-0 mb-3 text-sm text-textSecondary">Items</p>
+				<p class="m-0 mb-[1.5rem] text-sm text-textSecondary">Items</p>
 				<ul v-if="activeRuleEntries.length" class="item-list">
-					<li v-for="entry in activeRuleEntries" :key="entry.id" class="item-row">
-						<span class="item-icon-wrap" :class="entry.iconWrapClass">
-							<component
-								:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
-								class="item-icon"
-							/>
-						</span>
-						<div class="item-row-main">
-							<span class="item-row-name">{{ entry.name }}</span>
+					<li
+						v-for="entry in activeRuleEntries"
+						:key="entry.id"
+						class="item-swipe-wrap"
+						:class="{ 'is-swiped': itemSwipeOffset(entry.id) < 0 }"
+					>
+						<button
+							type="button"
+							class="item-swipe-delete"
+							aria-label="Remove item"
+							@click.stop="removeSwipedItem(entry.id)"
+						>
+							<component :is="OutlineIcons.TrashIcon" class="item-swipe-delete-icon" />
+						</button>
+						<div
+							class="item-row"
+							:class="{ 'is-swiped': itemSwipeOffset(entry.id) < 0 }"
+							:style="{ transform: `translateX(${itemSwipeOffset(entry.id)}px)` }"
+							@touchstart.passive="onItemSwipeStart(entry.id, $event)"
+							@touchmove="onItemSwipeMove(entry.id, $event)"
+							@touchend="onItemSwipeEnd(entry.id)"
+							@click="onItemRowClick(entry, entry.id)"
+						>
+							<span class="item-icon-wrap" :class="entry.iconWrapClass">
+								<component
+									:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
+									class="item-icon"
+								/>
+							</span>
+							<div class="item-row-main">
+								<span class="item-row-name">{{ entry.name }}</span>
+							</div>
+							<span class="item-row-amount">
+								₱{{ entry.amount.toLocaleString("en-PH") }}
+							</span>
 						</div>
-						<span class="item-row-amount">
-							₱{{ entry.amount.toLocaleString("en-PH") }}
-						</span>
 					</li>
 				</ul>
 				<p v-else class="m-0 text-sm text-textSecondary">No items yet</p>
@@ -907,7 +1054,9 @@
 				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
 				@click.self="closeModal"
 			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+				<GlassContainer
+					class="flex w-full min-w-0 max-w-[400px] flex-col gap-4 overflow-hidden"
+				>
 					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
 						Add Cutoff
 					</h2>
@@ -923,9 +1072,13 @@
 						:options="cutoffOptions"
 						placeholder="Select cutoff"
 					/>
-					<label class="flex w-full min-w-0 flex-col gap-2">
+					<label class="flex w-full min-w-0 flex-col gap-2 overflow-hidden">
 						<span class="text-base text-textPrimary">Date</span>
-						<input v-model="formDate" type="date" class="field-input" />
+						<input
+							v-model="formDate"
+							type="date"
+							class="field-input field-input-date"
+						/>
 					</label>
 
 					<p v-if="formError" class="m-0 text-center text-sm text-[#f87171]">
@@ -992,6 +1145,58 @@
 							@click="saveItem"
 						>
 							Save
+						</button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<!-- ================================================================== -->
+		<!-- EDIT ITEM MODAL                                                     -->
+		<!-- ================================================================== -->
+		<Teleport to="body">
+			<div
+				v-if="showEditItemModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeEditItemModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Edit Item
+					</h2>
+
+					<div class="flex items-center justify-center gap-3">
+						<span class="item-icon-wrap" :class="editItemIconWrapClass">
+							<component
+								:is="OutlineIcons[editItemIcon as keyof typeof OutlineIcons]"
+								class="item-icon"
+							/>
+						</span>
+						<span class="edit-item-name">{{ editItemName }}</span>
+					</div>
+
+					<AmountField v-model="editItemAmount" label="Amount" placeholder="0.00" />
+
+					<p v-if="editItemError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ editItemError }}
+					</p>
+
+					<div class="flex gap-3">
+						<button
+							type="button"
+							class="btn danger"
+							:disabled="savingEditItem"
+							@click="removeEditItem"
+						>
+							Remove
+						</button>
+						<button
+							type="button"
+							class="btn success"
+							:disabled="savingEditItem"
+							@click="saveEditItem"
+						>
+							Update
 						</button>
 					</div>
 				</GlassContainer>
@@ -1278,13 +1483,63 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0;
+	}
+
+	.item-swipe-wrap {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.item-swipe-delete {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 4.5rem;
+		border: none;
+		background: #f87171;
+		color: #fff;
+		cursor: pointer;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.item-swipe-wrap.is-swiped .item-swipe-delete {
+		visibility: visible;
+		pointer-events: auto;
+	}
+
+	.item-swipe-delete-icon {
+		width: 1.25rem;
+		height: 1.25rem;
 	}
 
 	.item-row {
+		position: relative;
+		z-index: 1;
+		width: 100%;
+		box-sizing: border-box;
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
+		padding: 1rem 0;
+		border-top: 1px solid var(--color-inputBorder);
+		cursor: pointer;
+		touch-action: pan-y;
+		transition: transform 0.2s ease;
+	}
+
+	.item-swipe-wrap:first-child .item-row {
+		border-top: none;
+		padding-top: 0;
+	}
+
+	.item-row.is-swiped {
+		background: var(--color-bgBody);
 	}
 
 	.item-icon-wrap {
@@ -1312,6 +1567,12 @@
 
 	.item-row-name {
 		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.edit-item-name {
+		font-size: 1.4rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
@@ -1346,6 +1607,16 @@
 		outline: none;
 	}
 
+	.field-input-date {
+		display: block;
+		-webkit-min-logical-width: 0;
+	}
+
+	.field-input-date::-webkit-date-and-time-value {
+		min-width: 0;
+		text-align: left;
+	}
+
 	.field-input:focus {
 		border-color: var(--color-textSecondary);
 	}
@@ -1366,6 +1637,18 @@
 		border-color: transparent;
 		background: var(--color-textPrimary);
 		color: var(--color-bg);
+	}
+
+	.btn.danger {
+		border-color: transparent;
+		background: #f87171;
+		color: #fff;
+	}
+
+	.btn.success {
+		border-color: transparent;
+		background: var(--color-progress-green);
+		color: #fff;
 	}
 
 	.btn.outline {
