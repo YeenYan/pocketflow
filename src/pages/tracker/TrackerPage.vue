@@ -1,6 +1,10 @@
 <script setup lang="ts">
-	import { computed, onMounted, ref, watch } from "vue";
-	import { XMarkIcon } from "@heroicons/vue/24/outline";
+	import { computed, nextTick, onMounted, ref, watch } from "vue";
+	import {
+		PaperAirplaneIcon,
+		ViewfinderCircleIcon,
+		XMarkIcon,
+	} from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
 	import Button from "../../components/button/Button.vue";
@@ -12,6 +16,8 @@
 	import AmountField from "../../components/inputs/AmountField.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
+	import { verifyPin } from "../../utils/pinHash";
+	import { unlockWithBiometric } from "../../utils/biometric";
 	import {
 		buildCutoffAllocations,
 		createId,
@@ -353,6 +359,16 @@
 	const exceedModalExcess = ref(0);
 	let exceedModalOnProceed: (() => Promise<void>) | null = null;
 
+	const showFinalizeModal = ref(false);
+	const finalizePinDigits = ref(["", "", "", "", ""]);
+	const finalizePinInputRef = ref<HTMLInputElement | null>(null);
+	const finalizePinError = ref("");
+	const finalizeHasPin = ref(false);
+	const finalizeUseBiometric = ref(false);
+	const finalizeCredentialId = ref("");
+	const finalizeUnlocking = ref(false);
+	const showFinalizePin = ref(false);
+
 	const showUnexpectedDrawer = ref(false);
 
 	const displayExceedModalExcess = computed(
@@ -646,6 +662,40 @@
 		return `₱${amount.toLocaleString("en-PH")}`;
 	});
 
+	const canFinalizeBudget = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return false;
+		for (const rule of FIXED_RULES) {
+			const entriesSum = budgetEntries.value
+				.filter(
+					(entry) =>
+						entry.cutoffId === cutoffId &&
+						entry.ruleName === rule.name &&
+						!entry.parentBudgetEntryId,
+				)
+				.reduce((sum, entry) => sum + entry.amount, 0);
+			const spent =
+				rule.name === "Expenses"
+					? entriesSum + tabBudgetSpent.value + othersSpent.value
+					: entriesSum;
+			if (spent <= 0) return false;
+		}
+		return true;
+	});
+
+	const finalizeButtonLabel = computed(() =>
+		activeCutoff.value
+			? `Finalize ${activeCutoff.value.label} Tracker`
+			: "Finalize Budget",
+	);
+
+	const finalizeModalMessage = computed(() => {
+		const label = activeCutoff.value?.label ?? "this cutoff";
+		return `Are you sure you want to save the Budget Tracker for ${label}?`;
+	});
+
+	const finalizePin = computed(() => finalizePinDigits.value.join(""));
+
 	const othersAllocated = computed(
 		() => othersBudget.value?.budgetAllocated ?? 0,
 	);
@@ -846,6 +896,93 @@
 		const proceed = exceedModalOnProceed;
 		closeExceedModal();
 		if (proceed) await proceed();
+	}
+
+	function openFinalizeModal() {
+		if (!canFinalizeBudget.value) return;
+		finalizePinError.value = "";
+		clearFinalizePin();
+		showFinalizeModal.value = true;
+		loadFinalizeAuthState();
+	}
+
+	function closeFinalizeModal() {
+		showFinalizeModal.value = false;
+		finalizePinError.value = "";
+		clearFinalizePin();
+	}
+
+	function confirmFinalizeBudget() {
+		closeFinalizeModal();
+	}
+
+	async function loadFinalizeAuthState() {
+		const profile = await db.userProfiles.get(1);
+		finalizeHasPin.value = !!profile?.pinHash;
+		finalizeUseBiometric.value =
+			!!profile?.useBiometric && !!profile?.biometricCredentialId;
+		finalizeCredentialId.value = profile?.biometricCredentialId || "";
+		showFinalizePin.value = finalizeHasPin.value && !finalizeUseBiometric.value;
+		if (showFinalizePin.value) {
+			await nextTick();
+			finalizePinInputRef.value?.focus();
+		}
+	}
+
+	function clearFinalizePin() {
+		finalizePinDigits.value = ["", "", "", "", ""];
+		if (finalizePinInputRef.value) finalizePinInputRef.value.value = "";
+	}
+
+	function onFinalizePinInput(event: Event) {
+		const el = event.target as HTMLInputElement;
+		const value = el.value.replace(/\D/g, "").slice(0, 5);
+		el.value = value;
+		finalizePinError.value = "";
+		for (let i = 0; i < 5; i++) {
+			finalizePinDigits.value[i] = value[i] ?? "";
+		}
+	}
+
+	function onFinalizeClick() {
+		openFinalizeModal();
+	}
+
+	async function confirmFinalizeWithPin() {
+		if (finalizePin.value.length !== 5) {
+			finalizePinError.value = "Enter your 5-digit PIN";
+			return;
+		}
+		const profile = await db.userProfiles.get(1);
+		if (!profile?.pinHash) return;
+		const ok = await verifyPin(finalizePin.value, profile.pinHash);
+		if (!ok) {
+			finalizePinError.value = "Wrong PIN";
+			clearFinalizePin();
+			finalizePinInputRef.value?.focus();
+			return;
+		}
+		confirmFinalizeBudget();
+	}
+
+	async function confirmFinalizeWithFaceId() {
+		if (finalizeUnlocking.value || !finalizeCredentialId.value) return;
+		finalizeUnlocking.value = true;
+		finalizePinError.value = "";
+		const ok = await unlockWithBiometric(finalizeCredentialId.value);
+		finalizeUnlocking.value = false;
+		if (!ok) {
+			if (finalizeHasPin.value) {
+				showFinalizePin.value = true;
+				finalizePinError.value = "Face ID cancelled. Enter PIN or try again.";
+				await nextTick();
+				finalizePinInputRef.value?.focus();
+			} else {
+				finalizePinError.value = "Face ID failed. Try again.";
+			}
+			return;
+		}
+		confirmFinalizeBudget();
 	}
 
 	async function addUnexpectedExpense(
@@ -1845,13 +1982,13 @@
 	<div
 		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
-		<PeriodNavSection
+		<!-- <PeriodNavSection
 			:period-label="periodLabel"
 			:can-go-prev="canGoPrev"
 			:can-go-next="canGoNext"
 			@prev="goPrev"
 			@next="goNext"
-		/>
+		/> -->
 
 		<div class="tracker-fixed shrink-0">
 			<CutoffBudgetSection
@@ -1955,6 +2092,21 @@
 					@item-row-click="onOthersItemRowClick"
 				/>
 			</template>
+
+			<Divider margin-top="2rem" margin-bottom="2rem" />
+
+			<div class="tracker-finalize-bar w-[80%] mx-auto">
+				<button
+					type="button"
+					class="finalize-btn"
+					:class="{ 'is-disabled': !canFinalizeBudget }"
+					:disabled="!canFinalizeBudget"
+					@click="onFinalizeClick"
+				>
+					<span>{{ finalizeButtonLabel }}</span>
+					<PaperAirplaneIcon class="finalize-btn-icon" />
+				</button>
+			</div>
 		</div>
 
 		<!-- ================================================================== -->
@@ -2456,6 +2608,78 @@
 				</GlassContainer>
 			</div>
 		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showFinalizeModal"
+				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeFinalizeModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Finalize Budget
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						{{ finalizeModalMessage }}
+					</p>
+					<button
+						v-if="finalizeUseBiometric"
+						type="button"
+						class="bio-btn"
+						aria-label="Confirm with Face ID"
+						:disabled="finalizeUnlocking"
+						@click="confirmFinalizeWithFaceId"
+					>
+						<ViewfinderCircleIcon class="bio-btn-icon" />
+					</button>
+
+					<template v-if="finalizeHasPin && showFinalizePin">
+						<div
+							class="pin-row"
+							:class="{ 'pin-row-error': !!finalizePinError }"
+							@click="finalizePinInputRef?.focus()"
+						>
+							<span
+								v-for="(digit, i) in finalizePinDigits"
+								:key="'finalize-pin-' + i"
+								class="pin-dot"
+								:class="{ filled: !!digit }"
+							/>
+							<input
+								ref="finalizePinInputRef"
+								:value="finalizePin"
+								type="text"
+								inputmode="numeric"
+								maxlength="5"
+								class="pin-input-hidden"
+								@input="onFinalizePinInput"
+							/>
+						</div>
+
+						<Button
+							:variant="finalizeUseBiometric ? 'shade' : 'primary'"
+							class="w-full"
+							:disabled="finalizePin.length !== 5"
+							@click="confirmFinalizeWithPin"
+						>
+							Confirm with PIN
+						</Button>
+					</template>
+
+					<Button
+						v-if="finalizeHasPin && finalizeUseBiometric && !showFinalizePin"
+						class="w-full"
+						@click="showFinalizePin = true"
+					>
+						Use PIN instead
+					</Button>
+
+					<p v-if="finalizePinError" class="error">{{ finalizePinError }}</p>
+
+					<Button block variant="shade" @click="closeFinalizeModal">Cancel</Button>
+				</GlassContainer>
+			</div>
+		</Teleport>
 	</div>
 </template>
 
@@ -2468,7 +2692,109 @@
 		overflow-y: auto;
 		-webkit-overflow-scrolling: touch;
 		overscroll-behavior: contain;
-		padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+		padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+	}
+
+	.tracker-finalize-bar {
+		/* position: fixed;
+		left: 50%;
+		bottom: calc(5.5rem + env(safe-area-inset-bottom)); */
+		z-index: 40;
+		max-width: 400px;
+		/* padding: 0 1rem; */
+		/* transform: translateX(-50%); */
+	}
+
+	.finalize-btn {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.85rem 1.25rem;
+		border: 1px solid transparent;
+		border-radius: 9999px;
+		background-color: var(--color-primaryDark);
+		color: var(--color-onColor);
+		font-size: 0.95rem;
+		font-family: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.finalize-btn.is-disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.finalize-btn-icon {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.bio-btn {
+		align-self: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 5rem;
+		height: 5rem;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+		background: transparent;
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.bio-btn-icon {
+		width: 2.5rem;
+		height: 2.5rem;
+	}
+
+	.bio-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.pin-row {
+		position: relative;
+		display: flex;
+		justify-content: center;
+		gap: 1.25rem;
+		padding: 1.5rem 0;
+		cursor: text;
+	}
+
+	.pin-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		transition: background 0.15s ease;
+	}
+
+	.pin-dot.filled {
+		background: var(--color-textPrimary);
+	}
+
+	.pin-row-error .pin-dot.filled {
+		background: #f87171;
+	}
+
+	.pin-input-hidden {
+		position: absolute;
+		opacity: 0;
+		width: 1px;
+		height: 1px;
+		border: 0;
+		padding: 0;
+	}
+
+	.error {
+		margin: 0;
+		color: #f87171;
+		font-size: 0.875rem;
+		text-align: center;
 	}
 
 	.drawer-overlay {

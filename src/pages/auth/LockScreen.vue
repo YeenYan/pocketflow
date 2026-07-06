@@ -1,7 +1,7 @@
 <script setup lang="ts">
 	import { computed, nextTick, onMounted, ref } from "vue";
 	import { useRouter } from "vue-router";
-	import { FingerPrintIcon } from "@heroicons/vue/24/outline";
+	import { ViewfinderCircleIcon } from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
@@ -118,7 +118,7 @@
 				:disabled="unlocking"
 				@click="unlockWithFaceId"
 			>
-				<FingerPrintIcon class="bio-btn-icon" />
+				<ViewfinderCircleIcon class="bio-btn-icon" />
 			</button>
 
 			<template v-if="hasPin && showPin">
