@@ -117,6 +117,26 @@ export interface UnexpectedExpense {
 	sourceId: string;
 }
 
+export type IncomingBillItemCategory = "expense-main" | "savings";
+
+export interface IncomingBillItem {
+	id: string;
+	category: IncomingBillItemCategory;
+	name: string;
+	itemBuilderId: string;
+	amount: number;
+	createdAt: string;
+}
+
+export type IncomingBillBudgetCategory = "cutoff" | "other-expenses" | "wants";
+
+export interface IncomingBillBudget {
+	id: string;
+	category: IncomingBillBudgetCategory;
+	amount: number;
+	createdAt: string;
+}
+
 export const FIXED_RULES: Omit<Rule, "id">[] = [
 	{ name: "Expenses", percent: 50, itemCount: 0 },
 	{ name: "Savings", percent: 30, itemCount: 0 },
@@ -213,6 +233,8 @@ class BudgetDatabase extends Dexie {
 	tabBudgets!: Table<TabBudget>;
 	tabBudgetExpenses!: Table<TabBudgetExpense>;
 	unexpectedExpenses!: Table<UnexpectedExpense>;
+	incomingBillItems!: Table<IncomingBillItem>;
+	incomingBillBudgets!: Table<IncomingBillBudget>;
 
 	constructor() {
 		super("pocketflow-budget-db");
@@ -460,6 +482,10 @@ class BudgetDatabase extends Dexie {
 					});
 				}
 			});
+		this.version(19).stores({
+			incomingBillItems: "id, category, itemBuilderId, createdAt",
+			incomingBillBudgets: "id, category",
+		});
 	}
 }
 

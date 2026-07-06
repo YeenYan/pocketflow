@@ -10,11 +10,16 @@
 		createdAt: string;
 	};
 
-	defineProps<{
-		title: string;
-		expenses: OtherExpense[];
-		swipeOffset: (id: string) => number;
-	}>();
+	withDefaults(
+		defineProps<{
+			title: string;
+			expenses: OtherExpense[];
+			swipeOffset: (id: string) => number;
+			hideAddButton?: boolean;
+			hideDate?: boolean;
+		}>(),
+		{ hideAddButton: false, hideDate: false },
+	);
 
 	const emit = defineEmits<{
 		openItemModal: [];
@@ -36,8 +41,9 @@
 </script>
 
 <template>
-	<GlassContainer class="relative mb-4">
+	<GlassContainer class="relative mb-1">
 		<GlassContainer
+			v-if="!hideAddButton"
 			as="button"
 			type="button"
 			rounded="full"
@@ -48,7 +54,7 @@
 		>
 			<PlusIcon class="h-5 w-5" />
 		</GlassContainer>
-		<p class="m-0 mb-[1.5rem] min-w-0 pr-12 text-sm text-textSecondary">
+		<p class="m-0 mb-[1rem] min-w-0 pr-12 text-sm text-textSecondary">
 			{{ title }}
 		</p>
 		<ul v-if="expenses.length" class="item-list">
@@ -84,7 +90,7 @@
 							<div class="flex items-start justify-between gap-3">
 								<div class="flex min-w-0 flex-col">
 									<span class="item-row-name">{{ expense.expenseName }}</span>
-									<span class="text-[.7rem] text-textSecondary">
+									<span v-if="!hideDate" class="text-[.7rem] text-textSecondary">
 										{{ formatExpenseDate(expense.createdAt) }}
 									</span>
 								</div>

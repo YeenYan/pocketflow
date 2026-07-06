@@ -41,9 +41,7 @@
 
 		<div class="flex min-w-0 flex-col gap-2">
 			<div>
-				<p class="m-0 text-[0.85rem] text-textSecondary">
-					Budget for {{ activeTab }}
-				</p>
+				<p class="m-0 text-[0.85rem] text-textSecondary">Budget to spend</p>
 				<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
 					{{ displayAllocated }}
 				</p>
