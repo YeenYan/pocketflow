@@ -1,8 +1,9 @@
 <script setup lang="ts">
 	import { onMounted, ref } from "vue";
 	import { useRouter } from "vue-router";
-	import { ChevronRightIcon } from "@heroicons/vue/24/outline";
+	import { ChevronRightIcon, BookOpenIcon } from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import Divider from "../../components/divider/Divider.vue";
 	import { db } from "../../db/budgetDb";
 
 	const router = useRouter();
@@ -33,6 +34,16 @@
 				<ChevronRightIcon class="chevron" />
 			</span>
 		</GlassContainer>
+
+		<Divider />
+
+		<GlassContainer class="menu-card" @click="router.push('/me/items')">
+			<span class="icon-box">
+				<BookOpenIcon class="menu-icon" />
+			</span>
+			<span class="menu-label">My Items</span>
+			<ChevronRightIcon class="chevron" />
+		</GlassContainer>
 	</div>
 </template>
 
@@ -41,9 +52,13 @@
 		display: flex;
 		flex: 1;
 		min-height: 0;
+		flex-direction: column;
+		gap: 0;
 		align-items: flex-start;
 		justify-content: flex-start;
 		padding-top: 1rem;
+		max-width: 480px;
+		width: 100%;
 	}
 
 	.profile-card {
@@ -104,5 +119,39 @@
 	.chevron {
 		width: 1rem;
 		height: 1rem;
+	}
+
+	.menu-card {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 100%;
+		cursor: pointer;
+		box-shadow: none;
+	}
+
+	.icon-box {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: 0.5rem;
+		flex-shrink: 0;
+		background: rgba(59, 130, 246, 0.15);
+	}
+
+	.menu-icon {
+		width: 1.25rem;
+		height: 1.25rem;
+		color: #3b82f6;
+	}
+
+	.menu-label {
+		flex: 1;
+		font-size: 0.95rem;
+		font-weight: 500;
+		color: var(--color-textPrimary);
+		text-align: left;
 	}
 </style>

@@ -8,6 +8,7 @@
 		FingerPrintIcon,
 		ArrowRightOnRectangleIcon,
 	} from "@heroicons/vue/24/outline";
+	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
@@ -252,14 +253,14 @@
 					<p v-if="formError" class="error">{{ formError }}</p>
 
 					<div class="modal-actions">
-						<button type="button" class="btn" @click="closeModal">Cancel</button>
-						<button
-							type="button"
-							class="btn primary"
+						<Button block @click="closeModal">Cancel</Button>
+						<Button
+							variant="primary"
+							block
 							@click="activeModal === 'name' ? saveName() : savePassword()"
 						>
 							Save
-						</button>
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
@@ -441,24 +442,6 @@
 	.modal-actions {
 		display: flex;
 		gap: 0.75rem;
-	}
-
-	.btn {
-		flex: 1;
-		padding: 0.75rem 1.25rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-textPrimary);
-		font-size: 0.95rem;
-		font-family: inherit;
-		cursor: pointer;
-	}
-
-	.btn.primary {
-		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
 	}
 
 	.error {

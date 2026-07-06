@@ -1,6 +1,7 @@
 <script setup lang="ts">
 	import { computed, nextTick, onMounted, ref, watch } from "vue";
 	import { useRouter } from "vue-router";
+	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
@@ -168,14 +169,14 @@
 					label="Display Name"
 					placeholder="Your name"
 				/>
-				<button
-					type="button"
-					class="btn primary"
+				<Button
+					variant="primary"
+					class="w-full"
 					:disabled="!canNextStep1"
 					@click="step = 2"
 				>
 					Next
-				</button>
+				</Button>
 			</div>
 
 			<div v-else-if="step === 2" class="step">
@@ -190,8 +191,8 @@
 					<input type="file" accept="image/*" hidden @change="onPhotoPick" />
 				</label>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 1">Back</button>
-					<button type="button" class="btn primary" @click="step = 3">Next</button>
+					<Button block @click="step = 1">Back</Button>
+					<Button variant="primary" block @click="step = 3">Next</Button>
 				</div>
 			</div>
 
@@ -210,8 +211,8 @@
 				</p>
 				<p v-if="authError" class="error">{{ authError }}</p>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 2">Back</button>
-					<button type="button" class="btn primary" @click="step = 4">Next</button>
+					<Button block @click="step = 2">Back</Button>
+					<Button variant="primary" block @click="step = 4">Next</Button>
 				</div>
 			</div>
 
@@ -237,23 +238,18 @@
 				</div>
 				<p v-if="authError" class="error">{{ authError }}</p>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 3">Back</button>
-					<button
-						type="button"
-						class="btn"
-						:disabled="saving"
-						@click="skipPinAndFinish"
-					>
+					<Button block @click="step = 3">Back</Button>
+					<Button block :disabled="saving" @click="skipPinAndFinish">
 						Skip
-					</button>
-					<button
-						type="button"
-						class="btn primary"
+					</Button>
+					<Button
+						variant="primary"
+						block
 						:disabled="!canNextStep4"
 						@click="goToConfirmPin"
 					>
 						Next
-					</button>
+					</Button>
 				</div>
 			</div>
 
@@ -286,15 +282,15 @@
 				</p>
 				<p v-if="authError" class="error">{{ authError }}</p>
 				<div class="actions">
-					<button type="button" class="btn" @click="step = 4">Back</button>
-					<button
-						type="button"
-						class="btn primary"
+					<Button block @click="step = 4">Back</Button>
+					<Button
+						variant="primary"
+						block
 						:disabled="!canNextStep5 || saving"
 						@click="nextFromStep5"
 					>
 						{{ pinError ? "Try Again" : "Finish" }}
-					</button>
+					</Button>
 				</div>
 			</div>
 		</GlassContainer>
@@ -432,29 +428,6 @@
 		display: flex;
 		gap: 0.75rem;
 		margin-top: 0.5rem;
-	}
-
-	.btn {
-		flex: 1;
-		padding: 0.875rem 1.25rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-textPrimary);
-		font-size: 1rem;
-		font-family: inherit;
-		cursor: pointer;
-	}
-
-	.btn.primary {
-		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
-	}
-
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	.toggle-row {

@@ -1,0 +1,518 @@
+<script setup lang="ts">
+	import { computed, ref, watch } from "vue";
+	import {
+		XMarkIcon,
+		ArrowsPointingOutIcon,
+		ArrowsPointingInIcon,
+	} from "@heroicons/vue/24/outline";
+	import * as OutlineIcons from "@heroicons/vue/24/outline";
+	import Button from "../button/Button.vue";
+	import GlassContainer from "../containers/GlassContainer.vue";
+	import InputField from "../inputs/InputField.vue";
+	import ToggleSwitch from "../inputs/ToggleSwitch.vue";
+	import CircleCheckbox from "../inputs/CircleCheckbox.vue";
+	import type { ItemBuilder, RuleName } from "../../db/budgetDb";
+
+	export type ItemBuilderFormData = {
+		name: string;
+		categories: RuleName[];
+		isActive: boolean;
+		hasChildItems: boolean;
+		icon: string;
+		color: string;
+	};
+
+	const ICON_OPTIONS = Object.keys(OutlineIcons).filter((key) =>
+		key.endsWith("Icon"),
+	);
+
+	const ITEM_COLOR_OPTIONS = [
+		{
+			value: "slate-500",
+			swatch: "bg-slate-500",
+		},
+		{ value: "gray-500", swatch: "bg-gray-500" },
+		{ value: "zinc-500", swatch: "bg-zinc-500" },
+		{ value: "neutral-500", swatch: "bg-neutral-500" },
+		{ value: "stone-500", swatch: "bg-stone-500" },
+		{ value: "red-500", swatch: "bg-red-500" },
+		{ value: "orange-500", swatch: "bg-orange-500" },
+		{ value: "amber-500", swatch: "bg-amber-500" },
+		{ value: "yellow-500", swatch: "bg-yellow-500" },
+		{ value: "lime-500", swatch: "bg-lime-500" },
+		{ value: "green-500", swatch: "bg-green-500" },
+		{ value: "emerald-500", swatch: "bg-emerald-500" },
+		{ value: "teal-500", swatch: "bg-teal-500" },
+		{ value: "cyan-500", swatch: "bg-cyan-500" },
+		{ value: "sky-500", swatch: "bg-sky-500" },
+		{ value: "blue-500", swatch: "bg-blue-500" },
+		{ value: "indigo-500", swatch: "bg-indigo-500" },
+		{ value: "violet-500", swatch: "bg-violet-500" },
+		{ value: "purple-500", swatch: "bg-purple-500" },
+		{ value: "fuchsia-500", swatch: "bg-fuchsia-500" },
+		{ value: "pink-500", swatch: "bg-pink-500" },
+		{ value: "rose-500", swatch: "bg-rose-500" },
+	];
+
+	const DEFAULT_ITEM_COLOR = "emerald-500";
+
+	const open = defineModel<boolean>("open", { default: false });
+
+	const props = withDefaults(
+		defineProps<{
+			item?: ItemBuilder | null;
+			catExpenses?: boolean;
+			catSavings?: boolean;
+			catWants?: boolean;
+			saving?: boolean;
+		}>(),
+		{
+			item: null,
+			catExpenses: true,
+			catSavings: false,
+			catWants: false,
+			saving: false,
+		},
+	);
+
+	const emit = defineEmits<{
+		save: [data: ItemBuilderFormData];
+	}>();
+
+	const formName = ref("");
+	const formCatExpenses = ref(false);
+	const formCatSavings = ref(false);
+	const formCatWants = ref(false);
+	const formIsActive = ref(true);
+	const formHasChildItems = ref(false);
+	const formIcon = ref("HomeIcon");
+	const formColor = ref(DEFAULT_ITEM_COLOR);
+	const formError = ref("");
+	const colorExpanded = ref(false);
+	const iconExpanded = ref(false);
+
+	const isEditing = computed(() => !!props.item);
+
+	const formUnchanged = computed(() => {
+		const item = props.item;
+		if (!item) return false;
+		return (
+			formName.value.trim() === item.name &&
+			formCatExpenses.value === item.categories.includes("Expenses") &&
+			formCatSavings.value === item.categories.includes("Savings") &&
+			formCatWants.value === item.categories.includes("Wants") &&
+			formIsActive.value === item.isActive &&
+			formHasChildItems.value === item.hasChildItems &&
+			formIcon.value === (item.icon ?? "HomeIcon") &&
+			formColor.value === (item.color ?? DEFAULT_ITEM_COLOR)
+		);
+	});
+
+	const canSave = computed(() => {
+		if (props.saving) return false;
+		if (isEditing.value) return !formUnchanged.value;
+		return true;
+	});
+
+	function resetForm() {
+		formName.value = "";
+		formCatExpenses.value = props.catExpenses;
+		formCatSavings.value = props.catSavings;
+		formCatWants.value = props.catWants;
+		formIsActive.value = true;
+		formHasChildItems.value = false;
+		formIcon.value = "HomeIcon";
+		formColor.value = DEFAULT_ITEM_COLOR;
+		formError.value = "";
+	}
+
+	function loadItem(item: ItemBuilder) {
+		formName.value = item.name;
+		formCatExpenses.value = item.categories.includes("Expenses");
+		formCatSavings.value = item.categories.includes("Savings");
+		formCatWants.value = item.categories.includes("Wants");
+		formIsActive.value = item.isActive;
+		formHasChildItems.value = item.hasChildItems;
+		formIcon.value = item.icon ?? "HomeIcon";
+		formColor.value = item.color ?? DEFAULT_ITEM_COLOR;
+		formError.value = "";
+	}
+
+	watch(open, (isOpen) => {
+		if (!isOpen) {
+			formError.value = "";
+			colorExpanded.value = false;
+			iconExpanded.value = false;
+			return;
+		}
+		if (props.item) loadItem(props.item);
+		else resetForm();
+	});
+
+	function close() {
+		open.value = false;
+	}
+
+	function save() {
+		const name = formName.value.trim();
+		const categories: RuleName[] = [];
+		if (formCatExpenses.value) categories.push("Expenses");
+		if (formCatSavings.value) categories.push("Savings");
+		if (formCatWants.value) categories.push("Wants");
+
+		if (!name) {
+			formError.value = "Enter item name";
+			return;
+		}
+		if (categories.length === 0) {
+			formError.value = "Select at least one category";
+			return;
+		}
+
+		emit("save", {
+			name,
+			categories,
+			isActive: formIsActive.value,
+			hasChildItems: formHasChildItems.value,
+			icon: formIcon.value,
+			color: formColor.value,
+		});
+	}
+</script>
+
+<template>
+	<Teleport to="body">
+		<div v-if="open" class="drawer-overlay" @click.self="close">
+			<GlassContainer class="drawer-sheet">
+				<div class="drawer-handle" />
+				<div class="drawer-header">
+					<h2 class="drawer-title">
+						{{ isEditing ? "Edit Item" : "Create New Item" }}
+					</h2>
+					<button
+						type="button"
+						class="drawer-close"
+						aria-label="Close"
+						@click="close"
+					>
+						<XMarkIcon class="h-5 w-5" />
+					</button>
+				</div>
+
+				<template v-if="!iconExpanded">
+					<InputField
+						v-model="formName"
+						label="Name"
+						placeholder="Item name"
+						mode="text"
+					/>
+
+					<div class="subtitle-divider">
+						<span>Categories</span>
+					</div>
+
+					<div class="category-row">
+						<CircleCheckbox v-model="formCatExpenses" label="Expenses" />
+						<CircleCheckbox v-model="formCatSavings" label="Savings" />
+						<CircleCheckbox v-model="formCatWants" label="Wants" />
+					</div>
+
+					<div class="subtitle-divider">
+						<span>Settings</span>
+					</div>
+
+					<div class="toggle-row">
+						<span>Active</span>
+						<ToggleSwitch v-model="formIsActive" />
+					</div>
+					<div class="toggle-row">
+						<span>Have child items</span>
+						<ToggleSwitch v-model="formHasChildItems" />
+					</div>
+				</template>
+
+				<template v-if="!iconExpanded">
+					<div class="section-row">
+						<div class="subtitle-divider section-divider">
+							<span>Color</span>
+						</div>
+						<button
+							type="button"
+							class="expand-btn"
+							:aria-label="colorExpanded ? 'Minimize colors' : 'Maximize colors'"
+							@click="colorExpanded = !colorExpanded"
+						>
+							<ArrowsPointingInIcon v-if="colorExpanded" class="h-4 w-4" />
+							<ArrowsPointingOutIcon v-else class="h-4 w-4" />
+						</button>
+					</div>
+
+					<div class="icon-grid color-grid" :class="{ expanded: colorExpanded }">
+					<button
+						v-for="color in ITEM_COLOR_OPTIONS"
+						:key="color.value"
+						type="button"
+						class="color-btn"
+						:class="{ selected: formColor === color.value }"
+						:title="color.value"
+						@click="formColor = color.value"
+					>
+						<span class="color-swatch" :class="color.swatch" />
+					</button>
+				</div>
+				</template>
+
+				<div class="section-row">
+					<div class="subtitle-divider section-divider">
+						<span>Icon</span>
+					</div>
+					<button
+						type="button"
+						class="expand-btn"
+						:aria-label="iconExpanded ? 'Minimize icons' : 'Maximize icons'"
+						@click="
+							iconExpanded = !iconExpanded;
+							if (iconExpanded) colorExpanded = false;
+						"
+					>
+						<ArrowsPointingInIcon v-if="iconExpanded" class="h-4 w-4" />
+						<ArrowsPointingOutIcon v-else class="h-4 w-4" />
+					</button>
+				</div>
+
+				<div
+					class="icon-grid"
+					:class="{
+						expanded: iconExpanded,
+						shrunk: colorExpanded && !iconExpanded,
+					}"
+				>
+					<button
+						v-for="iconName in ICON_OPTIONS"
+						:key="iconName"
+						type="button"
+						class="icon-btn"
+						:class="{ selected: formIcon === iconName }"
+						:title="iconName"
+						@click="formIcon = iconName"
+					>
+						<component
+							:is="OutlineIcons[iconName as keyof typeof OutlineIcons]"
+							class="h-5 w-5"
+						/>
+					</button>
+				</div>
+
+				<p v-if="formError" class="form-error">{{ formError }}</p>
+
+				<div class="drawer-actions">
+					<Button block variant="shade" @click="close">Cancel</Button>
+					<Button variant="primary" block :disabled="!canSave" @click="save">
+						{{ isEditing ? "Update" : "Save" }}
+					</Button>
+				</div>
+			</GlassContainer>
+		</div>
+	</Teleport>
+</template>
+
+<style scoped>
+	.drawer-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		background: var(--color-overlay);
+	}
+
+	.drawer-sheet {
+		display: flex;
+		width: 100%;
+		max-width: 480px;
+		max-height: 90dvh;
+		flex-direction: column;
+		gap: 1rem;
+		overflow-y: auto;
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+		border-top-left-radius: 1.25rem;
+		border-top-right-radius: 1.25rem;
+		padding-bottom: 1.5rem;
+		animation: drawer-up 0.28s ease-out;
+	}
+
+	.drawer-handle {
+		width: 2.5rem;
+		height: 0.25rem;
+		margin: 0 auto;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
+	}
+
+	.drawer-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.drawer-title {
+		margin: 0;
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.drawer-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		border: none;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.category-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		color: var(--color-textPrimary);
+	}
+
+	.subtitle-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		font-size: 0.85rem;
+		color: var(--color-textSecondary);
+	}
+
+	.subtitle-divider::before,
+	.subtitle-divider::after {
+		content: "";
+		flex: 1;
+		height: 1px;
+		background: var(--color-inputBorder);
+	}
+
+	.section-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.section-divider {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.expand-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.35rem;
+		border: none;
+		border-radius: 0.375rem;
+		background: transparent;
+		color: var(--color-textSecondary);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.icon-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(2.5rem, 1fr));
+		gap: 0.5rem;
+		max-height: 8rem;
+		overflow-y: auto;
+		padding: 0.25rem;
+	}
+
+	.icon-grid.expanded {
+		max-height: calc(90dvh - 10rem);
+	}
+
+	.color-grid {
+		align-content: start;
+	}
+
+	.color-grid.expanded {
+		max-height: 14rem;
+	}
+
+	.icon-grid.shrunk {
+		max-height: 2rem;
+	}
+
+	.icon-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 0.5rem;
+		background: transparent;
+		color: var(--color-textSecondary);
+		cursor: pointer;
+	}
+
+	.icon-btn.selected {
+		border-color: var(--color-accentSolid);
+		background: var(--color-accentSolid);
+		color: var(--color-onColor);
+	}
+
+	.color-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.35rem;
+		border: 2px solid transparent;
+		border-radius: 9999px;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.color-btn.selected {
+		border-color: var(--color-textPrimary);
+	}
+
+	.color-swatch {
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 50%;
+	}
+
+	.form-error {
+		margin: 0;
+		text-align: center;
+		font-size: 0.875rem;
+		color: #f87171;
+	}
+
+	.drawer-actions {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	@keyframes drawer-up {
+		from {
+			transform: translateY(100%);
+		}
+		to {
+			transform: translateY(0);
+		}
+	}
+</style>

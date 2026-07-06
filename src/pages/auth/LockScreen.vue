@@ -2,6 +2,7 @@
 	import { computed, nextTick, onMounted, ref } from "vue";
 	import { useRouter } from "vue-router";
 	import { FingerPrintIcon } from "@heroicons/vue/24/outline";
+	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { verifyPin } from "../../utils/pinHash";
@@ -143,25 +144,23 @@
 					/>
 				</div>
 
-				<button
-					type="button"
-					class="btn"
-					:class="{ primary: !useBiometric }"
+				<Button
+					:variant="useBiometric ? 'shade' : 'primary'"
+					class="w-full"
 					:disabled="pin.length !== 5"
 					@click="unlockWithPin"
 				>
 					Unlock with PIN
-				</button>
+				</Button>
 			</template>
 
-			<button
+			<Button
 				v-if="hasPin && useBiometric && !showPin"
-				type="button"
-				class="btn"
+				class="w-full"
 				@click="showPin = true"
 			>
 				Use PIN instead
-			</button>
+			</Button>
 
 			<p v-if="pinError" class="error">{{ pinError }}</p>
 		</GlassContainer>
@@ -273,28 +272,6 @@
 		height: 1px;
 		border: 0;
 		padding: 0;
-	}
-
-	.btn {
-		padding: 0.875rem 1.25rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-textPrimary);
-		font-size: 1rem;
-		font-family: inherit;
-		cursor: pointer;
-	}
-
-	.btn.primary {
-		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
-	}
-
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	.error {

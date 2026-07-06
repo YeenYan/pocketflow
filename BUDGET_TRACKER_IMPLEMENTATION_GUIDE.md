@@ -114,12 +114,6 @@ Create `src/pages/tracker/types/budget.ts`:
   - `isActive`
   - `hasChildItems`
   - `createdAt`
-- `ItemBuilderChild`
-  - `id`
-  - `parentItemId`
-  - `name`
-  - `amount`
-  - `createdAt`
 - `BudgetEntry`
   - `id` (UUID)
   - `cutoffId` (ref `cycleCutoffs.id`)
@@ -127,6 +121,7 @@ Create `src/pages/tracker/types/budget.ts`:
   - `ruleName`
   - `name`
   - `amount`
+  - `parentBudgetEntryId` (optional; ref parent `budgetEntries.id` for sub-items)
   - `createdAt`
 - `UnexpectedExpense`
   - `id`
@@ -173,7 +168,6 @@ Create `src/pages/tracker/db/budgetDb.ts`:
   - `rules`
   - `cycleCutoffs`
   - `itemBuilders`
-  - `itemBuilderChildren`
   - `budgetEntries`
   - `unexpectedExpenses`
   - `othersBudgets`
@@ -185,8 +179,7 @@ Recommended indexed fields:
 - `rules: ++id, name`
 - `cycleCutoffs: ++id, monthKey, slot, label, createdAt`
 - `itemBuilders: ++id, name, isActive, hasChildItems, createdAt`
-- `itemBuilderChildren: ++id, parentItemId, createdAt`
-- `budgetEntries: id, cutoffId, monthKey, ruleName, createdAt`
+- `budgetEntries: id, cutoffId, monthKey, ruleName, parentBudgetEntryId, createdAt`
 - `unexpectedExpenses: ++id, monthKey, createdAt`
 - `othersBudgets: ++id, monthKey`
 - `othersExpenses: ++id, monthKey, createdAt`
@@ -302,7 +295,7 @@ If `Have child items` is true:
 - Child item fields:
   - `Child Item Name`
   - `Child Item Amount`
-- Save child items in `itemBuilderChildren`.
+- Save sub-items as `budgetEntries` with `parentBudgetEntryId` set to the parent entry.
 
 Notes:
 

@@ -1,21 +1,17 @@
 <script setup lang="ts">
-	import { computed, onMounted, ref } from "vue";
-	import {
-		PlusIcon,
-		PencilIcon,
-		ChevronLeftIcon,
-		ChevronRightIcon,
-		XMarkIcon,
-	} from "@heroicons/vue/24/outline";
+	import { computed, onMounted, ref, watch } from "vue";
+	import { XMarkIcon } from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
-	import { Doughnut } from "vue-chartjs";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
+	import Button from "../../components/button/Button.vue";
+	import Divider from "../../components/divider/Divider.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import ItemBuilderDrawer, {
+		type ItemBuilderFormData,
+	} from "../../components/item-builder/ItemBuilderDrawer.vue";
 	import AmountField from "../../components/inputs/AmountField.vue";
-	import SelectField from "../../components/inputs/SelectField.vue";
 	import InputField from "../../components/inputs/InputField.vue";
-	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
-	import CircleCheckbox from "../../components/inputs/CircleCheckbox.vue";
+	import SelectField from "../../components/inputs/SelectField.vue";
 	import {
 		buildCutoffAllocations,
 		createId,
@@ -24,13 +20,25 @@
 		type CycleCutoff,
 		type ItemBuilder,
 		type BudgetEntry,
+		type OthersBudget,
+		type OthersExpense,
+		type TabBudget,
+		type TabBudgetExpense,
 		type Rule,
 		type RuleName,
+		type UnexpectedExpenseSource,
+		type UnexpectedExpense,
 	} from "../../db/budgetDb";
-
-	const ICON_OPTIONS = Object.keys(OutlineIcons).filter((key) =>
-		key.endsWith("Icon"),
-	);
+	import PeriodNavSection from "./partials/sections/PeriodNavSection.vue";
+	import CutoffBudgetSection from "./partials/sections/CutoffBudgetSection.vue";
+	import TabsSection from "./partials/sections/TabsSection.vue";
+	import RuleSection from "./partials/sections/RuleSection.vue";
+	import ItemsSection, {
+		type ItemEntry,
+	} from "./partials/sections/ItemsSection.vue";
+	import OthersSection from "./partials/sections/OthersSection.vue";
+	import BudgetSection from "./partials/sections/BudgetSection.vue";
+	import OtherItemsSection from "./partials/sections/OtherItemsSection.vue";
 
 	const ITEM_COLOR_OPTIONS = [
 		{
@@ -249,6 +257,11 @@
 	const cutoffs = ref<CycleCutoff[]>([]);
 	const itemBuilders = ref<ItemBuilder[]>([]);
 	const budgetEntries = ref<BudgetEntry[]>([]);
+	const othersBudget = ref<OthersBudget | null>(null);
+	const othersExpenses = ref<OthersExpense[]>([]);
+	const tabBudget = ref<TabBudget | null>(null);
+	const tabBudgetExpenses = ref<TabBudgetExpense[]>([]);
+	const unexpectedExpenses = ref<UnexpectedExpense[]>([]);
 
 	const now = new Date();
 	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -260,6 +273,7 @@
 	];
 
 	const showModal = ref(false);
+	const editingCutoffId = ref("");
 	const formAmount = ref("");
 	const formName = ref("");
 	const formDate = ref("");
@@ -278,6 +292,8 @@
 	const editItemIcon = ref("HomeIcon");
 	const editItemIconWrapClass = ref("");
 	const editItemAmount = ref("");
+	const editItemBuilderId = ref("");
+	const editItemHasChildItems = ref(false);
 	const editItemError = ref("");
 	const savingEditItem = ref(false);
 
@@ -288,16 +304,66 @@
 	let itemSwipeMoved = false;
 
 	const showCreateItemDrawer = ref(false);
-	const createFormName = ref("");
-	const createCatExpenses = ref(false);
-	const createCatSavings = ref(false);
-	const createCatWants = ref(false);
-	const createIsActive = ref(true);
-	const createHasChildItems = ref(false);
-	const createIcon = ref("HomeIcon");
-	const createColor = ref(DEFAULT_ITEM_COLOR);
-	const createFormError = ref("");
 	const savingCreateItem = ref(false);
+
+	const showSubItemModal = ref(false);
+	const subItemEditId = ref("");
+	const subItemName = ref("");
+	const subItemAmount = ref("");
+	const subItemError = ref("");
+	const savingSubItem = ref(false);
+
+	const showOthersBudgetModal = ref(false);
+	const othersBudgetAmount = ref("");
+	const othersBudgetError = ref("");
+	const savingOthersBudget = ref(false);
+
+	const showOthersItemModal = ref(false);
+	const othersItemEditId = ref<string | "">("");
+	const othersExpenseName = ref("");
+	const othersExpenseAmount = ref("");
+	const othersItemError = ref("");
+	const savingOthersItem = ref(false);
+
+	const showTabBudgetModal = ref(false);
+	const tabBudgetAmount = ref("");
+	const tabBudgetError = ref("");
+	const savingTabBudget = ref(false);
+
+	const showTabBudgetItemModal = ref(false);
+	const tabBudgetItemEditId = ref<string | "">("");
+	const tabBudgetExpenseName = ref("");
+	const tabBudgetExpenseAmount = ref("");
+	const tabBudgetItemError = ref("");
+	const savingTabBudgetItem = ref(false);
+
+	const tabBudgetSwipeOffsets = ref<Record<string, number>>({});
+	let tabBudgetSwipeStartX = 0;
+	let tabBudgetSwipeStartOffset = 0;
+	let tabBudgetSwipeActiveId = "";
+	let tabBudgetSwipeMoved = false;
+
+	const othersSwipeOffsets = ref<Record<string, number>>({});
+	let othersSwipeStartX = 0;
+	let othersSwipeStartOffset = 0;
+	let othersSwipeActiveId = "";
+	let othersSwipeMoved = false;
+
+	const showExceedModal = ref(false);
+	const exceedModalExcess = ref(0);
+	let exceedModalOnProceed: (() => Promise<void>) | null = null;
+
+	const showUnexpectedDrawer = ref(false);
+
+	const displayExceedModalExcess = computed(
+		() => `₱${exceedModalExcess.value.toLocaleString("en-PH")}`,
+	);
+
+	const subItemSwipeOffsets = ref<Record<string, number>>({});
+	let subItemSwipeStartX = 0;
+	let subItemSwipeStartOffset = 0;
+	let subItemSwipeActiveId = "";
+	let subItemSwipeMoved = false;
 
 	// =============================================================================
 	// PERIOD NAV — computed
@@ -364,9 +430,18 @@
 	const spentAmount = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return 0;
-		return budgetEntries.value
-			.filter((entry) => entry.cutoffId === cutoffId)
+		const entriesSum = budgetEntries.value
+			.filter((entry) => entry.cutoffId === cutoffId && !entry.parentBudgetEntryId)
 			.reduce((sum, entry) => sum + entry.amount, 0);
+		const tabSum = tabBudgetExpenses.value.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		const othersSum = othersExpenses.value.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		return entriesSum + tabSum + othersSum;
 	});
 
 	const displaySpent = computed(
@@ -379,6 +454,101 @@
 			100,
 			Math.round((spentAmount.value / totalAmount.value) * 100),
 		);
+	});
+
+	const isEditingCutoff = computed(() => !!editingCutoffId.value);
+
+	const cutoffFormUnchanged = computed(() => {
+		if (!editingCutoffId.value) return false;
+		const cutoff = cutoffs.value.find((c) => c.id === editingCutoffId.value);
+		if (!cutoff) return false;
+		const amount = Number(formAmount.value);
+		return (
+			amount === cutoff.amount &&
+			formName.value.trim() === cutoff.label &&
+			formDate.value === (cutoff.date ?? "")
+		);
+	});
+
+	const canSaveCutoff = computed(() => {
+		if (saving.value) return false;
+		if (isEditingCutoff.value) return !cutoffFormUnchanged.value;
+		return true;
+	});
+
+	const editItemFormUnchanged = computed(() => {
+		const entry = budgetEntries.value.find((e) => e.id === editItemId.value);
+		if (!entry) return true;
+		const amount = Number(editItemAmount.value);
+		return amount === entry.amount;
+	});
+
+	const canSaveEditItem = computed(() => {
+		if (savingEditItem.value) return false;
+		return !editItemFormUnchanged.value;
+	});
+
+	const subItemFormUnchanged = computed(() => {
+		if (!subItemEditId.value) return false;
+		const entry = budgetEntries.value.find((e) => e.id === subItemEditId.value);
+		if (!entry) return true;
+		const name = subItemName.value.trim();
+		const amount = Number(subItemAmount.value);
+		return name === entry.name && amount === entry.amount;
+	});
+
+	const canSaveSubItem = computed(() => {
+		if (savingSubItem.value) return false;
+		if (subItemEditId.value) return !subItemFormUnchanged.value;
+		return true;
+	});
+
+	const othersItemFormUnchanged = computed(() => {
+		if (!othersItemEditId.value) return false;
+		const expense = othersExpenses.value.find(
+			(e) => e.id === othersItemEditId.value,
+		);
+		if (!expense) return true;
+		const name = othersExpenseName.value.trim();
+		const amount = Number(othersExpenseAmount.value);
+		return name === expense.expenseName && amount === expense.amount;
+	});
+
+	const canSaveOthersItem = computed(() => {
+		if (savingOthersItem.value) return false;
+		if (othersItemEditId.value) return !othersItemFormUnchanged.value;
+		return true;
+	});
+
+	const tabBudgetItemFormUnchanged = computed(() => {
+		if (!tabBudgetItemEditId.value) return false;
+		const expense = tabBudgetExpenses.value.find(
+			(e) => e.id === tabBudgetItemEditId.value,
+		);
+		if (!expense) return true;
+		const name = tabBudgetExpenseName.value.trim();
+		const amount = Number(tabBudgetExpenseAmount.value);
+		return name === expense.expenseName && amount === expense.amount;
+	});
+
+	const canSaveTabBudgetItem = computed(() => {
+		if (savingTabBudgetItem.value) return false;
+		if (tabBudgetItemEditId.value) return !tabBudgetItemFormUnchanged.value;
+		return true;
+	});
+
+	const isEditingOthersBudget = computed(() => !!othersBudget.value);
+
+	const othersBudgetFormUnchanged = computed(() => {
+		if (!othersBudget.value) return false;
+		const amount = Number(othersBudgetAmount.value);
+		return amount === othersBudget.value.budgetAllocated;
+	});
+
+	const canSaveOthersBudget = computed(() => {
+		if (savingOthersBudget.value) return false;
+		if (isEditingOthersBudget.value) return !othersBudgetFormUnchanged.value;
+		return true;
 	});
 
 	// =============================================================================
@@ -402,24 +572,55 @@
 		return budgetEntries.value
 			.filter(
 				(entry) =>
-					entry.cutoffId === cutoffId && entry.ruleName === activeTab.value,
+					entry.cutoffId === cutoffId &&
+					entry.ruleName === activeTab.value &&
+					!entry.parentBudgetEntryId,
 			)
 			.map((entry) => {
-				const builder = itemBuilders.value.find((item) => item.name === entry.name);
+				const builder = entry.itemBuilderId
+					? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+					: itemBuilders.value.find((item) => item.name === entry.name);
 				const color = builder?.color ?? DEFAULT_ITEM_COLOR;
 				const colorOption =
 					ITEM_COLOR_OPTIONS.find((option) => option.value === color) ??
 					ITEM_COLOR_OPTIONS.find((option) => option.value === DEFAULT_ITEM_COLOR)!;
+				const childrenSpent = budgetEntries.value
+					.filter((child) => child.parentBudgetEntryId === entry.id)
+					.reduce((sum, child) => sum + child.amount, 0);
+				const childProgressPercent =
+					entry.amount > 0
+						? Math.min(100, Math.round((childrenSpent / entry.amount) * 100))
+						: 0;
 				return {
 					...entry,
+					name: builder?.name ?? entry.name,
 					icon: builder?.icon ?? "HomeIcon",
 					iconWrapClass: colorOption.wrap,
+					hasChildItems: builder?.hasChildItems ?? false,
+					builderId: builder?.id ?? "",
+					childrenSpent,
+					childProgressPercent,
 				};
 			});
 	});
 
-	const ruleSpentAmount = computed(() =>
-		activeRuleEntries.value.reduce((sum, entry) => sum + entry.amount, 0),
+	const ruleSpentAmount = computed(() => {
+		const entriesSum = activeRuleEntries.value.reduce(
+			(sum, entry) => sum + entry.amount,
+			0,
+		);
+		if (activeTab.value === "Expenses") {
+			return entriesSum + tabBudgetSpent.value + othersSpent.value;
+		}
+		return entriesSum;
+	});
+
+	const ruleOverBudget = computed(
+		() => ruleSpentAmount.value > activeRuleAmount.value,
+	);
+
+	const ruleExcessAmount = computed(() =>
+		Math.max(0, ruleSpentAmount.value - activeRuleAmount.value),
 	);
 
 	const ruleLeftAmount = computed(() =>
@@ -438,13 +639,145 @@
 		() => `₱${ruleSpentAmount.value.toLocaleString("en-PH")}`,
 	);
 
-	const displayRuleLeft = computed(
-		() => `₱${ruleLeftAmount.value.toLocaleString("en-PH")}`,
+	const displayRuleLeft = computed(() => {
+		const amount = ruleOverBudget.value
+			? ruleExcessAmount.value
+			: ruleLeftAmount.value;
+		return `₱${amount.toLocaleString("en-PH")}`;
+	});
+
+	const othersAllocated = computed(
+		() => othersBudget.value?.budgetAllocated ?? 0,
 	);
 
-	const itemBuilderOptions = computed(() =>
-		itemBuilders.value
-			.filter((item) => item.isActive && item.categories.includes(activeTab.value))
+	const othersSpent = computed(() =>
+		othersExpenses.value.reduce((sum, expense) => sum + expense.amount, 0),
+	);
+
+	const othersOverBudget = computed(
+		() => othersSpent.value > othersAllocated.value,
+	);
+
+	const othersExcessAmount = computed(() =>
+		Math.max(0, othersSpent.value - othersAllocated.value),
+	);
+
+	const othersLeft = computed(() =>
+		Math.max(0, othersAllocated.value - othersSpent.value),
+	);
+
+	const displayOthersAllocated = computed(
+		() => `₱${othersAllocated.value.toLocaleString("en-PH")}`,
+	);
+
+	const displayOthersLeft = computed(() => {
+		const amount = othersOverBudget.value
+			? othersExcessAmount.value
+			: othersLeft.value;
+		return `₱${amount.toLocaleString("en-PH")}`;
+	});
+
+	const displayOthersSpent = computed(
+		() => `₱${othersSpent.value.toLocaleString("en-PH")}`,
+	);
+
+	const othersProgressPercent = computed(() => {
+		if (othersAllocated.value <= 0) return 0;
+		return Math.min(
+			100,
+			Math.round((othersSpent.value / othersAllocated.value) * 100),
+		);
+	});
+
+	const tabBudgetAllocated = computed(
+		() => tabBudget.value?.budgetAllocated ?? 0,
+	);
+
+	const tabBudgetSpent = computed(() =>
+		tabBudgetExpenses.value.reduce((sum, expense) => sum + expense.amount, 0),
+	);
+
+	const tabBudgetOverBudget = computed(
+		() => tabBudgetSpent.value > tabBudgetAllocated.value,
+	);
+
+	const tabBudgetExcessAmount = computed(() =>
+		Math.max(0, tabBudgetSpent.value - tabBudgetAllocated.value),
+	);
+
+	const tabBudgetLeft = computed(() =>
+		Math.max(0, tabBudgetAllocated.value - tabBudgetSpent.value),
+	);
+
+	const displayTabBudgetAllocated = computed(
+		() => `₱${tabBudgetAllocated.value.toLocaleString("en-PH")}`,
+	);
+
+	const displayTabBudgetLeft = computed(() => {
+		const amount = tabBudgetOverBudget.value
+			? tabBudgetExcessAmount.value
+			: tabBudgetLeft.value;
+		return `₱${amount.toLocaleString("en-PH")}`;
+	});
+
+	const displayTabBudgetSpent = computed(
+		() => `₱${tabBudgetSpent.value.toLocaleString("en-PH")}`,
+	);
+
+	const tabBudgetProgressPercent = computed(() => {
+		if (tabBudgetAllocated.value <= 0) return 0;
+		return Math.min(
+			100,
+			Math.round((tabBudgetSpent.value / tabBudgetAllocated.value) * 100),
+		);
+	});
+
+	const isEditingTabBudget = computed(() => !!tabBudget.value);
+
+	const tabBudgetFormUnchanged = computed(() => {
+		if (!tabBudget.value) return false;
+		const amount = Number(tabBudgetAmount.value);
+		return amount === tabBudget.value.budgetAllocated;
+	});
+
+	const canSaveTabBudget = computed(() => {
+		if (savingTabBudget.value) return false;
+		if (isEditingTabBudget.value) return !tabBudgetFormUnchanged.value;
+		return true;
+	});
+
+	const activeRuleUnexpectedExpenses = computed(() =>
+		unexpectedExpenses.value.filter((item) => item.ruleName === activeTab.value),
+	);
+
+	const unexpectedExcessPercent = computed(() => {
+		if (activeRuleAmount.value <= 0) return 0;
+		return Math.round((ruleExcessAmount.value / activeRuleAmount.value) * 100);
+	});
+
+	const hasRuleUnexpectedBadge = computed(() => ruleOverBudget.value);
+
+	const displayUnexpectedExcessTotal = computed(
+		() => `₱${ruleExcessAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const editItemSubItems = computed(() =>
+		budgetEntries.value.filter(
+			(entry) => entry.parentBudgetEntryId === editItemId.value,
+		),
+	);
+
+	const itemBuilderOptions = computed(() => {
+		const addedBuilderIds = new Set(
+			activeRuleEntries.value.map((entry) => entry.builderId).filter(Boolean),
+		);
+		return itemBuilders.value
+			.filter(
+				(item) =>
+					item.isActive &&
+					item.categories.includes(activeTab.value) &&
+					!addedBuilderIds.has(item.id),
+			)
 			.map((item) => {
 				const color = item.color ?? DEFAULT_ITEM_COLOR;
 				const colorOption =
@@ -456,8 +789,8 @@
 					icon: item.icon ?? "HomeIcon",
 					iconWrapClass: colorOption.wrap,
 				};
-			}),
-	);
+			});
+	});
 
 	// =============================================================================
 	// CHART — data & options
@@ -498,6 +831,75 @@
 		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 	}
 
+	function closeExceedModal() {
+		showExceedModal.value = false;
+		exceedModalOnProceed = null;
+	}
+
+	function requestExceedConfirm(excess: number, onProceed: () => Promise<void>) {
+		exceedModalExcess.value = excess;
+		exceedModalOnProceed = onProceed;
+		showExceedModal.value = true;
+	}
+
+	async function confirmExceedProceed() {
+		const proceed = exceedModalOnProceed;
+		closeExceedModal();
+		if (proceed) await proceed();
+	}
+
+	async function addUnexpectedExpense(
+		itemName: string,
+		excessAmount: number,
+		sourceSection: UnexpectedExpenseSource,
+		sourceId: string,
+		ruleName: RuleName,
+	) {
+		const cutoff = activeCutoff.value;
+		const rule = rules.value.find((r) => r.name === ruleName);
+		if (!cutoff || rule?.id == null) return;
+		await db.unexpectedExpenses.add({
+			id: createId(),
+			cutoffId: cutoff.id,
+			monthKey: cutoff.monthKey,
+			itemName,
+			excessAmount,
+			ruleId: rule.id,
+			ruleName,
+			date: todayDate(),
+			sourceSection,
+			sourceId,
+		});
+		await loadUnexpectedExpenses();
+	}
+
+	function unexpectedSourceLabel(sourceSection: UnexpectedExpenseSource) {
+		if (sourceSection === "mainItems") return "Main Expense Items";
+		if (sourceSection === "budgetItems") return "Budget Items";
+		return "Other Items";
+	}
+
+	function openUnexpectedDrawer() {
+		showUnexpectedDrawer.value = true;
+	}
+
+	function closeUnexpectedDrawer() {
+		showUnexpectedDrawer.value = false;
+	}
+
+	function mainItemBudgetExcess(newAmount: number, oldAmount = 0) {
+		const reserved =
+			activeTab.value === "Expenses"
+				? tabBudgetSpent.value + othersSpent.value
+				: 0;
+		const currentSpent = activeRuleEntries.value.reduce(
+			(sum, entry) => sum + entry.amount,
+			0,
+		);
+		const newSpent = currentSpent - oldAmount + newAmount;
+		return newSpent + reserved - activeRuleAmount.value;
+	}
+
 	async function loadCutoffs() {
 		cutoffs.value = await db.cycleCutoffs.toArray();
 	}
@@ -510,20 +912,71 @@
 		budgetEntries.value = await db.budgetEntries.toArray();
 	}
 
+	async function loadOthers() {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			othersBudget.value = null;
+			othersExpenses.value = [];
+			return;
+		}
+		othersBudget.value =
+			(await db.othersBudgets.where("cutoffId").equals(cutoffId).first()) ?? null;
+		othersExpenses.value = await db.othersExpenses
+			.where("cutoffId")
+			.equals(cutoffId)
+			.toArray();
+	}
+
+	async function loadTabBudget() {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			tabBudget.value = null;
+			tabBudgetExpenses.value = [];
+			return;
+		}
+		tabBudget.value =
+			(await db.tabBudgets.where({ cutoffId, ruleName: "Expenses" }).first()) ??
+			null;
+		tabBudgetExpenses.value = await db.tabBudgetExpenses
+			.where({ cutoffId, ruleName: "Expenses" })
+			.toArray();
+	}
+
+	async function loadUnexpectedExpenses() {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			unexpectedExpenses.value = [];
+			return;
+		}
+		unexpectedExpenses.value = await db.unexpectedExpenses
+			.where("cutoffId")
+			.equals(cutoffId)
+			.toArray();
+	}
+
 	async function reloadTracker() {
 		await loadCutoffs();
 		await loadItemBuilders();
 		await loadBudgetEntries();
+		await loadOthers();
+		await loadTabBudget();
+		await loadUnexpectedExpenses();
 	}
 
 	async function deleteBudgetEntry(id: string) {
+		await db.budgetEntries.where("parentBudgetEntryId").equals(id).delete();
 		await db.budgetEntries.delete(id);
-		await reloadTracker();
+		await loadBudgetEntries();
 	}
 
 	function goPrev() {
 		const index = monthKeys.value.indexOf(viewMonthKey.value);
-		if (index > 0) viewMonthKey.value = monthKeys.value[index - 1];
+		if (index > 0) {
+			viewMonthKey.value = monthKeys.value[index - 1];
+			loadOthers();
+			loadTabBudget();
+			loadUnexpectedExpenses();
+		}
 	}
 
 	function goNext() {
@@ -531,6 +984,9 @@
 		const index = monthKeys.value.indexOf(viewMonthKey.value);
 		if (index < monthKeys.value.length - 1) {
 			viewMonthKey.value = monthKeys.value[index + 1];
+			loadOthers();
+			loadTabBudget();
+			loadUnexpectedExpenses();
 		}
 	}
 
@@ -538,15 +994,24 @@
 	// ADD CUTOFF MODAL — actions
 	// =============================================================================
 	function openModal() {
-		formAmount.value = "";
-		formName.value = "";
-		formDate.value = todayDate();
 		formError.value = "";
+		if (activeCutoff.value) {
+			editingCutoffId.value = activeCutoff.value.id;
+			formAmount.value = String(activeCutoff.value.amount);
+			formName.value = activeCutoff.value.label;
+			formDate.value = activeCutoff.value.date ?? todayDate();
+		} else {
+			editingCutoffId.value = "";
+			formAmount.value = "";
+			formName.value = "";
+			formDate.value = todayDate();
+		}
 		showModal.value = true;
 	}
 
 	function closeModal() {
 		formError.value = "";
+		editingCutoffId.value = "";
 		showModal.value = false;
 	}
 
@@ -575,22 +1040,33 @@
 			.equals(monthKey)
 			.toArray();
 
-		if (existing.some((c) => c.slot === slot)) {
+		if (existing.some((c) => c.slot === slot && c.id !== editingCutoffId.value)) {
 			formError.value = `${name} already exists for this month`;
 			return;
 		}
 
 		saving.value = true;
-		await db.cycleCutoffs.add({
-			id: createId(),
-			monthKey,
-			slot,
-			label: name,
-			amount,
-			date,
-			allocations: buildCutoffAllocations(amount, rules.value),
-			createdAt: new Date().toISOString(),
-		});
+		if (editingCutoffId.value) {
+			await db.cycleCutoffs.update(editingCutoffId.value, {
+				monthKey,
+				slot,
+				label: name,
+				amount,
+				date,
+				allocations: buildCutoffAllocations(amount, rules.value),
+			});
+		} else {
+			await db.cycleCutoffs.add({
+				id: createId(),
+				monthKey,
+				slot,
+				label: name,
+				amount,
+				date,
+				allocations: buildCutoffAllocations(amount, rules.value),
+				createdAt: new Date().toISOString(),
+			});
+		}
 		await loadCutoffs();
 		viewMonthKey.value = monthKey;
 		saving.value = false;
@@ -613,49 +1089,19 @@
 	}
 
 	function openCreateItemDrawer() {
-		createFormName.value = "";
-		createCatExpenses.value = activeTab.value === "Expenses";
-		createCatSavings.value = activeTab.value === "Savings";
-		createCatWants.value = activeTab.value === "Wants";
-		createIsActive.value = true;
-		createHasChildItems.value = false;
-		createIcon.value = "HomeIcon";
-		createColor.value = DEFAULT_ITEM_COLOR;
-		createFormError.value = "";
 		showCreateItemDrawer.value = true;
 	}
 
 	function closeCreateItemDrawer() {
-		createFormError.value = "";
 		showCreateItemDrawer.value = false;
 	}
 
-	async function saveCreateItem() {
-		const name = createFormName.value.trim();
-		const categories: RuleName[] = [];
-		if (createCatExpenses.value) categories.push("Expenses");
-		if (createCatSavings.value) categories.push("Savings");
-		if (createCatWants.value) categories.push("Wants");
-
-		if (!name) {
-			createFormError.value = "Enter item name";
-			return;
-		}
-		if (categories.length === 0) {
-			createFormError.value = "Select at least one category";
-			return;
-		}
-
+	async function saveCreateItem(data: ItemBuilderFormData) {
 		savingCreateItem.value = true;
 		const id = createId();
 		await db.itemBuilders.add({
 			id,
-			name,
-			categories,
-			isActive: createIsActive.value,
-			hasChildItems: createHasChildItems.value,
-			icon: createIcon.value,
-			color: createColor.value,
+			...data,
 			createdAt: new Date().toISOString(),
 		});
 		await loadItemBuilders();
@@ -688,24 +1134,42 @@
 			return;
 		}
 
-		savingItem.value = true;
-		await db.budgetEntries.add({
-			id: createId(),
-			cutoffId: activeCutoff.value.id,
-			monthKey: activeCutoff.value.monthKey,
-			ruleName: activeTab.value,
-			name: builder.name,
-			amount,
-			createdAt: new Date().toISOString(),
-		});
-		await loadBudgetEntries();
-		savingItem.value = false;
-		closeItemModal();
+		const excess = mainItemBudgetExcess(amount);
+		const doSave = async () => {
+			savingItem.value = true;
+			const entryId = createId();
+			await db.budgetEntries.add({
+				id: entryId,
+				cutoffId: activeCutoff.value!.id,
+				monthKey: activeCutoff.value!.monthKey,
+				ruleName: activeTab.value,
+				name: builder.name,
+				amount,
+				itemBuilderId: builder.id,
+				createdAt: new Date().toISOString(),
+			});
+			if (excess > 0) {
+				await addUnexpectedExpense(
+					builder.name,
+					excess,
+					"mainItems",
+					entryId,
+					activeTab.value,
+				);
+			}
+			await loadBudgetEntries();
+			savingItem.value = false;
+			closeItemModal();
+		};
+
+		if (excess > 0) {
+			requestExceedConfirm(excess, doSave);
+			return;
+		}
+		await doSave();
 	}
 
-	function openEditItemModal(
-		entry: BudgetEntry & { icon: string; iconWrapClass: string },
-	) {
+	function openEditItemModal(entry: ItemEntry) {
 		itemSwipeOffsets.value = {};
 		itemSwipeActiveId = "";
 		editItemId.value = entry.id;
@@ -713,12 +1177,16 @@
 		editItemIcon.value = entry.icon;
 		editItemIconWrapClass.value = entry.iconWrapClass;
 		editItemAmount.value = String(entry.amount);
+		editItemBuilderId.value = entry.builderId;
+		editItemHasChildItems.value = entry.hasChildItems;
 		editItemError.value = "";
+		subItemSwipeOffsets.value = {};
 		showEditItemModal.value = true;
 	}
 
 	function closeEditItemModal() {
 		editItemError.value = "";
+		subItemSwipeOffsets.value = {};
 		showEditItemModal.value = false;
 	}
 
@@ -729,11 +1197,31 @@
 			return;
 		}
 
-		savingEditItem.value = true;
-		await db.budgetEntries.update(editItemId.value, { amount });
-		await reloadTracker();
-		savingEditItem.value = false;
-		closeEditItemModal();
+		const entry = budgetEntries.value.find((e) => e.id === editItemId.value);
+		const oldAmount = entry?.amount ?? 0;
+		const excess = mainItemBudgetExcess(amount, oldAmount);
+		const doSave = async () => {
+			savingEditItem.value = true;
+			await db.budgetEntries.update(editItemId.value, { amount });
+			if (excess > 0) {
+				await addUnexpectedExpense(
+					editItemName.value,
+					excess,
+					"mainItems",
+					editItemId.value,
+					entry?.ruleName ?? activeTab.value,
+				);
+			}
+			await reloadTracker();
+			savingEditItem.value = false;
+			closeEditItemModal();
+		};
+
+		if (excess > 0) {
+			requestExceedConfirm(excess, doSave);
+			return;
+		}
+		await doSave();
 	}
 
 	async function removeEditItem() {
@@ -782,10 +1270,7 @@
 		itemSwipeActiveId = "";
 	}
 
-	function onItemRowClick(
-		entry: BudgetEntry & { icon: string; iconWrapClass: string },
-		id: string,
-	) {
+	function onItemRowClick(entry: ItemEntry, id: string) {
 		if (itemSwipeOffset(id) < 0) {
 			itemSwipeOffsets.value[id] = 0;
 			return;
@@ -794,10 +1279,537 @@
 		openEditItemModal(entry);
 	}
 
+	function subItemSwipeOffset(id: string) {
+		return subItemSwipeOffsets.value[id] ?? 0;
+	}
+
+	function onSubItemSwipeStart(id: string, event: TouchEvent) {
+		const touch = event.touches[0];
+		if (!touch) return;
+		subItemSwipeStartX = touch.clientX;
+		subItemSwipeStartOffset = subItemSwipeOffset(id);
+		subItemSwipeActiveId = id;
+		subItemSwipeMoved = false;
+		for (const key of Object.keys(subItemSwipeOffsets.value)) {
+			if (key !== id) subItemSwipeOffsets.value[key] = 0;
+		}
+	}
+
+	function onSubItemSwipeMove(id: string, event: TouchEvent) {
+		if (subItemSwipeActiveId !== id) return;
+		const touch = event.touches[0];
+		if (!touch) return;
+		const delta = touch.clientX - subItemSwipeStartX;
+		if (Math.abs(delta) > 6) subItemSwipeMoved = true;
+		subItemSwipeOffsets.value[id] = Math.min(
+			0,
+			Math.max(-ITEM_SWIPE_DELETE_WIDTH, subItemSwipeStartOffset + delta),
+		);
+	}
+
+	async function onSubItemSwipeEnd(id: string) {
+		const offset = subItemSwipeOffset(id);
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+			await deleteSubItem(id);
+			return;
+		}
+		subItemSwipeOffsets.value[id] =
+			offset < -ITEM_SWIPE_DELETE_WIDTH / 2 ? -ITEM_SWIPE_DELETE_WIDTH : 0;
+		subItemSwipeActiveId = "";
+	}
+
+	async function deleteSubItem(id: string) {
+		await db.budgetEntries.delete(id);
+		delete subItemSwipeOffsets.value[id];
+		await loadBudgetEntries();
+	}
+
+	function openSubItemModal() {
+		subItemEditId.value = "";
+		subItemName.value = "";
+		subItemAmount.value = "";
+		subItemError.value = "";
+		showSubItemModal.value = true;
+	}
+
+	function onSubItemRowClick(child: BudgetEntry, id: string) {
+		if (subItemSwipeOffset(id) < 0) {
+			subItemSwipeOffsets.value[id] = 0;
+			return;
+		}
+		if (subItemSwipeMoved) return;
+		subItemEditId.value = id;
+		subItemName.value = child.name;
+		subItemAmount.value = String(child.amount);
+		subItemError.value = "";
+		showSubItemModal.value = true;
+	}
+
+	function closeSubItemModal() {
+		showSubItemModal.value = false;
+		subItemEditId.value = "";
+		subItemError.value = "";
+	}
+
+	async function saveSubItem() {
+		const name = subItemName.value.trim();
+		const amount = Number(subItemAmount.value);
+		if (!name) {
+			subItemError.value = "Enter sub item name";
+			return;
+		}
+		if (!subItemAmount.value || Number.isNaN(amount) || amount <= 0) {
+			subItemError.value = "Enter a valid amount";
+			return;
+		}
+
+		savingSubItem.value = true;
+		if (subItemEditId.value) {
+			await db.budgetEntries.update(subItemEditId.value, { name, amount });
+		} else {
+			const parentEntry = budgetEntries.value.find(
+				(e) => e.id === editItemId.value,
+			);
+			if (!parentEntry) {
+				savingSubItem.value = false;
+				return;
+			}
+			await db.budgetEntries.add({
+				id: createId(),
+				cutoffId: parentEntry.cutoffId,
+				monthKey: parentEntry.monthKey,
+				ruleName: parentEntry.ruleName,
+				name,
+				amount,
+				parentBudgetEntryId: editItemId.value,
+				createdAt: new Date().toISOString(),
+			});
+		}
+		await loadBudgetEntries();
+		savingSubItem.value = false;
+		closeSubItemModal();
+	}
+
 	async function removeSwipedItem(id: string) {
 		itemSwipeOffsets.value = {};
 		itemSwipeActiveId = "";
 		await deleteBudgetEntry(id);
+	}
+
+	function openOthersBudgetModal() {
+		othersBudgetError.value = "";
+		if (othersBudget.value) {
+			othersBudgetAmount.value = String(othersBudget.value.budgetAllocated);
+		} else {
+			othersBudgetAmount.value = "";
+		}
+		showOthersBudgetModal.value = true;
+	}
+
+	function closeOthersBudgetModal() {
+		othersBudgetError.value = "";
+		showOthersBudgetModal.value = false;
+	}
+
+	async function saveOthersBudget() {
+		const amount = Number(othersBudgetAmount.value);
+		if (!othersBudgetAmount.value || Number.isNaN(amount) || amount < 0) {
+			othersBudgetError.value = "Enter a valid amount";
+			return;
+		}
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			othersBudgetError.value = "Add a cutoff first";
+			return;
+		}
+		const expensesRuleAmount =
+			activeCutoff.value?.allocations?.Expenses?.amount ?? 0;
+		const expensesEntriesSum = cutoffId
+			? budgetEntries.value
+					.filter(
+						(entry) =>
+							entry.cutoffId === cutoffId &&
+							entry.ruleName === "Expenses" &&
+							!entry.parentBudgetEntryId,
+					)
+					.reduce((sum, entry) => sum + entry.amount, 0)
+			: 0;
+		const remainingBudget = expensesRuleAmount - expensesEntriesSum;
+		if (amount > remainingBudget) {
+			othersBudgetError.value = `Amount exceeds remaining budget (₱${Math.max(0, remainingBudget).toLocaleString("en-PH")} left)`;
+			return;
+		}
+		savingOthersBudget.value = true;
+		if (othersBudget.value?.id) {
+			await db.othersBudgets.update(othersBudget.value.id, {
+				budgetAllocated: amount,
+			});
+		} else {
+			await db.othersBudgets.add({
+				id: createId(),
+				cutoffId,
+				monthKey: viewMonthKey.value,
+				budgetAllocated: amount,
+				createdAt: new Date().toISOString(),
+			});
+		}
+		await loadOthers();
+		savingOthersBudget.value = false;
+		closeOthersBudgetModal();
+	}
+
+	function openOthersItemModal() {
+		othersItemEditId.value = "";
+		othersExpenseName.value = "";
+		othersExpenseAmount.value = "";
+		othersItemError.value = "";
+		showOthersItemModal.value = true;
+	}
+
+	function onOthersItemRowClick(
+		expense: { expenseName: string; amount: number },
+		id: string,
+	) {
+		if (othersSwipeOffset(id) < 0) {
+			othersSwipeOffsets.value[id] = 0;
+			return;
+		}
+		if (othersSwipeMoved) return;
+		othersItemEditId.value = id;
+		othersExpenseName.value = expense.expenseName;
+		othersExpenseAmount.value = String(expense.amount);
+		othersItemError.value = "";
+		showOthersItemModal.value = true;
+	}
+
+	function closeOthersItemModal() {
+		showOthersItemModal.value = false;
+		othersItemEditId.value = "";
+		othersItemError.value = "";
+	}
+
+	async function saveOthersItem() {
+		const name = othersExpenseName.value.trim();
+		const amount = Number(othersExpenseAmount.value);
+		if (!name) {
+			othersItemError.value = "Enter expense name";
+			return;
+		}
+		if (!othersExpenseAmount.value || Number.isNaN(amount) || amount <= 0) {
+			othersItemError.value = "Enter a valid amount";
+			return;
+		}
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			othersItemError.value = "Add a cutoff first";
+			return;
+		}
+
+		const oldAmount = othersItemEditId.value
+			? (othersExpenses.value.find((e) => e.id === othersItemEditId.value)
+					?.amount ?? 0)
+			: 0;
+		const currentSpent = othersExpenses.value.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		const excess = currentSpent - oldAmount + amount - othersAllocated.value;
+
+		const doSave = async () => {
+			savingOthersItem.value = true;
+			let sourceId = othersItemEditId.value;
+			if (othersItemEditId.value) {
+				await db.othersExpenses.update(othersItemEditId.value, {
+					expenseName: name,
+					amount,
+				});
+			} else {
+				sourceId = createId();
+				await db.othersExpenses.add({
+					id: sourceId,
+					cutoffId,
+					monthKey: viewMonthKey.value,
+					expenseName: name,
+					amount,
+					createdAt: new Date().toISOString(),
+				});
+			}
+			if (excess > 0 && sourceId) {
+				await addUnexpectedExpense(
+					name,
+					excess,
+					"otherItems",
+					sourceId,
+					"Expenses",
+				);
+			}
+			await loadOthers();
+			savingOthersItem.value = false;
+			closeOthersItemModal();
+		};
+
+		if (excess > 0) {
+			requestExceedConfirm(excess, doSave);
+			return;
+		}
+		await doSave();
+	}
+
+	async function deleteOthersExpense(id: string) {
+		await db.othersExpenses.delete(id);
+		delete othersSwipeOffsets.value[id];
+		await loadOthers();
+	}
+
+	function othersSwipeOffset(id: string) {
+		return othersSwipeOffsets.value[id] ?? 0;
+	}
+
+	function onOthersSwipeStart(id: string, event: TouchEvent) {
+		const touch = event.touches[0];
+		if (!touch) return;
+		othersSwipeStartX = touch.clientX;
+		othersSwipeStartOffset = othersSwipeOffset(id);
+		othersSwipeActiveId = id;
+		othersSwipeMoved = false;
+		for (const key of Object.keys(othersSwipeOffsets.value)) {
+			if (key !== id) othersSwipeOffsets.value[key] = 0;
+		}
+	}
+
+	function onOthersSwipeMove(id: string, event: TouchEvent) {
+		if (othersSwipeActiveId !== id) return;
+		const touch = event.touches[0];
+		if (!touch) return;
+		const delta = touch.clientX - othersSwipeStartX;
+		if (Math.abs(delta) > 6) othersSwipeMoved = true;
+		othersSwipeOffsets.value[id] = Math.min(
+			0,
+			Math.max(-ITEM_SWIPE_DELETE_WIDTH, othersSwipeStartOffset + delta),
+		);
+	}
+
+	async function onOthersSwipeEnd(id: string) {
+		const offset = othersSwipeOffset(id);
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+			await deleteOthersExpense(id);
+			return;
+		}
+		othersSwipeOffsets.value[id] =
+			offset < -ITEM_SWIPE_DELETE_WIDTH / 2 ? -ITEM_SWIPE_DELETE_WIDTH : 0;
+		othersSwipeActiveId = "";
+	}
+
+	function openTabBudgetModal() {
+		tabBudgetError.value = "";
+		if (tabBudget.value) {
+			tabBudgetAmount.value = String(tabBudget.value.budgetAllocated);
+		} else {
+			tabBudgetAmount.value = "";
+		}
+		showTabBudgetModal.value = true;
+	}
+
+	function closeTabBudgetModal() {
+		tabBudgetError.value = "";
+		showTabBudgetModal.value = false;
+	}
+
+	async function saveTabBudget() {
+		if (activeTab.value !== "Expenses") return;
+		const amount = Number(tabBudgetAmount.value);
+		if (!tabBudgetAmount.value || Number.isNaN(amount) || amount < 0) {
+			tabBudgetError.value = "Enter a valid amount";
+			return;
+		}
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			tabBudgetError.value = "Add a cutoff first";
+			return;
+		}
+		const expensesRuleAmount =
+			activeCutoff.value?.allocations?.Expenses?.amount ?? 0;
+		const expensesEntriesSum = cutoffId
+			? budgetEntries.value
+					.filter(
+						(entry) =>
+							entry.cutoffId === cutoffId &&
+							entry.ruleName === "Expenses" &&
+							!entry.parentBudgetEntryId,
+					)
+					.reduce((sum, entry) => sum + entry.amount, 0)
+			: 0;
+		const remainingBudget = expensesRuleAmount - expensesEntriesSum;
+		if (amount > remainingBudget) {
+			tabBudgetError.value = `Amount exceeds remaining budget (₱${Math.max(0, remainingBudget).toLocaleString("en-PH")} left)`;
+			return;
+		}
+		savingTabBudget.value = true;
+		try {
+			if (tabBudget.value?.id) {
+				await db.tabBudgets.update(tabBudget.value.id, {
+					budgetAllocated: amount,
+				});
+			} else {
+				await db.tabBudgets.add({
+					id: createId(),
+					cutoffId,
+					monthKey: viewMonthKey.value,
+					ruleName: "Expenses",
+					budgetAllocated: amount,
+					createdAt: new Date().toISOString(),
+				});
+			}
+			await loadTabBudget();
+			closeTabBudgetModal();
+		} catch {
+			tabBudgetError.value = "Could not save budget";
+		} finally {
+			savingTabBudget.value = false;
+		}
+	}
+
+	function openTabBudgetItemModal() {
+		tabBudgetItemEditId.value = "";
+		tabBudgetExpenseName.value = "";
+		tabBudgetExpenseAmount.value = "";
+		tabBudgetItemError.value = "";
+		showTabBudgetItemModal.value = true;
+	}
+
+	function onTabBudgetItemRowClick(
+		expense: { expenseName: string; amount: number },
+		id: string,
+	) {
+		if (tabBudgetSwipeOffset(id) < 0) {
+			tabBudgetSwipeOffsets.value[id] = 0;
+			return;
+		}
+		if (tabBudgetSwipeMoved) return;
+		tabBudgetItemEditId.value = id;
+		tabBudgetExpenseName.value = expense.expenseName;
+		tabBudgetExpenseAmount.value = String(expense.amount);
+		tabBudgetItemError.value = "";
+		showTabBudgetItemModal.value = true;
+	}
+
+	function closeTabBudgetItemModal() {
+		showTabBudgetItemModal.value = false;
+		tabBudgetItemEditId.value = "";
+		tabBudgetItemError.value = "";
+	}
+
+	async function saveTabBudgetItem() {
+		const name = tabBudgetExpenseName.value.trim();
+		const amount = Number(tabBudgetExpenseAmount.value);
+		if (!name) {
+			tabBudgetItemError.value = "Enter expense name";
+			return;
+		}
+		if (!tabBudgetExpenseAmount.value || Number.isNaN(amount) || amount <= 0) {
+			tabBudgetItemError.value = "Enter a valid amount";
+			return;
+		}
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) {
+			tabBudgetItemError.value = "Add a cutoff first";
+			return;
+		}
+
+		const oldAmount = tabBudgetItemEditId.value
+			? (tabBudgetExpenses.value.find((e) => e.id === tabBudgetItemEditId.value)
+					?.amount ?? 0)
+			: 0;
+		const currentSpent = tabBudgetExpenses.value.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		const excess = currentSpent - oldAmount + amount - tabBudgetAllocated.value;
+
+		const doSave = async () => {
+			savingTabBudgetItem.value = true;
+			let sourceId = tabBudgetItemEditId.value;
+			if (tabBudgetItemEditId.value) {
+				await db.tabBudgetExpenses.update(tabBudgetItemEditId.value, {
+					expenseName: name,
+					amount,
+				});
+			} else {
+				sourceId = createId();
+				await db.tabBudgetExpenses.add({
+					id: sourceId,
+					cutoffId,
+					monthKey: viewMonthKey.value,
+					ruleName: "Expenses",
+					expenseName: name,
+					amount,
+					createdAt: new Date().toISOString(),
+				});
+			}
+			if (excess > 0 && sourceId) {
+				await addUnexpectedExpense(
+					name,
+					excess,
+					"budgetItems",
+					sourceId,
+					"Expenses",
+				);
+			}
+			await loadTabBudget();
+			savingTabBudgetItem.value = false;
+			closeTabBudgetItemModal();
+		};
+
+		if (excess > 0) {
+			requestExceedConfirm(excess, doSave);
+			return;
+		}
+		await doSave();
+	}
+
+	async function deleteTabBudgetExpense(id: string) {
+		await db.tabBudgetExpenses.delete(id);
+		delete tabBudgetSwipeOffsets.value[id];
+		await loadTabBudget();
+	}
+
+	function tabBudgetSwipeOffset(id: string) {
+		return tabBudgetSwipeOffsets.value[id] ?? 0;
+	}
+
+	function onTabBudgetSwipeStart(id: string, event: TouchEvent) {
+		const touch = event.touches[0];
+		if (!touch) return;
+		tabBudgetSwipeStartX = touch.clientX;
+		tabBudgetSwipeStartOffset = tabBudgetSwipeOffset(id);
+		tabBudgetSwipeActiveId = id;
+		tabBudgetSwipeMoved = false;
+		for (const key of Object.keys(tabBudgetSwipeOffsets.value)) {
+			if (key !== id) tabBudgetSwipeOffsets.value[key] = 0;
+		}
+	}
+
+	function onTabBudgetSwipeMove(id: string, event: TouchEvent) {
+		if (tabBudgetSwipeActiveId !== id) return;
+		const touch = event.touches[0];
+		if (!touch) return;
+		const delta = touch.clientX - tabBudgetSwipeStartX;
+		if (Math.abs(delta) > 6) tabBudgetSwipeMoved = true;
+		tabBudgetSwipeOffsets.value[id] = Math.min(
+			0,
+			Math.max(-ITEM_SWIPE_DELETE_WIDTH, tabBudgetSwipeStartOffset + delta),
+		);
+	}
+
+	async function onTabBudgetSwipeEnd(id: string) {
+		const offset = tabBudgetSwipeOffset(id);
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+			await deleteTabBudgetExpense(id);
+			return;
+		}
+		tabBudgetSwipeOffsets.value[id] =
+			offset < -ITEM_SWIPE_DELETE_WIDTH / 2 ? -ITEM_SWIPE_DELETE_WIDTH : 0;
+		tabBudgetSwipeActiveId = "";
 	}
 
 	// =============================================================================
@@ -813,6 +1825,9 @@
 		await loadCutoffs();
 		await loadItemBuilders();
 		await loadBudgetEntries();
+		await loadOthers();
+		await loadTabBudget();
+		await loadUnexpectedExpenses();
 		for (const cutoff of cutoffs.value) {
 			if (cutoff.allocations) continue;
 			const allocations = buildCutoffAllocations(cutoff.amount, rules.value);
@@ -820,229 +1835,126 @@
 			cutoff.allocations = allocations;
 		}
 	});
+
+	watch(activeTab, () => {
+		loadTabBudget();
+	});
 </script>
 
 <template>
 	<div
 		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
-		<!-- ================================================================== -->
-		<!-- PERIOD NAV                                                        -->
-		<!-- ================================================================== -->
-		<div class="mb-3 flex shrink-0 items-center justify-between">
-			<GlassContainer
-				as="button"
-				type="button"
-				rounded="full"
-				:padding="false"
-				class="period-btn"
-				:class="{ disabled: !canGoPrev }"
-				aria-label="Previous period"
-				:disabled="!canGoPrev"
-				@click="goPrev"
-			>
-				<ChevronLeftIcon class="h-5 w-5" />
-			</GlassContainer>
-			<span class="flex-1 text-center text-base font-semibold text-textPrimary">
-				{{ periodLabel }}
-			</span>
-			<GlassContainer
-				as="button"
-				type="button"
-				rounded="full"
-				:padding="false"
-				class="period-btn"
-				:class="{ disabled: !canGoNext }"
-				aria-label="Next period"
-				:disabled="!canGoNext"
-				@click="goNext"
-			>
-				<ChevronRightIcon class="h-5 w-5" />
-			</GlassContainer>
-		</div>
+		<PeriodNavSection
+			:period-label="periodLabel"
+			:can-go-prev="canGoPrev"
+			:can-go-next="canGoNext"
+			@prev="goPrev"
+			@next="goNext"
+		/>
 
 		<div class="tracker-fixed shrink-0">
-			<!-- ================================================================== -->
-			<!-- BUDGET SECTION                                                      -->
-			<!-- ================================================================== -->
-			<GlassContainer class="relative mt-[1rem]">
-				<GlassContainer
-					as="button"
-					type="button"
-					rounded="full"
-					:padding="false"
-					class="plus-btn absolute right-[.6rem] top-[.6rem]"
-					:aria-label="activeCutoff ? 'Edit cutoff' : 'Add cutoff'"
-					@click="openModal"
-				>
-					<PencilIcon v-if="activeCutoff" class="h-5 w-5" />
-					<PlusIcon v-else class="h-5 w-5" />
-				</GlassContainer>
-				<p class="m-0 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary">
-					{{ budgetTitle }}
-				</p>
-				<p class="mb-0 text-xs text-textSecondary">
-					Cutoff Date: {{ displayCutoffDate }}
-				</p>
-				<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
-					{{ displayAmount }}
-				</p>
-				<div class="flex items-center justify-between mb-[.]">
-					<p class="mt-[0.35rem] mb-0 text-[0.85rem] text-textSecondary">
-						{{ displaySpent }}
-					</p>
-					<p class="progress-pct">{{ progressPercent }}%</p>
-				</div>
-				<div class="progress-track">
-					<div
-						class="progress-fill"
-						:style="{
-							width: progressPercent + '%',
-							background: progressFillColor(progressPercent),
-						}"
-					/>
-				</div>
-			</GlassContainer>
+			<CutoffBudgetSection
+				:budget-title="budgetTitle"
+				:display-cutoff-date="displayCutoffDate"
+				:display-amount="displayAmount"
+				:display-spent="displaySpent"
+				:progress-percent="progressPercent"
+				:has-cutoff="!!activeCutoff"
+				:progress-fill-color="progressFillColor"
+				@open-modal="openModal"
+			/>
 
-			<!-- ================================================================== -->
-			<!-- TABS                                                                -->
-			<!-- ================================================================== -->
-			<div class="mt-4 mb-4 flex w-full shrink-0 gap-2">
-				<button
-					v-for="tab in tabs"
-					:key="tab"
-					type="button"
-					class="tab"
-					:class="{ active: activeTab === tab }"
-					@click="activeTab = tab"
-				>
-					{{ tab }}
-				</button>
-			</div>
+			<TabsSection v-model:active-tab="activeTab" :tabs="tabs" />
 		</div>
 
-		<!-- ================================================================== -->
-		<!-- SCROLLABLE CONTENT (rule + items)                                   -->
-		<!-- ================================================================== -->
 		<div class="tracker-scroll min-h-0 flex-1">
-			<!-- ================================================================== -->
-			<!-- RULE SECTION (chart + progress)                                     -->
-			<!-- ================================================================== -->
-			<GlassContainer class="relative mb-4">
-				<GlassContainer
-					as="button"
-					type="button"
-					rounded="full"
-					:padding="false"
-					class="plus-btn add-btn absolute right-[.6rem] top-[.6rem] p-[1rem]"
-					aria-label="Add item"
-					@click="openItemModal"
-				>
-					<PlusIcon class="h-5 w-5" />
-				</GlassContainer>
-				<p
-					class="m-0 mb-4 min-w-0 pr-12 text-[0.95rem] font-semibold text-textPrimary"
-				>
-					{{ activeTab }}
-				</p>
+			<RuleSection
+				:active-tab="activeTab"
+				:active-rule-percent="activeRulePercent"
+				:display-active-amount="displayActiveAmount"
+				:display-rule-left="displayRuleLeft"
+				:display-rule-spent="displayRuleSpent"
+				:rule-progress-percent="ruleProgressPercent"
+				:rule-over-budget="ruleOverBudget"
+				:unexpected-excess-percent="unexpectedExcessPercent"
+				:has-unexpected-excess="hasRuleUnexpectedBadge"
+				:chart-key="`${activeCutoff?.id ?? 'none'}-${activeTab}`"
+				:chart-data="chartData"
+				:chart-options="chartOptions"
+				:progress-fill-color="progressFillColor"
+				@open-item-modal="openItemModal"
+				@open-unexpected-drawer="openUnexpectedDrawer"
+			/>
 
-				<div class="rule-body">
-					<div class="chart-wrap">
-						<Doughnut
-							:key="`${activeCutoff?.id ?? 'none'}-${activeTab}`"
-							:data="chartData"
-							:options="chartOptions"
-						/>
-						<div class="chart-center">
-							<p class="m-0 w-full text-center text-[1rem] font-bold text-textPrimary">
-								{{ activeRulePercent }}%
-							</p>
-							<p class="mb-0 w-full text-center text-[0.85rem] text-textPrimary">
-								{{ activeTab }}
-							</p>
-						</div>
-					</div>
-					<div class="flex min-w-0 flex-1 flex-col gap-2">
-						<div>
-							<p class="m-0 text-[0.85rem] text-textSecondary">
-								Budget for {{ activeTab }}
-							</p>
-							<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
-								{{ displayActiveAmount }}
-							</p>
-						</div>
-						<div>
-							<p class="m-0 text-[0.85rem] text-textSecondary">Budget left</p>
-							<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
-								{{ displayRuleLeft }}
-							</p>
-						</div>
-					</div>
-				</div>
+			<ItemsSection
+				:active-tab="activeTab"
+				:entries="activeRuleEntries"
+				:item-swipe-offset="itemSwipeOffset"
+				:progress-fill-color="progressFillColor"
+				@remove-swiped-item="removeSwipedItem"
+				@item-swipe-start="onItemSwipeStart"
+				@item-swipe-move="onItemSwipeMove"
+				@item-swipe-end="onItemSwipeEnd"
+				@item-row-click="onItemRowClick"
+			/>
 
-				<div class="rule-progress">
-					<div class="flex items-center justify-between">
-						<span class="rule-progress-spent">-{{ displayRuleSpent }} spent</span>
-						<p class="rule-progress-pct">{{ ruleProgressPercent }}%</p>
-					</div>
-					<div class="rule-progress-track">
-						<div
-							class="rule-progress-fill"
-							:style="{
-								width: ruleProgressPercent + '%',
-								background: progressFillColor(ruleProgressPercent),
-							}"
-						/>
-					</div>
-				</div>
-			</GlassContainer>
+			<Divider
+				margin-top="2rem"
+				margin-bottom="2rem"
+				v-if="activeTab === 'Expenses'"
+			/>
 
-			<!-- ================================================================== -->
-			<!-- ITEMS LIST SECTION                                                  -->
-			<!-- ================================================================== -->
-			<GlassContainer class="mb-4">
-				<p class="m-0 mb-[1.5rem] text-sm text-textSecondary">Items</p>
-				<ul v-if="activeRuleEntries.length" class="item-list">
-					<li
-						v-for="entry in activeRuleEntries"
-						:key="entry.id"
-						class="item-swipe-wrap"
-						:class="{ 'is-swiped': itemSwipeOffset(entry.id) < 0 }"
-					>
-						<button
-							type="button"
-							class="item-swipe-delete"
-							aria-label="Remove item"
-							@click.stop="removeSwipedItem(entry.id)"
-						>
-							<component :is="OutlineIcons.TrashIcon" class="item-swipe-delete-icon" />
-						</button>
-						<div
-							class="item-row"
-							:class="{ 'is-swiped': itemSwipeOffset(entry.id) < 0 }"
-							:style="{ transform: `translateX(${itemSwipeOffset(entry.id)}px)` }"
-							@touchstart.passive="onItemSwipeStart(entry.id, $event)"
-							@touchmove="onItemSwipeMove(entry.id, $event)"
-							@touchend="onItemSwipeEnd(entry.id)"
-							@click="onItemRowClick(entry, entry.id)"
-						>
-							<span class="item-icon-wrap" :class="entry.iconWrapClass">
-								<component
-									:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
-									class="item-icon"
-								/>
-							</span>
-							<div class="item-row-main">
-								<span class="item-row-name">{{ entry.name }}</span>
-							</div>
-							<span class="item-row-amount">
-								₱{{ entry.amount.toLocaleString("en-PH") }}
-							</span>
-						</div>
-					</li>
-				</ul>
-				<p v-else class="m-0 text-sm text-textSecondary">No items yet</p>
-			</GlassContainer>
+			<template v-if="activeTab === 'Expenses'">
+				<BudgetSection
+					:active-tab="activeTab"
+					:display-allocated="displayTabBudgetAllocated"
+					:display-left="displayTabBudgetLeft"
+					:display-spent="displayTabBudgetSpent"
+					:progress-percent="tabBudgetProgressPercent"
+					:over-budget="tabBudgetOverBudget"
+					:has-budget="!!tabBudget"
+					:progress-fill-color="progressFillColor"
+					@open-budget-modal="openTabBudgetModal"
+				/>
+
+				<OtherItemsSection
+					title="Budget Items"
+					:expenses="tabBudgetExpenses"
+					:swipe-offset="tabBudgetSwipeOffset"
+					@open-item-modal="openTabBudgetItemModal"
+					@delete-expense="deleteTabBudgetExpense"
+					@swipe-start="onTabBudgetSwipeStart"
+					@swipe-move="onTabBudgetSwipeMove"
+					@swipe-end="onTabBudgetSwipeEnd"
+					@item-row-click="onTabBudgetItemRowClick"
+				/>
+
+				<Divider margin-top="2rem" margin-bottom="2rem" />
+
+				<OthersSection
+					:display-allocated="displayOthersAllocated"
+					:display-left="displayOthersLeft"
+					:display-spent="displayOthersSpent"
+					:progress-percent="othersProgressPercent"
+					:over-budget="othersOverBudget"
+					:has-budget="!!othersBudget"
+					:progress-fill-color="progressFillColor"
+					@open-budget-modal="openOthersBudgetModal"
+				/>
+
+				<OtherItemsSection
+					title="Other Items"
+					:expenses="othersExpenses"
+					:swipe-offset="othersSwipeOffset"
+					@open-item-modal="openOthersItemModal"
+					@delete-expense="deleteOthersExpense"
+					@swipe-start="onOthersSwipeStart"
+					@swipe-move="onOthersSwipeMove"
+					@swipe-end="onOthersSwipeEnd"
+					@item-row-click="onOthersItemRowClick"
+				/>
+			</template>
 		</div>
 
 		<!-- ================================================================== -->
@@ -1058,7 +1970,7 @@
 					class="flex w-full min-w-0 max-w-[400px] flex-col gap-4 overflow-hidden"
 				>
 					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						Add Cutoff
+						{{ isEditingCutoff ? "Edit Cutoff" : "Add Cutoff" }}
 					</h2>
 
 					<AmountField
@@ -1086,15 +1998,15 @@
 					</p>
 
 					<div class="flex gap-3">
-						<button type="button" class="btn" @click="closeModal">Cancel</button>
-						<button
-							type="button"
-							class="btn primary"
-							:disabled="saving"
+						<Button block @click="closeModal">Cancel</Button>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveCutoff"
 							@click="saveCutoff"
 						>
-							Save
-						</button>
+							{{ isEditingCutoff ? "Update" : "Save" }}
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
@@ -1105,7 +2017,7 @@
 		<!-- ================================================================== -->
 		<Teleport to="body">
 			<div
-				v-if="showItemModal"
+				v-if="showItemModal && !showExceedModal"
 				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
 				@click.self="closeItemModal"
 			>
@@ -1114,13 +2026,14 @@
 						<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
 							Add Item
 						</h2>
-						<button
-							type="button"
-							class="outline max-w-[11rem] py-[.6rem] px-[1rem] rounded-full"
+						<Button
+							variant="secondary"
+							size="sm"
+							class="max-w-[11rem]"
 							@click="openCreateItemDrawer"
 						>
 							+ Create New Item
-						</button>
+						</Button>
 					</div>
 
 					<SelectField
@@ -1137,184 +2050,408 @@
 					</p>
 
 					<div class="flex gap-3">
-						<button type="button" class="btn" @click="closeItemModal">Cancel</button>
-						<button
-							type="button"
-							class="btn primary"
-							:disabled="savingItem"
-							@click="saveItem"
-						>
+						<Button block variant="shade" @click="closeItemModal">Cancel</Button>
+						<Button variant="primary" block :disabled="savingItem" @click="saveItem">
 							Save
-						</button>
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
 		</Teleport>
 
 		<!-- ================================================================== -->
-		<!-- EDIT ITEM MODAL                                                     -->
+		<!-- EDIT ITEM DRAWER                                                    -->
 		<!-- ================================================================== -->
 		<Teleport to="body">
 			<div
-				v-if="showEditItemModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				v-if="showEditItemModal && !showExceedModal"
+				class="drawer-overlay"
 				@click.self="closeEditItemModal"
 			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						Edit Item
-					</h2>
+				<GlassContainer class="drawer-sheet justify-between">
+					<div class="flex flex-col gap-4">
+						<div class="drawer-handle" />
+						<div class="drawer-header">
+							<h2 class="drawer-title">Edit Item</h2>
+							<button
+								type="button"
+								class="drawer-close"
+								aria-label="Close"
+								@click="closeEditItemModal"
+							>
+								<XMarkIcon class="h-5 w-5" />
+							</button>
+						</div>
 
-					<div class="flex items-center justify-center gap-3">
-						<span class="item-icon-wrap" :class="editItemIconWrapClass">
-							<component
-								:is="OutlineIcons[editItemIcon as keyof typeof OutlineIcons]"
-								class="item-icon"
-							/>
-						</span>
-						<span class="edit-item-name">{{ editItemName }}</span>
+						<div class="flex items-center justify-center gap-3">
+							<span class="item-icon-wrap" :class="editItemIconWrapClass">
+								<component
+									:is="OutlineIcons[editItemIcon as keyof typeof OutlineIcons]"
+									class="item-icon"
+								/>
+							</span>
+							<span class="edit-item-name">{{ editItemName }}</span>
+						</div>
+
+						<AmountField v-model="editItemAmount" label="Amount" placeholder="0.00" />
+
+						<Divider margin-top="1rem" margin-bottom="1rem" />
+
+						<p
+							v-if="editItemHasChildItems && !editItemSubItems.length"
+							class="m-0 text-center text-sm text-textSecondary"
+						>
+							No sub items yet
+						</p>
+
+						<ul
+							v-if="editItemHasChildItems && editItemSubItems.length"
+							class="subitem-list"
+						>
+							<li
+								v-for="child in editItemSubItems"
+								:key="child.id"
+								class="subitem-swipe-wrap"
+								:class="{ 'is-swiped': subItemSwipeOffset(String(child.id)) < 0 }"
+							>
+								<button
+									type="button"
+									class="subitem-swipe-delete"
+									aria-label="Remove sub item"
+									@click.stop="deleteSubItem(child.id!)"
+								>
+									<component
+										:is="OutlineIcons.TrashIcon"
+										class="subitem-swipe-delete-icon"
+									/>
+								</button>
+								<div
+									class="subitem-row"
+									:style="{
+										transform: `translateX(${subItemSwipeOffset(String(child.id))}px)`,
+									}"
+									@click="onSubItemRowClick(child, String(child.id))"
+									@touchstart.passive="onSubItemSwipeStart(String(child.id), $event)"
+									@touchmove="onSubItemSwipeMove(String(child.id), $event)"
+									@touchend="onSubItemSwipeEnd(String(child.id))"
+								>
+									<span class="subitem-name">{{ child.name }}</span>
+									<span class="subitem-amount">
+										₱{{ child.amount.toLocaleString("en-PH") }}
+									</span>
+								</div>
+							</li>
+						</ul>
+
+						<Button
+							v-if="editItemHasChildItems"
+							variant="secondary"
+							@click="openSubItemModal"
+						>
+							+ Add sub item
+						</Button>
+
+						<p v-if="editItemError" class="drawer-error">{{ editItemError }}</p>
 					</div>
 
-					<AmountField v-model="editItemAmount" label="Amount" placeholder="0.00" />
-
-					<p v-if="editItemError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ editItemError }}
-					</p>
-
-					<div class="flex gap-3">
-						<button
-							type="button"
-							class="btn danger"
-							:disabled="savingEditItem"
-							@click="removeEditItem"
-						>
-							Remove
-						</button>
-						<button
-							type="button"
-							class="btn primary"
-							:disabled="savingEditItem"
+					<div class="drawer-actions">
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveEditItem"
 							@click="saveEditItem"
 						>
 							Update
-						</button>
+						</Button>
+						<Button
+							variant="danger"
+							class="edit-remove-btn"
+							:style="{ backgroundColor: RULE_COLORS.Expenses }"
+							:disabled="savingEditItem"
+							aria-label="Remove item"
+							@click="removeEditItem"
+						>
+							<component :is="OutlineIcons.TrashIcon" class="h-5 w-6" />
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
 		</Teleport>
 
-		<!-- ================================================================== -->
-		<!-- CREATE NEW ITEM DRAWER                                              -->
-		<!-- ================================================================== -->
+		<ItemBuilderDrawer
+			v-model:open="showCreateItemDrawer"
+			:cat-expenses="activeTab === 'Expenses'"
+			:cat-savings="activeTab === 'Savings'"
+			:cat-wants="activeTab === 'Wants'"
+			:saving="savingCreateItem"
+			@save="saveCreateItem"
+		/>
+
 		<Teleport to="body">
 			<div
-				v-if="showCreateItemDrawer"
-				class="fixed inset-0 z-[60] flex items-end justify-center bg-overlay"
-				@click.self="closeCreateItemDrawer"
+				v-if="showSubItemModal"
+				class="fixed inset-0 z-[70] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeSubItemModal"
 			>
-				<GlassContainer
-					class="drawer-sheet flex w-full max-w-[480px] flex-col gap-4 rounded-t-[1.25rem] rounded-b-none pb-6"
-				>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						{{ subItemEditId ? "Edit Sub Item" : "Add Sub Item" }}
+					</h2>
+
+					<InputField
+						v-model="subItemName"
+						label="Name"
+						placeholder="Sub item name"
+						mode="text"
+					/>
+
+					<AmountField v-model="subItemAmount" label="Amount" placeholder="0.00" />
+
+					<p v-if="subItemError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ subItemError }}
+					</p>
+
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeSubItemModal">Cancel</Button>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveSubItem"
+							@click="saveSubItem"
+						>
+							{{ subItemEditId ? "Update" : "Save" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showOthersBudgetModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeOthersBudgetModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						{{ isEditingOthersBudget ? "Edit Others" : "Add Others" }}
+					</h2>
+					<AmountField
+						v-model="othersBudgetAmount"
+						label="Amount"
+						placeholder="0.00"
+					/>
+					<p v-if="othersBudgetError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ othersBudgetError }}
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeOthersBudgetModal"
+							>Cancel</Button
+						>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveOthersBudget"
+							@click="saveOthersBudget"
+						>
+							{{ isEditingOthersBudget ? "Update" : "Save" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showOthersItemModal && !showExceedModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeOthersItemModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						{{ othersItemEditId ? "Edit Others Item" : "Add Others Item" }}
+					</h2>
+					<InputField
+						v-model="othersExpenseName"
+						label="Name"
+						placeholder="Expense name"
+						mode="text"
+					/>
+					<AmountField
+						v-model="othersExpenseAmount"
+						label="Amount"
+						placeholder="0.00"
+					/>
+					<p v-if="othersItemError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ othersItemError }}
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeOthersItemModal"
+							>Cancel</Button
+						>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveOthersItem"
+							@click="saveOthersItem"
+						>
+							{{ othersItemEditId ? "Update" : "Save" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showTabBudgetModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeTabBudgetModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						{{ isEditingTabBudget ? "Edit Budget" : "Add Budget" }}
+					</h2>
+					<AmountField v-model="tabBudgetAmount" label="Amount" placeholder="0.00" />
+					<p v-if="tabBudgetError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ tabBudgetError }}
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeTabBudgetModal">Cancel</Button>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveTabBudget"
+							@click="saveTabBudget"
+						>
+							{{ isEditingTabBudget ? "Update" : "Save" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showTabBudgetItemModal && !showExceedModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeTabBudgetItemModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						{{ tabBudgetItemEditId ? "Edit Budget Item" : "Add Budget Item" }}
+					</h2>
+					<InputField
+						v-model="tabBudgetExpenseName"
+						label="Name"
+						placeholder="Expense name"
+						mode="text"
+					/>
+					<AmountField
+						v-model="tabBudgetExpenseAmount"
+						label="Amount"
+						placeholder="0.00"
+					/>
+					<p
+						v-if="tabBudgetItemError"
+						class="m-0 text-center text-sm text-[#f87171]"
+					>
+						{{ tabBudgetItemError }}
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeTabBudgetItemModal"
+							>Cancel</Button
+						>
+						<Button
+							variant="primary"
+							block
+							:disabled="!canSaveTabBudgetItem"
+							@click="saveTabBudgetItem"
+						>
+							{{ tabBudgetItemEditId ? "Update" : "Save" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showUnexpectedDrawer"
+				class="drawer-overlay"
+				@click.self="closeUnexpectedDrawer"
+			>
+				<GlassContainer class="drawer-sheet">
 					<div class="drawer-handle" />
-					<div class="flex items-center justify-between gap-3">
-						<h2 class="m-0 text-lg font-semibold text-textPrimary">
-							Create New Item
-						</h2>
+					<div class="drawer-header">
+						<h2 class="drawer-title">Unexpected Spending</h2>
 						<button
 							type="button"
 							class="drawer-close"
 							aria-label="Close"
-							@click="closeCreateItemDrawer"
+							@click="closeUnexpectedDrawer"
 						>
 							<XMarkIcon class="h-5 w-5" />
 						</button>
 					</div>
 
-					<InputField
-						v-model="createFormName"
-						label="Name"
-						placeholder="Item name"
-						mode="text"
-					/>
-
-					<div class="subtitle-divider">
-						<span>Categories</span>
-					</div>
-
-					<div class="flex flex-wrap gap-4">
-						<CircleCheckbox v-model="createCatExpenses" label="Expenses" />
-						<CircleCheckbox v-model="createCatSavings" label="Savings" />
-						<CircleCheckbox v-model="createCatWants" label="Wants" />
-					</div>
-
-					<div class="subtitle-divider">
-						<span>Settings</span>
-					</div>
-
-					<div class="flex items-center justify-between gap-3">
-						<span class="text-base text-textPrimary">Active</span>
-						<ToggleSwitch v-model="createIsActive" />
-					</div>
-					<div class="flex items-center justify-between gap-3">
-						<span class="text-base text-textPrimary">Have child items</span>
-						<ToggleSwitch v-model="createHasChildItems" />
-					</div>
-
-					<div class="subtitle-divider">
-						<span>Color</span>
-					</div>
-
-					<div class="icon-grid">
-						<button
-							v-for="color in ITEM_COLOR_OPTIONS"
-							:key="color.value"
-							type="button"
-							class="color-btn"
-							:class="{ selected: createColor === color.value }"
-							:title="color.value"
-							@click="createColor = color.value"
+					<ul v-if="activeRuleUnexpectedExpenses.length" class="subitem-list">
+						<li
+							v-for="item in activeRuleUnexpectedExpenses"
+							:key="item.id"
+							class="subitem-row flex-col items-stretch gap-1"
 						>
-							<span class="color-swatch" :class="color.swatch" />
-						</button>
-					</div>
-
-					<div class="subtitle-divider">
-						<span>Icon</span>
-					</div>
-
-					<div class="icon-grid">
-						<button
-							v-for="iconName in ICON_OPTIONS"
-							:key="iconName"
-							type="button"
-							class="icon-btn"
-							:class="{ selected: createIcon === iconName }"
-							:title="iconName"
-							@click="createIcon = iconName"
-						>
-							<component
-								:is="OutlineIcons[iconName as keyof typeof OutlineIcons]"
-								class="h-5 w-5"
-							/>
-						</button>
-					</div>
-
-					<p v-if="createFormError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ createFormError }}
+							<div class="flex items-center justify-between gap-3 w-full">
+								<div class="flex flex-col">
+									<span class="subitem-name">{{ item.itemName }}</span>
+									<span class="text-xs text-textSecondary">
+										{{ unexpectedSourceLabel(item.sourceSection) }}
+									</span>
+								</div>
+								<div class="text-right">
+									<span class="subitem-amount text-progress-red font-bold">
+										₱{{ item.excessAmount.toLocaleString("en-PH") }}
+										<span class="text-xs italic">excess</span>
+									</span>
+									<p class="text-[.7rem] text-textSecondary">
+										{{ item.date }}
+									</p>
+								</div>
+							</div>
+						</li>
+					</ul>
+					<p v-else class="m-0 text-center text-sm text-textSecondary">
+						No unexpected spending
 					</p>
+				</GlassContainer>
+			</div>
+		</Teleport>
 
+		<Teleport to="body">
+			<div
+				v-if="showExceedModal"
+				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeExceedModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Budget Exceeded
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						This amount exceeds your allotted budget by
+						<span class="font-bold text-textPrimary">{{
+							displayExceedModalExcess
+						}}</span
+						>.
+					</p>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Do you want to proceed?
+					</p>
 					<div class="flex gap-3">
-						<button type="button" class="btn" @click="closeCreateItemDrawer">
-							Cancel
-						</button>
-						<button
-							type="button"
-							class="btn primary"
-							:disabled="savingCreateItem"
-							@click="saveCreateItem"
-						>
-							Save
-						</button>
+						<Button block variant="shade" @click="closeExceedModal">Cancel</Button>
+						<Button variant="primary" block @click="confirmExceedProceed">
+							Proceed
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
@@ -1323,20 +2460,7 @@
 </template>
 
 <style scoped>
-	/* ========================================================================= */
-	/* PERIOD NAV                                                                 */
-	/* ========================================================================= */
-	.period-btn {
-		padding: 0.5rem;
-		color: var(--color-textPrimary);
-		cursor: pointer;
-	}
-
-	.period-btn.disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-		pointer-events: none;
-	}
+	@import "./partials/sections/shared.css";
 
 	.tracker-scroll {
 		flex: 1 1 0;
@@ -1347,151 +2471,105 @@
 		padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 	}
 
-	/* ========================================================================= */
-	/* BUDGET SECTION                                                             */
-	/* ========================================================================= */
-	.plus-btn {
-		padding: 0.7rem;
-		color: var(--color-onColor);
-		background: var(--color-accentSolid);
-		flex-shrink: 0;
-	}
-
-	.add-btn {
-		padding: 1rem;
-	}
-
-	.progress-pct,
-	.rule-progress-pct {
-		margin: 0.35rem 0;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-		text-align: right;
-	}
-
-	.progress-track {
-		height: 0.5rem;
-		border-radius: 9999px;
-		background: var(--color-inputBorder);
-		overflow: hidden;
-	}
-
-	.progress-fill {
-		height: 100%;
-		border-radius: 9999px;
-		transition:
-			width 0.2s,
-			background-color 0.2s;
-	}
-
-	/* ========================================================================= */
-	/* TABS                                                                       */
-	/* ========================================================================= */
-	.tab {
-		flex: 1;
-		padding: 0.5rem;
-		border: 1px solid var(--color-border);
-		border-radius: 9999px;
-		background: none;
-		font-size: 0.95rem;
-		font-family: inherit;
-		color: var(--color-textSecondary);
-		text-align: center;
-		cursor: pointer;
-	}
-
-	.tab.active {
-		border-color: transparent;
-		background: var(--color-textPrimary);
-		color: var(--color-bg);
-	}
-
-	/* ========================================================================= */
-	/* RULE SECTION — chart + stats                                               */
-	/* ========================================================================= */
-	.rule-body {
+	.drawer-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
 		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.chart-wrap {
-		position: relative;
-		width: min(140px, 38vw);
-		aspect-ratio: 1;
-		flex-shrink: 0;
-	}
-
-	.chart-center {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 58%;
-		transform: translate(-50%, -50%);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
+		align-items: flex-end;
 		justify-content: center;
-		text-align: center;
-		pointer-events: none;
+		background: var(--color-overlay);
 	}
 
-	/* ========================================================================= */
-	/* RULE SECTION — progress bar                                                */
-	/* ========================================================================= */
-	.rule-progress-track {
-		height: 0.5rem;
+	.drawer-sheet {
+		display: flex;
+		width: 100%;
+		max-width: 480px;
+		min-height: 90dvh;
+		flex-direction: column;
+		gap: 1rem;
+		overflow-y: auto;
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+		border-top-left-radius: 1.25rem;
+		border-top-right-radius: 1.25rem;
+		padding-bottom: 1.5rem;
+		animation: drawer-up 0.28s ease-out;
+	}
+
+	.drawer-handle {
+		width: 2.5rem;
+		height: 0.25rem;
+		margin: 0 auto;
 		border-radius: 9999px;
 		background: var(--color-inputBorder);
-		overflow: hidden;
 	}
 
-	.rule-progress-fill {
-		height: 100%;
-		border-radius: 9999px;
-		transition:
-			width 0.2s,
-			background-color 0.2s;
-	}
-
-	.rule-progress-meta {
+	.drawer-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
-		margin-top: 0.5rem;
 	}
 
-	.rule-progress-spent {
-		font-size: 0.85rem;
-		color: var(--color-textSecondary);
-	}
-
-	.rule-progress-left {
-		font-size: 1rem;
+	.drawer-title {
+		margin: 0;
+		font-size: 1.125rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
 
-	/* ========================================================================= */
-	/* ITEMS LIST SECTION                                                         */
-	/* ========================================================================= */
-	.item-list {
+	.drawer-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem;
+		border: none;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.drawer-error {
+		margin: 0;
+		text-align: center;
+		font-size: 0.875rem;
+		color: #f87171;
+	}
+
+	.drawer-actions {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.drawer-actions :deep(.edit-remove-btn) {
+		flex-shrink: 0;
+		padding: 0.75rem;
+	}
+
+	.edit-item-name {
+		font-size: 1.4rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.subitem-list {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0;
+		gap: 0.35rem;
 	}
 
-	.item-swipe-wrap {
+	.subitem-swipe-wrap {
 		position: relative;
 		overflow: hidden;
+		border-radius: 0.5rem;
 	}
 
-	.item-swipe-delete {
+	.subitem-swipe-delete {
 		position: absolute;
 		top: 0;
 		right: 0;
@@ -1508,90 +2586,51 @@
 		pointer-events: none;
 	}
 
-	.item-swipe-wrap.is-swiped .item-swipe-delete {
+	.subitem-swipe-wrap.is-swiped .subitem-swipe-delete {
 		visibility: visible;
 		pointer-events: auto;
 	}
 
-	.item-swipe-delete-icon {
+	.subitem-swipe-delete-icon {
 		width: 1.25rem;
 		height: 1.25rem;
 	}
 
-	.item-row {
+	.subitem-row {
 		position: relative;
 		z-index: 1;
-		width: 100%;
-		box-sizing: border-box;
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
 		gap: 0.75rem;
-		padding: 1rem 0;
-		border-top: 1px solid var(--color-inputBorder);
-		cursor: pointer;
+		padding: 0.65rem 0.75rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 0.5rem;
 		touch-action: pan-y;
 		transition: transform 0.2s ease;
+		cursor: pointer;
 	}
 
-	.item-swipe-wrap:first-child .item-row {
-		border-top: none;
-		padding-top: 0;
+	.subitem-name {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
 	}
 
-	.item-row.is-swiped {
-		background: var(--color-bgBody);
-	}
-
-	.item-icon-wrap {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 2.5rem;
-		height: 2.5rem;
-		border-radius: 0.5rem;
+	.subitem-amount {
+		font-size: 1rem;
 		flex-shrink: 0;
 	}
 
-	.item-icon {
-		width: 1.25rem;
-		height: 1.25rem;
+	@keyframes drawer-up {
+		from {
+			transform: translateY(100%);
+		}
+		to {
+			transform: translateY(0);
+		}
 	}
 
-	.item-row-main {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-	}
-
-	.item-row-name {
-		font-size: 0.95rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.edit-item-name {
-		font-size: 1.4rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.item-row-meta {
-		font-size: 0.8rem;
-		color: var(--color-textSecondary);
-	}
-
-	.item-row-amount {
-		font-size: 0.95rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-		flex-shrink: 0;
-	}
-
-	/* ========================================================================= */
-	/* ADD CUTOFF MODAL                                                           */
-	/* ========================================================================= */
 	.field-input {
 		width: 100%;
 		min-width: 0;
@@ -1619,142 +2658,5 @@
 
 	.field-input:focus {
 		border-color: var(--color-textSecondary);
-	}
-
-	.btn {
-		flex: 1;
-		padding: 0.75rem 1.25rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-textPrimary);
-		font-size: 0.95rem;
-		font-family: inherit;
-		cursor: pointer;
-	}
-
-	.btn.primary {
-		border-color: transparent;
-		background-color: var(--color-primaryDark);
-		color: var(--color-onColor);
-	}
-
-	.btn.danger {
-		border-color: transparent;
-		background: #f87171;
-		color: #fff;
-	}
-
-	.btn.outline {
-		border-color: var(--color-textPrimary);
-		background: transparent;
-		color: var(--color-textPrimary);
-	}
-
-	.btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	/* ========================================================================= */
-	/* CREATE ITEM DRAWER                                                         */
-	/* ========================================================================= */
-	.drawer-sheet {
-		max-height: 90dvh;
-		overflow-y: auto;
-		animation: drawer-up 0.28s ease-out;
-	}
-
-	.drawer-handle {
-		width: 2.5rem;
-		height: 0.25rem;
-		margin: 0 auto;
-		border-radius: 9999px;
-		background: var(--color-inputBorder);
-	}
-
-	.drawer-close {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.5rem;
-		border: none;
-		border-radius: 50%;
-		background: var(--color-inputBorder);
-		color: var(--color-textPrimary);
-		cursor: pointer;
-	}
-
-	.subtitle-divider {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		font-size: 0.85rem;
-		color: var(--color-textSecondary);
-	}
-
-	.subtitle-divider::before,
-	.subtitle-divider::after {
-		content: "";
-		flex: 1;
-		height: 1px;
-		background: var(--color-inputBorder);
-	}
-
-	.icon-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(2.5rem, 1fr));
-		gap: 0.5rem;
-		max-height: 8rem;
-		overflow-y: auto;
-		padding: 0.25rem;
-	}
-
-	.icon-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.5rem;
-		border: 1px solid var(--color-inputBorder);
-		border-radius: 0.5rem;
-		background: transparent;
-		color: var(--color-textSecondary);
-		cursor: pointer;
-	}
-
-	.icon-btn.selected {
-		border-color: var(--color-accentSolid);
-		background: var(--color-accentSolid);
-		color: var(--color-onColor);
-	}
-
-	.color-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.35rem;
-		border: 2px solid transparent;
-		border-radius: 9999px;
-		background: transparent;
-		cursor: pointer;
-	}
-
-	.color-btn.selected {
-		border-color: var(--color-textPrimary);
-	}
-
-	.color-swatch {
-		width: 1.75rem;
-		height: 1.75rem;
-		border-radius: 50%;
-	}
-
-	@keyframes drawer-up {
-		from {
-			transform: translateY(100%);
-		}
-		to {
-			transform: translateY(0);
-		}
 	}
 </style>

@@ -7,6 +7,7 @@ import TrackerPage from './pages/tracker/TrackerPage.vue'
 import ReportsPage from './pages/reports/ReportsPage.vue'
 import MePage from './pages/me/MePage.vue'
 import AccountPage from './pages/me/AccountPage.vue'
+import ItemsPage from './pages/me/ItemsPage.vue'
 import ChatPage from './pages/chat/ChatPage.vue'
 import OnboardingPage from './pages/auth/OnboardingPage.vue'
 import LockScreen from './pages/auth/LockScreen.vue'
@@ -25,6 +26,7 @@ const router = createRouter({
     { path: '/reports', component: ReportsPage },
     { path: '/me', component: MePage },
     { path: '/me/account', component: AccountPage },
+    { path: '/me/items', component: ItemsPage },
     { path: '/chat', component: ChatPage },
     { path: '/onboarding', component: OnboardingPage },
     { path: '/lock', component: LockScreen },

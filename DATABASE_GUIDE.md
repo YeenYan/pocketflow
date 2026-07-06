@@ -34,11 +34,12 @@ Main modules stored in DB:
 2. `rules`
 3. `cycleCutoffs`
 4. `itemBuilders`
-5. `itemBuilderChildren`
-6. `budgetEntries`
-7. `unexpectedExpenses`
-8. `othersBudgets`
-9. `othersExpenses`
+5. `budgetEntries`
+6. `unexpectedExpenses`
+7. `othersBudgets`
+8. `othersExpenses`
+9. `tabBudgets`
+10. `tabBudgetExpenses`
 
 ---
 
@@ -145,39 +146,12 @@ Indexes:
 
 ---
 
-## 3.5 `itemBuilderChildren`
-
-Purpose:
-
-- Child rows under a parent `itemBuilder`.
-
-Fields:
-
-- `id` (number, PK, auto increment)
-- `parentItemId` (number; FK-style reference to `itemBuilders.id`)
-- `name` (string)
-- `amount` (number)
-- `createdAt` (date/time)
-
-Indexes:
-
-- `++id`
-- `parentItemId`
-- `createdAt`
-
-Rules:
-
-- Parent progress uses:
-  - `remaining = parent.amount - sum(children.amount)`
-  - if `parent.amount == 0`, progress stays `0%`
-
----
-
-## 3.6 `budgetEntries`
+## 3.5 `budgetEntries`
 
 Purpose:
 
 - Line items under a rule for a specific cutoff (example: Expenses → Internet ₱1500).
+- Sub-items are rows with `parentBudgetEntryId` set to a parent entry's `id`.
 
 Fields:
 
@@ -187,6 +161,7 @@ Fields:
 - `ruleName` (string; `Expenses` | `Savings` | `Wants`)
 - `name` (string)
 - `amount` (number)
+- `parentBudgetEntryId` (string, optional; FK-style reference to `budgetEntries.id`)
 - `createdAt` (date/time)
 
 Indexes:
@@ -195,15 +170,20 @@ Indexes:
 - `cutoffId`
 - `monthKey`
 - `ruleName`
+- `parentBudgetEntryId`
 - `createdAt`
 
 Validation:
 
-- For each cutoff: sum of related entry amounts per rule must not exceed that rule's allocated amount.
+- For each cutoff: sum of top-level entry amounts (`!parentBudgetEntryId`) per rule must not exceed that rule's allocated amount.
+- Parent progress uses sub-item totals where `parentBudgetEntryId === parent.id`:
+  - `remaining = parent.amount - sum(children.amount)`
+  - if `parent.amount == 0`, progress stays `0%`
+- Deleting a parent entry should also delete its sub-items.
 
 ---
 
-## 3.7 `unexpectedExpenses`
+## 3.6 `unexpectedExpenses`
 
 Purpose:
 
@@ -211,41 +191,65 @@ Purpose:
 
 Fields:
 
-- `id` (number, PK, auto increment)
-- `monthKey` (string)
-- `expenseName` (string)
-- `amount` (number, negative)
-- `createdAt` (date/time)
+- `id` (string, PK, UUID)
+- `cutoffId` (string, FK-style reference to `cycleCutoffs.id`)
+- `itemName` (string; example: `Fastfood`)
+- `excessAmount` (number, amount over budget)
+- `ruleId` (number, FK-style reference to `rules.id`)
+- `ruleName` (string; `Expenses` | `Savings` | `Wants`)
+- `date` (date)
+- `monthKey` (string, ex: `2026-07`)
+- `sourceSection` (string; `mainItems` | `budgetItems` | `otherItems`)
+- `sourceId` (string, UUID of the source row)
+
+`sourceSection` values:
+
+- `mainItems` → Main Expense Items (`budgetEntries.id`)
+- `budgetItems` → Budget Items (`tabBudgetExpenses.id`)
+- `otherItems` → Other Items (`othersExpenses.id`)
 
 Indexes:
 
-- `++id`
+- `id`
+- `cutoffId`
 - `monthKey`
-- `createdAt`
+- `ruleId`
+- `ruleName`
+- `date`
+- `itemName`
+- `sourceSection`
+- `sourceId`
+
+Validation:
+
+- Record created only when overrun happens (spent > allocated).
+- `excessAmount` is the positive overrun value.
 
 ---
 
-## 3.8 `othersBudgets`
+## 3.7 `othersBudgets`
 
 Purpose:
 
-- Optional monthly "Others" allocation.
+- Optional "Others" allocation per cutoff.
 
 Fields:
 
-- `id` (number, PK, auto increment)
-- `monthKey` (string)
+- `id` (string, PK, UUID)
+- `cutoffId` (string, FK-style reference to `cycleCutoffs.id`)
+- `monthKey` (string, ex: `2026-07`)
 - `budgetAllocated` (number)
 - `createdAt` (date/time)
 
 Indexes:
 
-- `++id`
+- `id`
+- `cutoffId`
 - `monthKey`
 
 ---
 
-## 3.9 `othersExpenses`
+## 3.8 `othersExpenses`
 
 Purpose:
 
@@ -253,24 +257,79 @@ Purpose:
 
 Fields:
 
-- `id` (number, PK, auto increment)
-- `monthKey` (string)
+- `id` (string, PK, UUID)
+- `cutoffId` (string, FK-style reference to `cycleCutoffs.id`)
+- `monthKey` (string, ex: `2026-07`)
 - `expenseName` (string)
 - `amount` (number)
 - `createdAt` (date/time)
 
 Indexes:
 
-- `++id`
+- `id`
+- `cutoffId`
 - `monthKey`
+- `createdAt`
+
+---
+
+## 3.9 `tabBudgets`
+
+Purpose:
+
+- Optional tab budget allocation per cutoff (example: Expenses Budget section).
+
+Fields:
+
+- `id` (string, PK, UUID)
+- `cutoffId` (string, FK-style reference to `cycleCutoffs.id`)
+- `monthKey` (string, ex: `2026-07`)
+- `ruleName` (string; `Expenses` | `Savings` | `Wants`)
+- `budgetAllocated` (number)
+- `createdAt` (date/time)
+
+Indexes:
+
+- `id`
+- `cutoffId`
+- `monthKey`
+- `ruleName`
+- `[cutoffId+ruleName]`
+
+---
+
+## 3.10 `tabBudgetExpenses`
+
+Purpose:
+
+- Expense rows under tab budget (example: Budget Items list).
+
+Fields:
+
+- `id` (string, PK, UUID)
+- `cutoffId` (string, FK-style reference to `cycleCutoffs.id`)
+- `monthKey` (string, ex: `2026-07`)
+- `ruleName` (string; `Expenses` | `Savings` | `Wants`)
+- `expenseName` (string)
+- `amount` (number)
+- `createdAt` (date/time)
+
+Indexes:
+
+- `id`
+- `cutoffId`
+- `monthKey`
+- `ruleName`
+- `[cutoffId+ruleName]`
 - `createdAt`
 
 ---
 
 ## 4) Practical Relationships
 
-- `itemBuilders (1) -> (many) itemBuilderChildren`
-  - Link: `itemBuilderChildren.parentItemId`
+- `itemBuilders.hasChildItems` flags that a tracker entry for that item can have sub-items.
+- `budgetEntries (parent) -> (many) budgetEntries (sub-items)`
+  - Link: `budgetEntries.parentBudgetEntryId`
 
 - `itemBuilders.categories + isActive -> budget entry dropdown options`
   - When adding an entry under a rule, show matching active items.
@@ -279,11 +338,29 @@ Indexes:
 - `cycleCutoffs.id -> budgetEntries.cutoffId`
   - Links each line item to its cutoff.
 
+- `cycleCutoffs.id -> othersBudgets.cutoffId`
+- `cycleCutoffs.id -> othersExpenses.cutoffId`
+- `cycleCutoffs.id -> tabBudgets.cutoffId`
+- `cycleCutoffs.id -> tabBudgetExpenses.cutoffId`
+  - Links Budget/Others rows to their cutoff for reporting joins.
+
 - `rules.name -> budgetEntries.ruleName`
   - Defines category ownership (`Expenses`, `Savings`, `Wants`).
 
-- `othersBudgets.monthKey -> othersExpenses.monthKey`
-  - Same month/cycle grouping.
+- `cycleCutoffs.id -> unexpectedExpenses.cutoffId`
+  - Links each overrun record to its cutoff for reporting joins.
+
+- `rules.id -> unexpectedExpenses.ruleId`
+- `rules.name -> unexpectedExpenses.ruleName`
+  - Links each overrun record to its rule.
+
+- `unexpectedExpenses.sourceId -> budgetEntries.id` when `sourceSection` is `mainItems`
+- `unexpectedExpenses.sourceId -> tabBudgetExpenses.id` when `sourceSection` is `budgetItems`
+- `unexpectedExpenses.sourceId -> othersExpenses.id` when `sourceSection` is `otherItems`
+  - Links back to the original item row.
+
+- `othersBudgets.cutoffId -> othersExpenses.cutoffId`
+  - Same cutoff grouping.
 
 Note:
 
@@ -329,7 +406,7 @@ Note:
 - Only 2 cutoffs per month/cycle.
 - Per cutoff allocation cannot exceed cutoff amount.
 - Unexpected expenses are stored only when overrun happens.
-- Item Builder child progress uses parent amount vs child totals.
+- Item Builder child progress uses parent budget entry amount vs sub-item totals on the tracker.
 - On first app use, profile (name + picture) is required.
 
 ---
@@ -342,11 +419,15 @@ db.version(1).stores({
 	rules: "++id, name",
 	cycleCutoffs: "++id, monthKey, slot, label, createdAt",
 	itemBuilders: "++id, name, isActive, hasChildItems, createdAt",
-	itemBuilderChildren: "++id, parentItemId, createdAt",
-	budgetEntries: "id, cutoffId, monthKey, ruleName, createdAt",
-	unexpectedExpenses: "++id, monthKey, createdAt",
-	othersBudgets: "++id, monthKey",
-	othersExpenses: "++id, monthKey, createdAt",
+	budgetEntries:
+		"id, cutoffId, monthKey, ruleName, parentBudgetEntryId, createdAt",
+	unexpectedExpenses:
+		"id, cutoffId, monthKey, ruleId, ruleName, date, itemName, sourceSection, sourceId",
+	othersBudgets: "id, cutoffId, monthKey",
+	othersExpenses: "id, cutoffId, monthKey, createdAt",
+	tabBudgets: "id, cutoffId, monthKey, ruleName, [cutoffId+ruleName]",
+	tabBudgetExpenses:
+		"id, cutoffId, monthKey, ruleName, [cutoffId+ruleName], createdAt",
 });
 ```
 
