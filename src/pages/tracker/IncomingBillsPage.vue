@@ -1,6 +1,6 @@
 <script setup lang="ts">
 	import { computed, onMounted, ref, watch } from "vue";
-	import { PlusIcon } from "@heroicons/vue/24/outline";
+	import { PlusIcon, TrashIcon } from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import ItemBuilderDrawer, {
@@ -153,6 +153,19 @@
 
 	const showCreateItemDrawer = ref(false);
 	const savingCreateItem = ref(false);
+
+	const showEditModal = ref(false);
+	const editType = ref<"budget" | "item">("budget");
+	const editId = ref("");
+	const editTitle = ref("");
+	const editAmount = ref("");
+	const editOriginalAmount = ref("");
+	const editError = ref("");
+	const editSaving = ref(false);
+
+	const editChanged = computed(
+		() => editAmount.value !== editOriginalAmount.value,
+	);
 
 	const expenseSwipeOffsets = ref<Record<string, number>>({});
 	const savingsSwipeOffsets = ref<Record<string, number>>({});
@@ -354,6 +367,59 @@
 		closeModal();
 	}
 
+	function openBudgetEdit(budget: IncomingBillBudget | undefined, title: string) {
+		if (!budget) return;
+		editType.value = "budget";
+		editId.value = budget.id;
+		editTitle.value = title;
+		editAmount.value = String(budget.amount);
+		editOriginalAmount.value = String(budget.amount);
+		editError.value = "";
+		showEditModal.value = true;
+	}
+
+	function openItemEdit(expense: { expenseName: string }, id: string) {
+		editType.value = "item";
+		editId.value = id;
+		editTitle.value = expense.expenseName;
+		const item = items.value.find((i) => i.id === id);
+		editAmount.value = item ? String(item.amount) : "";
+		editOriginalAmount.value = editAmount.value;
+		editError.value = "";
+		showEditModal.value = true;
+	}
+
+	function closeEditModal() {
+		editError.value = "";
+		showEditModal.value = false;
+	}
+
+	async function saveEdit() {
+		const amount = Number(editAmount.value);
+		if (!editAmount.value || Number.isNaN(amount) || amount <= 0) {
+			editError.value = "Enter a valid amount";
+			return;
+		}
+		editSaving.value = true;
+		if (editType.value === "budget") {
+			await db.incomingBillBudgets.update(editId.value, { amount });
+			await loadBudgets();
+		} else {
+			await db.incomingBillItems.update(editId.value, { amount });
+			await loadItems();
+		}
+		editSaving.value = false;
+		closeEditModal();
+	}
+
+	async function removeEdit() {
+		editSaving.value = true;
+		await db.incomingBillBudgets.delete(editId.value);
+		await loadBudgets();
+		editSaving.value = false;
+		closeEditModal();
+	}
+
 	async function deleteItem(id: string) {
 		await db.incomingBillItems.delete(id);
 		delete expenseSwipeOffsets.value[id];
@@ -489,9 +555,14 @@
 				@swipe-start="onExpenseSwipeStart"
 				@swipe-move="onExpenseSwipeMove"
 				@swipe-end="onExpenseSwipeEnd"
+				@item-row-click="openItemEdit"
 			/>
 
-			<GlassContainer class="mb-1">
+			<GlassContainer
+				class="mb-1"
+				:class="{ 'cursor-pointer': cutoffBudget }"
+				@click="cutoffBudget && openBudgetEdit(cutoffBudget, 'Cutoff Budget')"
+			>
 				<div class="flex items-center justify-between">
 					<p class="m-0 text-sm text-textSecondary">Cutoff Budget</p>
 					<p
@@ -506,7 +577,14 @@
 				</p>
 			</GlassContainer>
 
-			<GlassContainer class="mb-1">
+			<GlassContainer
+				class="mb-1"
+				:class="{ 'cursor-pointer': otherExpensesBudget }"
+				@click="
+					otherExpensesBudget &&
+					openBudgetEdit(otherExpensesBudget, 'Other Expenses Budget')
+				"
+			>
 				<div class="flex items-center justify-between">
 					<p class="m-0 text-sm text-textSecondary">Other Expenses Budget</p>
 					<p
@@ -531,9 +609,14 @@
 				@swipe-start="onSavingsSwipeStart"
 				@swipe-move="onSavingsSwipeMove"
 				@swipe-end="onSavingsSwipeEnd"
+				@item-row-click="openItemEdit"
 			/>
 
-			<GlassContainer class="mb-1">
+			<GlassContainer
+				class="mb-1"
+				:class="{ 'cursor-pointer': wantsBudget }"
+				@click="wantsBudget && openBudgetEdit(wantsBudget, 'Wants Budget')"
+			>
 				<div class="flex items-center justify-between">
 					<p class="m-0 text-sm text-textSecondary">Wants Budget</p>
 					<p v-if="wantsBudget" class="m-0 text-[.95rem] font-bold text-textPrimary">
@@ -605,6 +688,55 @@
 			</div>
 		</Teleport>
 
+		<Teleport to="body">
+			<div
+				v-if="showEditModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeEditModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-6">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Update {{ editTitle }}
+					</h2>
+
+					<div class="flex items-end gap-3">
+						<AmountField
+							v-model="editAmount"
+							label="Amount"
+							placeholder="0.00"
+							class="flex-1"
+						/>
+						<button
+							v-if="editType === 'budget'"
+							type="button"
+							class="remove-amount-btn"
+							aria-label="Remove amount"
+							:disabled="editSaving"
+							@click="removeEdit"
+						>
+							<TrashIcon class="h-5 w-5" />
+						</button>
+					</div>
+
+					<p v-if="editError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ editError }}
+					</p>
+
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeEditModal">Cancel</Button>
+						<Button
+							variant="primary"
+							block
+							:disabled="editSaving || !editChanged"
+							@click="saveEdit"
+						>
+							Save
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
 		<ItemBuilderDrawer
 			v-model:open="showCreateItemDrawer"
 			:cat-expenses="formCategory === 'expense-main'"
@@ -626,5 +758,23 @@
 		-webkit-overflow-scrolling: touch;
 		overscroll-behavior: contain;
 		padding: 0 0 calc(2rem + env(safe-area-inset-bottom));
+	}
+
+	.remove-amount-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.875rem;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+		background: transparent;
+		color: #f87171;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.remove-amount-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 </style>

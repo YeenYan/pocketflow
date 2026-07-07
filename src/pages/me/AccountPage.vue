@@ -1,5 +1,5 @@
 <script setup lang="ts">
-	import { onMounted, ref, watch } from "vue";
+	import { computed, nextTick, onMounted, ref, watch } from "vue";
 	import { useRouter } from "vue-router";
 	import {
 		ChevronRightIcon,
@@ -7,6 +7,8 @@
 		KeyIcon,
 		FingerPrintIcon,
 		ArrowRightOnRectangleIcon,
+		TrashIcon,
+		ViewfinderCircleIcon,
 	} from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
@@ -14,7 +16,11 @@
 	import ToggleSwitch from "../../components/inputs/ToggleSwitch.vue";
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { hashPin, verifyPin } from "../../utils/pinHash";
-	import { canUseBiometric, registerBiometric } from "../../utils/biometric";
+	import {
+		canUseBiometric,
+		registerBiometric,
+		unlockWithBiometric,
+	} from "../../utils/biometric";
 
 	const router = useRouter();
 
@@ -27,6 +33,15 @@
 	const newPin = ref("");
 	const confirmPin = ref("");
 	const formError = ref("");
+
+	const showDeleteModal = ref(false);
+	const deletePinDigits = ref(["", "", "", "", ""]);
+	const deletePinInputRef = ref<HTMLInputElement | null>(null);
+	const deleteError = ref("");
+	const showDeletePin = ref(false);
+	const deleting = ref(false);
+
+	const deletePin = computed(() => deletePinDigits.value.join(""));
 
 	onMounted(async () => {
 		const profile = await db.userProfiles.get(1);
@@ -157,6 +172,94 @@
 		});
 	}
 
+	function clearDeletePin() {
+		deletePinDigits.value = ["", "", "", "", ""];
+		if (deletePinInputRef.value) deletePinInputRef.value.value = "";
+	}
+
+	function onDeletePinInput(event: Event) {
+		const el = event.target as HTMLInputElement;
+		const value = el.value.replace(/\D/g, "").slice(0, 5);
+		el.value = value;
+		deleteError.value = "";
+		for (let i = 0; i < 5; i++) {
+			deletePinDigits.value[i] = value[i] ?? "";
+		}
+	}
+
+	async function openDeleteModal() {
+		deleteError.value = "";
+		clearDeletePin();
+		showDeletePin.value = hasPin.value && !useBiometric.value;
+		showDeleteModal.value = true;
+		if (showDeletePin.value) {
+			await nextTick();
+			deletePinInputRef.value?.focus();
+		}
+	}
+
+	function closeDeleteModal() {
+		showDeleteModal.value = false;
+		deleteError.value = "";
+		clearDeletePin();
+	}
+
+	async function confirmDeleteFaceId() {
+		if (deleting.value) return;
+		const profile = await db.userProfiles.get(1);
+		if (!profile?.biometricCredentialId) return;
+		deleteError.value = "";
+		const ok = await unlockWithBiometric(profile.biometricCredentialId);
+		if (!ok) {
+			if (hasPin.value) {
+				showDeletePin.value = true;
+				deleteError.value = "Face ID cancelled. Enter PIN or try again.";
+				await nextTick();
+				deletePinInputRef.value?.focus();
+			} else {
+				deleteError.value = "Face ID failed. Try again.";
+			}
+			return;
+		}
+		await wipeAllRecords();
+	}
+
+	async function confirmDeletePin() {
+		if (deletePin.value.length !== 5) {
+			deleteError.value = "Enter your 5-digit PIN";
+			return;
+		}
+		const profile = await db.userProfiles.get(1);
+		if (!profile?.pinHash) return;
+		const ok = await verifyPin(deletePin.value, profile.pinHash);
+		if (!ok) {
+			deleteError.value = "Wrong PIN";
+			clearDeletePin();
+			deletePinInputRef.value?.focus();
+			return;
+		}
+		await wipeAllRecords();
+	}
+
+	// Clears every table except the account profile and item templates.
+	async function wipeAllRecords() {
+		deleting.value = true;
+		await Promise.all([
+			db.rules.clear(),
+			db.cycleCutoffs.clear(),
+			db.budgetEntries.clear(),
+			db.othersBudgets.clear(),
+			db.othersExpenses.clear(),
+			db.tabBudgets.clear(),
+			db.tabBudgetExpenses.clear(),
+			db.unexpectedExpenses.clear(),
+			db.incomingBillItems.clear(),
+			db.incomingBillBudgets.clear(),
+		]);
+		deleting.value = false;
+		closeDeleteModal();
+	}
+
 	function logout() {
 		setSessionUnlocked(false);
 		router.push("/lock");
@@ -204,6 +307,13 @@
 					<ArrowRightOnRectangleIcon class="row-icon" />
 				</span>
 				<span class="row-label">Log out</span>
+			</button>
+
+			<button type="button" class="account-row logout" @click="openDeleteModal">
+				<span class="icon-box icon-box-logout">
+					<TrashIcon class="row-icon" />
+				</span>
+				<span class="row-label">Delete all records</span>
 			</button>
 		</GlassContainer>
 
@@ -260,6 +370,81 @@
 							@click="activeModal === 'name' ? saveName() : savePassword()"
 						>
 							Save
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showDeleteModal"
+				class="modal-overlay"
+				@click.self="closeDeleteModal"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Delete All Records</h2>
+					<p class="modal-text">
+						This permanently deletes all your entered records — cutoffs, budget
+						amounts, expenses, and bills. Your account and saved items are kept.
+						This cannot be undone.
+					</p>
+
+					<button
+						v-if="useBiometric"
+						type="button"
+						class="bio-btn"
+						aria-label="Confirm with Face ID"
+						:disabled="deleting"
+						@click="confirmDeleteFaceId"
+					>
+						<ViewfinderCircleIcon class="bio-btn-icon" />
+					</button>
+
+					<template v-if="hasPin && showDeletePin">
+						<div
+							class="pin-row"
+							:class="{ 'pin-row-error': !!deleteError }"
+							@click="deletePinInputRef?.focus()"
+						>
+							<span
+								v-for="(digit, i) in deletePinDigits"
+								:key="'delete-pin-' + i"
+								class="pin-dot"
+								:class="{ filled: !!digit }"
+							/>
+							<input
+								ref="deletePinInputRef"
+								:value="deletePin"
+								type="text"
+								inputmode="numeric"
+								maxlength="5"
+								class="pin-input-hidden"
+								@input="onDeletePinInput"
+							/>
+						</div>
+					</template>
+
+					<Button
+						v-if="hasPin && useBiometric && !showDeletePin"
+						block
+						@click="showDeletePin = true"
+					>
+						Use PIN instead
+					</Button>
+
+					<p v-if="deleteError" class="error">{{ deleteError }}</p>
+
+					<div class="modal-actions">
+						<Button block variant="shade" @click="closeDeleteModal">Cancel</Button>
+						<Button
+							v-if="hasPin && showDeletePin"
+							block
+							variant="danger"
+							:disabled="deleting || deletePin.length !== 5"
+							@click="confirmDeletePin"
+						>
+							Delete
 						</Button>
 					</div>
 				</GlassContainer>
@@ -442,6 +627,71 @@
 	.modal-actions {
 		display: flex;
 		gap: 0.75rem;
+	}
+
+	.modal-text {
+		margin: 0;
+		font-size: 0.875rem;
+		text-align: center;
+		color: var(--color-textSecondary);
+	}
+
+	.bio-btn {
+		align-self: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 5rem;
+		height: 5rem;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+		background: transparent;
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.bio-btn-icon {
+		width: 2.5rem;
+		height: 2.5rem;
+	}
+
+	.bio-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.pin-row {
+		position: relative;
+		display: flex;
+		justify-content: center;
+		gap: 1.25rem;
+		padding: 1.5rem 0;
+		cursor: text;
+	}
+
+	.pin-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--color-inputBorder);
+		transition: background 0.15s ease;
+	}
+
+	.pin-dot.filled {
+		background: var(--color-textPrimary);
+	}
+
+	.pin-row-error .pin-dot.filled {
+		background: #f87171;
+	}
+
+	.pin-input-hidden {
+		position: absolute;
+		opacity: 0;
+		width: 1px;
+		height: 1px;
+		border: 0;
+		padding: 0;
 	}
 
 	.error {

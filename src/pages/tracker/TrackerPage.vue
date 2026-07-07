@@ -1972,22 +1972,21 @@
 			@next="goNext"
 		/> -->
 
-		<div class="tracker-fixed shrink-0">
-			<CutoffBudgetSection
-				:budget-title="budgetTitle"
-				:display-cutoff-date="displayCutoffDate"
-				:display-amount="displayAmount"
-				:display-spent="displaySpent"
-				:progress-percent="progressPercent"
-				:has-cutoff="!!activeCutoff"
-				:progress-fill-color="progressFillColor"
-				@open-modal="openModal"
-			/>
-
-			<TabsSection v-model:active-tab="activeTab" :tabs="tabs" />
-		</div>
-
 		<div class="tracker-scroll min-h-0 flex-1">
+			<div class="tracker-fixed shrink-0">
+				<CutoffBudgetSection
+					:budget-title="budgetTitle"
+					:display-cutoff-date="displayCutoffDate"
+					:display-amount="displayAmount"
+					:display-spent="displaySpent"
+					:progress-percent="progressPercent"
+					:has-cutoff="!!activeCutoff"
+					:progress-fill-color="progressFillColor"
+					@open-modal="openModal"
+				/>
+
+				<TabsSection v-model:active-tab="activeTab" :tabs="tabs" />
+			</div>
 			<RuleSection
 				:active-tab="activeTab"
 				:active-rule-percent="activeRulePercent"
