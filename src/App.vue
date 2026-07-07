@@ -139,7 +139,9 @@ async function testNotification() {
 		<main
 			class="relative z-10 flex min-h-0 flex-1 flex-col px-4"
 			:class="[
-				route.path === '/tracker'
+				route.path === '/tracker' ||
+				route.path === '/reports' ||
+				route.path === '/me/items'
 					? 'overflow-hidden pb-0'
 					: [
 							showNav

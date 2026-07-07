@@ -611,6 +611,7 @@
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
+		padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 	}
 
 	.empty {

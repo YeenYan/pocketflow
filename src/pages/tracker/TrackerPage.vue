@@ -1,23 +1,11 @@
 <script setup lang="ts">
-	import { computed, nextTick, onMounted, ref, watch } from "vue";
-	import {
-		PaperAirplaneIcon,
-		ViewfinderCircleIcon,
-		XMarkIcon,
-	} from "@heroicons/vue/24/outline";
-	import * as OutlineIcons from "@heroicons/vue/24/outline";
+	import { computed, onMounted, ref, watch } from "vue";
+	import { PaperAirplaneIcon } from "@heroicons/vue/24/outline";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
-	import Button from "../../components/button/Button.vue";
 	import Divider from "../../components/divider/Divider.vue";
-	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import ItemBuilderDrawer, {
 		type ItemBuilderFormData,
 	} from "../../components/item-builder/ItemBuilderDrawer.vue";
-	import AmountField from "../../components/inputs/AmountField.vue";
-	import InputField from "../../components/inputs/InputField.vue";
-	import SelectField from "../../components/inputs/SelectField.vue";
-	import { verifyPin } from "../../utils/pinHash";
-	import { unlockWithBiometric } from "../../utils/biometric";
 	import {
 		buildCutoffAllocations,
 		createId,
@@ -45,6 +33,17 @@
 	import OthersSection from "./partials/sections/OthersSection.vue";
 	import BudgetSection from "./partials/sections/BudgetSection.vue";
 	import OtherItemsSection from "./partials/sections/OtherItemsSection.vue";
+	import CutoffModal from "./partials/modals/CutoffModal.vue";
+	import AddItemModal from "./partials/modals/AddItemModal.vue";
+	import EditItemDrawer from "./partials/modals/EditItemDrawer.vue";
+	import SubItemModal from "./partials/modals/SubItemModal.vue";
+	import OthersBudgetModal from "./partials/modals/OthersBudgetModal.vue";
+	import OthersItemModal from "./partials/modals/OthersItemModal.vue";
+	import TabBudgetModal from "./partials/modals/TabBudgetModal.vue";
+	import TabBudgetItemModal from "./partials/modals/TabBudgetItemModal.vue";
+	import UnexpectedDrawer from "./partials/modals/UnexpectedDrawer.vue";
+	import ExceedModal from "./partials/modals/ExceedModal.vue";
+	import FinalizeModal from "./partials/modals/FinalizeModal.vue";
 
 	const ITEM_COLOR_OPTIONS = [
 		{
@@ -273,11 +272,6 @@
 	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 	const viewMonthKey = ref(currentMonthKey);
 
-	const cutoffOptions = [
-		{ value: "1st cutoff", label: "1st cutoff" },
-		{ value: "2nd cutoff", label: "2nd cutoff" },
-	];
-
 	const showModal = ref(false);
 	const editingCutoffId = ref("");
 	const formAmount = ref("");
@@ -285,6 +279,30 @@
 	const formDate = ref("");
 	const formError = ref("");
 	const saving = ref(false);
+
+	const cutoffOptions = computed(() => {
+		const all = [
+			{ value: "1st cutoff", label: "1st cutoff" },
+			{ value: "2nd cutoff", label: "2nd cutoff" },
+		];
+		const monthKey = formDate.value ? formDate.value.slice(0, 7) : "";
+		if (!monthKey) return all;
+		const usedSlots = cutoffs.value
+			.filter((c) => c.monthKey === monthKey && c.id !== editingCutoffId.value)
+			.map((c) => c.slot);
+		return all.filter(
+			(opt) => !usedSlots.includes(opt.value === "1st cutoff" ? 1 : 2),
+		);
+	});
+
+	watch(formDate, () => {
+		if (
+			formName.value &&
+			!cutoffOptions.value.some((opt) => opt.value === formName.value)
+		) {
+			formName.value = "";
+		}
+	});
 
 	const showItemModal = ref(false);
 	const itemFormId = ref("");
@@ -360,14 +378,6 @@
 	let exceedModalOnProceed: (() => Promise<void>) | null = null;
 
 	const showFinalizeModal = ref(false);
-	const finalizePinDigits = ref(["", "", "", "", ""]);
-	const finalizePinInputRef = ref<HTMLInputElement | null>(null);
-	const finalizePinError = ref("");
-	const finalizeHasPin = ref(false);
-	const finalizeUseBiometric = ref(false);
-	const finalizeCredentialId = ref("");
-	const finalizeUnlocking = ref(false);
-	const showFinalizePin = ref(false);
 
 	const showUnexpectedDrawer = ref(false);
 
@@ -415,7 +425,7 @@
 	// BUDGET SECTION — computed
 	// =============================================================================
 	const activeCutoff = computed(() => {
-		const list = viewCutoffs.value;
+		const list = viewCutoffs.value.filter((c) => c.status !== "finalized");
 		if (list.length === 0) return null;
 		return list.reduce((latest, c) =>
 			!latest || c.createdAt > latest.createdAt ? c : latest,
@@ -470,6 +480,46 @@
 			100,
 			Math.round((spentAmount.value / totalAmount.value) * 100),
 		);
+	});
+
+	const cutoffExcessAmount = computed(() =>
+		Math.max(0, spentAmount.value - totalAmount.value),
+	);
+
+	const displayCutoffExcess = computed(
+		() => `₱${cutoffExcessAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const cutoffExcessPercent = computed(() => {
+		if (totalAmount.value <= 0) return 0;
+		return Math.round((cutoffExcessAmount.value / totalAmount.value) * 100);
+	});
+
+	const finalizeSummary = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		const allocations = activeCutoff.value?.allocations;
+		return RULE_ORDER.map((name) => {
+			const entriesSum = budgetEntries.value
+				.filter(
+					(entry) =>
+						entry.cutoffId === cutoffId &&
+						entry.ruleName === name &&
+						!entry.parentBudgetEntryId,
+				)
+				.reduce((sum, entry) => sum + entry.amount, 0);
+			const spent =
+				name === "Expenses"
+					? entriesSum + tabBudgetSpent.value + othersSpent.value
+					: entriesSum;
+			const allotted = allocations?.[name]?.amount ?? 0;
+			const percent =
+				allotted > 0
+					? Math.round((Math.abs(spent - allotted) / allotted) * 100)
+					: 0;
+			const pass = name === "Savings" ? spent >= allotted : spent <= allotted;
+			const amount = `₱${Math.abs(spent - allotted).toLocaleString("en-PH")}`;
+			return { name, pass, percent, amount };
+		});
 	});
 
 	const isEditingCutoff = computed(() => !!editingCutoffId.value);
@@ -694,8 +744,6 @@
 		return `Are you sure you want to save the Budget Tracker for ${label}?`;
 	});
 
-	const finalizePin = computed(() => finalizePinDigits.value.join(""));
-
 	const othersAllocated = computed(
 		() => othersBudget.value?.budgetAllocated ?? 0,
 	);
@@ -898,91 +946,19 @@
 		if (proceed) await proceed();
 	}
 
-	function openFinalizeModal() {
-		if (!canFinalizeBudget.value) return;
-		finalizePinError.value = "";
-		clearFinalizePin();
-		showFinalizeModal.value = true;
-		loadFinalizeAuthState();
-	}
-
-	function closeFinalizeModal() {
-		showFinalizeModal.value = false;
-		finalizePinError.value = "";
-		clearFinalizePin();
-	}
-
-	function confirmFinalizeBudget() {
-		closeFinalizeModal();
-	}
-
-	async function loadFinalizeAuthState() {
-		const profile = await db.userProfiles.get(1);
-		finalizeHasPin.value = !!profile?.pinHash;
-		finalizeUseBiometric.value =
-			!!profile?.useBiometric && !!profile?.biometricCredentialId;
-		finalizeCredentialId.value = profile?.biometricCredentialId || "";
-		showFinalizePin.value = finalizeHasPin.value && !finalizeUseBiometric.value;
-		if (showFinalizePin.value) {
-			await nextTick();
-			finalizePinInputRef.value?.focus();
-		}
-	}
-
-	function clearFinalizePin() {
-		finalizePinDigits.value = ["", "", "", "", ""];
-		if (finalizePinInputRef.value) finalizePinInputRef.value.value = "";
-	}
-
-	function onFinalizePinInput(event: Event) {
-		const el = event.target as HTMLInputElement;
-		const value = el.value.replace(/\D/g, "").slice(0, 5);
-		el.value = value;
-		finalizePinError.value = "";
-		for (let i = 0; i < 5; i++) {
-			finalizePinDigits.value[i] = value[i] ?? "";
-		}
-	}
-
 	function onFinalizeClick() {
-		openFinalizeModal();
+		if (!canFinalizeBudget.value) return;
+		showFinalizeModal.value = true;
 	}
 
-	async function confirmFinalizeWithPin() {
-		if (finalizePin.value.length !== 5) {
-			finalizePinError.value = "Enter your 5-digit PIN";
-			return;
-		}
-		const profile = await db.userProfiles.get(1);
-		if (!profile?.pinHash) return;
-		const ok = await verifyPin(finalizePin.value, profile.pinHash);
-		if (!ok) {
-			finalizePinError.value = "Wrong PIN";
-			clearFinalizePin();
-			finalizePinInputRef.value?.focus();
-			return;
-		}
-		confirmFinalizeBudget();
-	}
-
-	async function confirmFinalizeWithFaceId() {
-		if (finalizeUnlocking.value || !finalizeCredentialId.value) return;
-		finalizeUnlocking.value = true;
-		finalizePinError.value = "";
-		const ok = await unlockWithBiometric(finalizeCredentialId.value);
-		finalizeUnlocking.value = false;
-		if (!ok) {
-			if (finalizeHasPin.value) {
-				showFinalizePin.value = true;
-				finalizePinError.value = "Face ID cancelled. Enter PIN or try again.";
-				await nextTick();
-				finalizePinInputRef.value?.focus();
-			} else {
-				finalizePinError.value = "Face ID failed. Try again.";
-			}
-			return;
-		}
-		confirmFinalizeBudget();
+	async function onFinalizeConfirmed() {
+		const cutoff = activeCutoff.value;
+		if (!cutoff) return;
+		await db.cycleCutoffs.update(cutoff.id, {
+			status: "finalized",
+			finalizedAt: new Date().toISOString(),
+		});
+		await reloadTracker();
 	}
 
 	async function addUnexpectedExpense(
@@ -1103,7 +1079,9 @@
 	async function deleteBudgetEntry(id: string) {
 		await db.budgetEntries.where("parentBudgetEntryId").equals(id).delete();
 		await db.budgetEntries.delete(id);
+		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
 		await loadBudgetEntries();
+		await loadUnexpectedExpenses();
 	}
 
 	function goPrev() {
@@ -1694,8 +1672,10 @@
 
 	async function deleteOthersExpense(id: string) {
 		await db.othersExpenses.delete(id);
+		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
 		delete othersSwipeOffsets.value[id];
 		await loadOthers();
+		await loadUnexpectedExpenses();
 	}
 
 	function othersSwipeOffset(id: string) {
@@ -1906,8 +1886,10 @@
 
 	async function deleteTabBudgetExpense(id: string) {
 		await db.tabBudgetExpenses.delete(id);
+		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
 		delete tabBudgetSwipeOffsets.value[id];
 		await loadTabBudget();
+		await loadUnexpectedExpenses();
 	}
 
 	function tabBudgetSwipeOffset(id: string) {
@@ -2109,226 +2091,54 @@
 			</div>
 		</div>
 
-		<!-- ================================================================== -->
-		<!-- ADD CUTOFF MODAL                                                    -->
-		<!-- ================================================================== -->
-		<Teleport to="body">
-			<div
-				v-if="showModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeModal"
-			>
-				<GlassContainer
-					class="flex w-full min-w-0 max-w-[400px] flex-col gap-4 overflow-hidden"
-				>
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ isEditingCutoff ? "Edit Cutoff" : "Add Cutoff" }}
-					</h2>
+		<CutoffModal
+			:show="showModal"
+			:is-editing="isEditingCutoff"
+			:error="formError"
+			:options="cutoffOptions"
+			:can-save="canSaveCutoff"
+			v-model:amount="formAmount"
+			v-model:name="formName"
+			v-model:date="formDate"
+			@close="closeModal"
+			@save="saveCutoff"
+		/>
 
-					<AmountField
-						v-model="formAmount"
-						label="Cutoff Amount"
-						placeholder="0.00"
-					/>
-					<SelectField
-						v-model="formName"
-						label="Name"
-						:options="cutoffOptions"
-						placeholder="Select cutoff"
-					/>
-					<label class="flex w-full min-w-0 flex-col gap-2 overflow-hidden">
-						<span class="text-base text-textPrimary">Date</span>
-						<input
-							v-model="formDate"
-							type="date"
-							class="field-input field-input-date"
-						/>
-					</label>
+		<AddItemModal
+			:show="showItemModal && !showExceedModal"
+			:error="itemFormError"
+			:options="itemBuilderOptions"
+			:saving="savingItem"
+			v-model:item-id="itemFormId"
+			v-model:amount="itemFormAmount"
+			@close="closeItemModal"
+			@save="saveItem"
+			@create-item="openCreateItemDrawer"
+		/>
 
-					<p v-if="formError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ formError }}
-					</p>
-
-					<div class="flex gap-3">
-						<Button block @click="closeModal">Cancel</Button>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveCutoff"
-							@click="saveCutoff"
-						>
-							{{ isEditingCutoff ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<!-- ================================================================== -->
-		<!-- ADD ITEM MODAL                                                      -->
-		<!-- ================================================================== -->
-		<Teleport to="body">
-			<div
-				v-if="showItemModal && !showExceedModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeItemModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-6">
-					<div class="flex items-center justify-between gap-3">
-						<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-							Add Item
-						</h2>
-						<Button
-							variant="secondary"
-							size="sm"
-							class="max-w-[11rem]"
-							@click="openCreateItemDrawer"
-						>
-							+ Create New Item
-						</Button>
-					</div>
-
-					<SelectField
-						v-model="itemFormId"
-						label="Item Name"
-						:options="itemBuilderOptions"
-						placeholder="Search item"
-					/>
-
-					<AmountField v-model="itemFormAmount" label="Amount" placeholder="0.00" />
-
-					<p v-if="itemFormError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ itemFormError }}
-					</p>
-
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeItemModal">Cancel</Button>
-						<Button variant="primary" block :disabled="savingItem" @click="saveItem">
-							Save
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<!-- ================================================================== -->
-		<!-- EDIT ITEM DRAWER                                                    -->
-		<!-- ================================================================== -->
-		<Teleport to="body">
-			<div
-				v-if="showEditItemModal && !showExceedModal"
-				class="drawer-overlay"
-				@click.self="closeEditItemModal"
-			>
-				<GlassContainer class="drawer-sheet justify-between">
-					<div class="flex flex-col gap-4">
-						<div class="drawer-handle" />
-						<div class="drawer-header">
-							<h2 class="drawer-title">Edit Item</h2>
-							<button
-								type="button"
-								class="drawer-close"
-								aria-label="Close"
-								@click="closeEditItemModal"
-							>
-								<XMarkIcon class="h-5 w-5" />
-							</button>
-						</div>
-
-						<div class="flex items-center justify-center gap-3">
-							<span class="item-icon-wrap" :class="editItemIconWrapClass">
-								<component
-									:is="OutlineIcons[editItemIcon as keyof typeof OutlineIcons]"
-									class="item-icon"
-								/>
-							</span>
-							<span class="edit-item-name">{{ editItemName }}</span>
-						</div>
-
-						<AmountField v-model="editItemAmount" label="Amount" placeholder="0.00" />
-
-						<Divider margin-top="1rem" margin-bottom="1rem" />
-
-						<p
-							v-if="editItemHasChildItems && !editItemSubItems.length"
-							class="m-0 text-center text-sm text-textSecondary"
-						>
-							No sub items yet
-						</p>
-
-						<ul
-							v-if="editItemHasChildItems && editItemSubItems.length"
-							class="subitem-list"
-						>
-							<li
-								v-for="child in editItemSubItems"
-								:key="child.id"
-								class="subitem-swipe-wrap"
-								:class="{ 'is-swiped': subItemSwipeOffset(String(child.id)) < 0 }"
-							>
-								<button
-									type="button"
-									class="subitem-swipe-delete"
-									aria-label="Remove sub item"
-									@click.stop="deleteSubItem(child.id!)"
-								>
-									<component
-										:is="OutlineIcons.TrashIcon"
-										class="subitem-swipe-delete-icon"
-									/>
-								</button>
-								<div
-									class="subitem-row"
-									:style="{
-										transform: `translateX(${subItemSwipeOffset(String(child.id))}px)`,
-									}"
-									@click="onSubItemRowClick(child, String(child.id))"
-									@touchstart.passive="onSubItemSwipeStart(String(child.id), $event)"
-									@touchmove="onSubItemSwipeMove(String(child.id), $event)"
-									@touchend="onSubItemSwipeEnd(String(child.id))"
-								>
-									<span class="subitem-name">{{ child.name }}</span>
-									<span class="subitem-amount">
-										₱{{ child.amount.toLocaleString("en-PH") }}
-									</span>
-								</div>
-							</li>
-						</ul>
-
-						<Button
-							v-if="editItemHasChildItems"
-							variant="secondary"
-							@click="openSubItemModal"
-						>
-							+ Add sub item
-						</Button>
-
-						<p v-if="editItemError" class="drawer-error">{{ editItemError }}</p>
-					</div>
-
-					<div class="drawer-actions">
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveEditItem"
-							@click="saveEditItem"
-						>
-							Update
-						</Button>
-						<Button
-							variant="danger"
-							class="edit-remove-btn"
-							:style="{ backgroundColor: RULE_COLORS.Expenses }"
-							:disabled="savingEditItem"
-							aria-label="Remove item"
-							@click="removeEditItem"
-						>
-							<component :is="OutlineIcons.TrashIcon" class="h-5 w-6" />
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
+		<EditItemDrawer
+			:show="showEditItemModal && !showExceedModal"
+			:name="editItemName"
+			:icon="editItemIcon"
+			:icon-wrap-class="editItemIconWrapClass"
+			:has-child-items="editItemHasChildItems"
+			:sub-items="editItemSubItems"
+			:sub-item-swipe-offset="subItemSwipeOffset"
+			:error="editItemError"
+			:can-save="canSaveEditItem"
+			:saving="savingEditItem"
+			:remove-btn-color="RULE_COLORS.Expenses"
+			v-model:amount="editItemAmount"
+			@close="closeEditItemModal"
+			@save="saveEditItem"
+			@remove="removeEditItem"
+			@add-sub-item="openSubItemModal"
+			@delete-sub-item="deleteSubItem"
+			@sub-item-row-click="onSubItemRowClick"
+			@sub-item-swipe-start="onSubItemSwipeStart"
+			@sub-item-swipe-move="onSubItemSwipeMove"
+			@sub-item-swipe-end="onSubItemSwipeEnd"
+		/>
 
 		<ItemBuilderDrawer
 			v-model:open="showCreateItemDrawer"
@@ -2339,347 +2149,82 @@
 			@save="saveCreateItem"
 		/>
 
-		<Teleport to="body">
-			<div
-				v-if="showSubItemModal"
-				class="fixed inset-0 z-[70] flex items-center justify-center bg-overlay p-4"
-				@click.self="closeSubItemModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ subItemEditId ? "Edit Sub Item" : "Add Sub Item" }}
-					</h2>
+		<SubItemModal
+			:show="showSubItemModal"
+			:is-editing="!!subItemEditId"
+			:error="subItemError"
+			:can-save="canSaveSubItem"
+			v-model:name="subItemName"
+			v-model:amount="subItemAmount"
+			@close="closeSubItemModal"
+			@save="saveSubItem"
+		/>
 
-					<InputField
-						v-model="subItemName"
-						label="Name"
-						placeholder="Sub item name"
-						mode="text"
-					/>
+		<OthersBudgetModal
+			:show="showOthersBudgetModal"
+			:is-editing="isEditingOthersBudget"
+			:error="othersBudgetError"
+			:can-save="canSaveOthersBudget"
+			v-model:amount="othersBudgetAmount"
+			@close="closeOthersBudgetModal"
+			@save="saveOthersBudget"
+		/>
 
-					<AmountField v-model="subItemAmount" label="Amount" placeholder="0.00" />
+		<OthersItemModal
+			:show="showOthersItemModal && !showExceedModal"
+			:is-editing="!!othersItemEditId"
+			:error="othersItemError"
+			:can-save="canSaveOthersItem"
+			v-model:name="othersExpenseName"
+			v-model:amount="othersExpenseAmount"
+			@close="closeOthersItemModal"
+			@save="saveOthersItem"
+		/>
 
-					<p v-if="subItemError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ subItemError }}
-					</p>
+		<TabBudgetModal
+			:show="showTabBudgetModal"
+			:is-editing="isEditingTabBudget"
+			:error="tabBudgetError"
+			:can-save="canSaveTabBudget"
+			v-model:amount="tabBudgetAmount"
+			@close="closeTabBudgetModal"
+			@save="saveTabBudget"
+		/>
 
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeSubItemModal">Cancel</Button>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveSubItem"
-							@click="saveSubItem"
-						>
-							{{ subItemEditId ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
+		<TabBudgetItemModal
+			:show="showTabBudgetItemModal && !showExceedModal"
+			:is-editing="!!tabBudgetItemEditId"
+			:error="tabBudgetItemError"
+			:can-save="canSaveTabBudgetItem"
+			v-model:name="tabBudgetExpenseName"
+			v-model:amount="tabBudgetExpenseAmount"
+			@close="closeTabBudgetItemModal"
+			@save="saveTabBudgetItem"
+		/>
 
-		<Teleport to="body">
-			<div
-				v-if="showOthersBudgetModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeOthersBudgetModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ isEditingOthersBudget ? "Edit Others" : "Add Others" }}
-					</h2>
-					<AmountField
-						v-model="othersBudgetAmount"
-						label="Amount"
-						placeholder="0.00"
-					/>
-					<p v-if="othersBudgetError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ othersBudgetError }}
-					</p>
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeOthersBudgetModal"
-							>Cancel</Button
-						>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveOthersBudget"
-							@click="saveOthersBudget"
-						>
-							{{ isEditingOthersBudget ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
+		<UnexpectedDrawer
+			:show="showUnexpectedDrawer"
+			:items="activeRuleUnexpectedExpenses"
+			:source-label="unexpectedSourceLabel"
+			@close="closeUnexpectedDrawer"
+		/>
 
-		<Teleport to="body">
-			<div
-				v-if="showOthersItemModal && !showExceedModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeOthersItemModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ othersItemEditId ? "Edit Others Item" : "Add Others Item" }}
-					</h2>
-					<InputField
-						v-model="othersExpenseName"
-						label="Name"
-						placeholder="Expense name"
-						mode="text"
-					/>
-					<AmountField
-						v-model="othersExpenseAmount"
-						label="Amount"
-						placeholder="0.00"
-					/>
-					<p v-if="othersItemError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ othersItemError }}
-					</p>
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeOthersItemModal"
-							>Cancel</Button
-						>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveOthersItem"
-							@click="saveOthersItem"
-						>
-							{{ othersItemEditId ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
+		<ExceedModal
+			:show="showExceedModal"
+			:display-excess="displayExceedModalExcess"
+			@close="closeExceedModal"
+			@proceed="confirmExceedProceed"
+		/>
 
-		<Teleport to="body">
-			<div
-				v-if="showTabBudgetModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeTabBudgetModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ isEditingTabBudget ? "Edit Budget" : "Add Budget" }}
-					</h2>
-					<AmountField v-model="tabBudgetAmount" label="Amount" placeholder="0.00" />
-					<p v-if="tabBudgetError" class="m-0 text-center text-sm text-[#f87171]">
-						{{ tabBudgetError }}
-					</p>
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeTabBudgetModal">Cancel</Button>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveTabBudget"
-							@click="saveTabBudget"
-						>
-							{{ isEditingTabBudget ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<Teleport to="body">
-			<div
-				v-if="showTabBudgetItemModal && !showExceedModal"
-				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-				@click.self="closeTabBudgetItemModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						{{ tabBudgetItemEditId ? "Edit Budget Item" : "Add Budget Item" }}
-					</h2>
-					<InputField
-						v-model="tabBudgetExpenseName"
-						label="Name"
-						placeholder="Expense name"
-						mode="text"
-					/>
-					<AmountField
-						v-model="tabBudgetExpenseAmount"
-						label="Amount"
-						placeholder="0.00"
-					/>
-					<p
-						v-if="tabBudgetItemError"
-						class="m-0 text-center text-sm text-[#f87171]"
-					>
-						{{ tabBudgetItemError }}
-					</p>
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeTabBudgetItemModal"
-							>Cancel</Button
-						>
-						<Button
-							variant="primary"
-							block
-							:disabled="!canSaveTabBudgetItem"
-							@click="saveTabBudgetItem"
-						>
-							{{ tabBudgetItemEditId ? "Update" : "Save" }}
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<Teleport to="body">
-			<div
-				v-if="showUnexpectedDrawer"
-				class="drawer-overlay"
-				@click.self="closeUnexpectedDrawer"
-			>
-				<GlassContainer class="drawer-sheet">
-					<div class="drawer-handle" />
-					<div class="drawer-header">
-						<h2 class="drawer-title">Unexpected Spending</h2>
-						<button
-							type="button"
-							class="drawer-close"
-							aria-label="Close"
-							@click="closeUnexpectedDrawer"
-						>
-							<XMarkIcon class="h-5 w-5" />
-						</button>
-					</div>
-
-					<ul v-if="activeRuleUnexpectedExpenses.length" class="subitem-list">
-						<li
-							v-for="item in activeRuleUnexpectedExpenses"
-							:key="item.id"
-							class="subitem-row flex-col items-stretch gap-1"
-						>
-							<div class="flex items-center justify-between gap-3 w-full">
-								<div class="flex flex-col">
-									<span class="subitem-name">{{ item.itemName }}</span>
-									<span class="text-xs text-textSecondary">
-										{{ unexpectedSourceLabel(item.sourceSection) }}
-									</span>
-								</div>
-								<div class="text-right">
-									<span class="subitem-amount text-progress-red font-bold">
-										₱{{ item.excessAmount.toLocaleString("en-PH") }}
-										<span class="text-xs italic">excess</span>
-									</span>
-									<p class="text-[.7rem] text-textSecondary">
-										{{ item.date }}
-									</p>
-								</div>
-							</div>
-						</li>
-					</ul>
-					<p v-else class="m-0 text-center text-sm text-textSecondary">
-						No unexpected spending
-					</p>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<Teleport to="body">
-			<div
-				v-if="showExceedModal"
-				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
-				@click.self="closeExceedModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						Budget Exceeded
-					</h2>
-					<p class="m-0 text-center text-sm text-textSecondary">
-						This amount exceeds your allotted budget by
-						<span class="font-bold text-textPrimary">{{
-							displayExceedModalExcess
-						}}</span
-						>.
-					</p>
-					<p class="m-0 text-center text-sm text-textSecondary">
-						Do you want to proceed?
-					</p>
-					<div class="flex gap-3">
-						<Button block variant="shade" @click="closeExceedModal">Cancel</Button>
-						<Button variant="primary" block @click="confirmExceedProceed">
-							Proceed
-						</Button>
-					</div>
-				</GlassContainer>
-			</div>
-		</Teleport>
-
-		<Teleport to="body">
-			<div
-				v-if="showFinalizeModal"
-				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
-				@click.self="closeFinalizeModal"
-			>
-				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
-					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						Finalize Budget
-					</h2>
-					<p class="m-0 text-center text-sm text-textSecondary">
-						{{ finalizeModalMessage }}
-					</p>
-					<button
-						v-if="finalizeUseBiometric"
-						type="button"
-						class="bio-btn"
-						aria-label="Confirm with Face ID"
-						:disabled="finalizeUnlocking"
-						@click="confirmFinalizeWithFaceId"
-					>
-						<ViewfinderCircleIcon class="bio-btn-icon" />
-					</button>
-
-					<template v-if="finalizeHasPin && showFinalizePin">
-						<div
-							class="pin-row"
-							:class="{ 'pin-row-error': !!finalizePinError }"
-							@click="finalizePinInputRef?.focus()"
-						>
-							<span
-								v-for="(digit, i) in finalizePinDigits"
-								:key="'finalize-pin-' + i"
-								class="pin-dot"
-								:class="{ filled: !!digit }"
-							/>
-							<input
-								ref="finalizePinInputRef"
-								:value="finalizePin"
-								type="text"
-								inputmode="numeric"
-								maxlength="5"
-								class="pin-input-hidden"
-								@input="onFinalizePinInput"
-							/>
-						</div>
-
-						<Button
-							:variant="finalizeUseBiometric ? 'shade' : 'primary'"
-							class="w-full"
-							:disabled="finalizePin.length !== 5"
-							@click="confirmFinalizeWithPin"
-						>
-							Confirm with PIN
-						</Button>
-					</template>
-
-					<Button
-						v-if="finalizeHasPin && finalizeUseBiometric && !showFinalizePin"
-						class="w-full"
-						@click="showFinalizePin = true"
-					>
-						Use PIN instead
-					</Button>
-
-					<p v-if="finalizePinError" class="error">{{ finalizePinError }}</p>
-
-					<Button block variant="shade" @click="closeFinalizeModal">Cancel</Button>
-				</GlassContainer>
-			</div>
-		</Teleport>
+		<FinalizeModal
+			v-model:open="showFinalizeModal"
+			:message="finalizeModalMessage"
+			:allotted="displayAmount"
+			:excess="displayCutoffExcess"
+			:excess-percent="cutoffExcessPercent"
+			:summary="finalizeSummary"
+			@confirmed="onFinalizeConfirmed"
+		/>
 	</div>
 </template>
 
@@ -2730,259 +2275,5 @@
 	.finalize-btn-icon {
 		width: 1.25rem;
 		height: 1.25rem;
-	}
-
-	.bio-btn {
-		align-self: center;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 5rem;
-		height: 5rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-textPrimary);
-		cursor: pointer;
-	}
-
-	.bio-btn-icon {
-		width: 2.5rem;
-		height: 2.5rem;
-	}
-
-	.bio-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.pin-row {
-		position: relative;
-		display: flex;
-		justify-content: center;
-		gap: 1.25rem;
-		padding: 1.5rem 0;
-		cursor: text;
-	}
-
-	.pin-dot {
-		width: 12px;
-		height: 12px;
-		border-radius: 50%;
-		background: var(--color-inputBorder);
-		transition: background 0.15s ease;
-	}
-
-	.pin-dot.filled {
-		background: var(--color-textPrimary);
-	}
-
-	.pin-row-error .pin-dot.filled {
-		background: #f87171;
-	}
-
-	.pin-input-hidden {
-		position: absolute;
-		opacity: 0;
-		width: 1px;
-		height: 1px;
-		border: 0;
-		padding: 0;
-	}
-
-	.error {
-		margin: 0;
-		color: #f87171;
-		font-size: 0.875rem;
-		text-align: center;
-	}
-
-	.drawer-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 60;
-		display: flex;
-		align-items: flex-end;
-		justify-content: center;
-		background: var(--color-overlay);
-	}
-
-	.drawer-sheet {
-		display: flex;
-		width: 100%;
-		max-width: 480px;
-		min-height: 90dvh;
-		flex-direction: column;
-		gap: 1rem;
-		overflow-y: auto;
-		border-bottom-left-radius: 0;
-		border-bottom-right-radius: 0;
-		border-top-left-radius: 1.25rem;
-		border-top-right-radius: 1.25rem;
-		padding-bottom: 1.5rem;
-		animation: drawer-up 0.28s ease-out;
-	}
-
-	.drawer-handle {
-		width: 2.5rem;
-		height: 0.25rem;
-		margin: 0 auto;
-		border-radius: 9999px;
-		background: var(--color-inputBorder);
-	}
-
-	.drawer-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	.drawer-title {
-		margin: 0;
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.drawer-close {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.5rem;
-		border: none;
-		border-radius: 50%;
-		background: var(--color-inputBorder);
-		color: var(--color-textPrimary);
-		cursor: pointer;
-	}
-
-	.drawer-error {
-		margin: 0;
-		text-align: center;
-		font-size: 0.875rem;
-		color: #f87171;
-	}
-
-	.drawer-actions {
-		display: flex;
-		gap: 0.75rem;
-	}
-
-	.drawer-actions :deep(.edit-remove-btn) {
-		flex-shrink: 0;
-		padding: 0.75rem;
-	}
-
-	.edit-item-name {
-		font-size: 1.4rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.subitem-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.35rem;
-	}
-
-	.subitem-swipe-wrap {
-		position: relative;
-		overflow: hidden;
-		border-radius: 0.5rem;
-	}
-
-	.subitem-swipe-delete {
-		position: absolute;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 4.5rem;
-		border: none;
-		background: #f87171;
-		color: #fff;
-		cursor: pointer;
-		visibility: hidden;
-		pointer-events: none;
-	}
-
-	.subitem-swipe-wrap.is-swiped .subitem-swipe-delete {
-		visibility: visible;
-		pointer-events: auto;
-	}
-
-	.subitem-swipe-delete-icon {
-		width: 1.25rem;
-		height: 1.25rem;
-	}
-
-	.subitem-row {
-		position: relative;
-		z-index: 1;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-		padding: 0.65rem 0.75rem;
-		border: 1px solid var(--color-inputBorder);
-		border-radius: 0.5rem;
-		touch-action: pan-y;
-		transition: transform 0.2s ease;
-		cursor: pointer;
-	}
-
-	.subitem-name {
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-	}
-
-	.subitem-amount {
-		font-size: 1rem;
-		flex-shrink: 0;
-	}
-
-	@keyframes drawer-up {
-		from {
-			transform: translateY(100%);
-		}
-		to {
-			transform: translateY(0);
-		}
-	}
-
-	.field-input {
-		width: 100%;
-		min-width: 0;
-		max-width: 100%;
-		box-sizing: border-box;
-		padding: 0.875rem 1.25rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
-		background: transparent;
-		color: var(--color-inputText);
-		font-size: 1rem;
-		font-family: inherit;
-		outline: none;
-	}
-
-	.field-input-date {
-		display: block;
-		-webkit-min-logical-width: 0;
-	}
-
-	.field-input-date::-webkit-date-and-time-value {
-		min-width: 0;
-		text-align: left;
-	}
-
-	.field-input:focus {
-		border-color: var(--color-textSecondary);
 	}
 </style>

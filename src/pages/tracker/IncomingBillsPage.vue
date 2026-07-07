@@ -492,22 +492,33 @@
 			/>
 
 			<GlassContainer class="mb-1">
-				<p class="m-0 mb-4 text-sm text-textSecondary">Cutoff Budget</p>
-				<p v-if="cutoffBudget" class="m-0 text-[1.4rem] font-bold text-textPrimary">
-					{{ formatAmount(cutoffBudget.amount) }}
+				<div class="flex items-center justify-between">
+					<p class="m-0 text-sm text-textSecondary">Cutoff Budget</p>
+					<p
+						v-if="cutoffBudget"
+						class="m-0 text-[.95rem] font-bold text-textPrimary"
+					>
+						{{ formatAmount(cutoffBudget.amount) }}
+					</p>
+				</div>
+				<p v-if="!cutoffBudget" class="m-0 text-sm text-textSecondary">
+					No amount yet
 				</p>
-				<p v-else class="m-0 text-sm text-textSecondary">No amount yet</p>
 			</GlassContainer>
 
 			<GlassContainer class="mb-1">
-				<p class="m-0 mb-4 text-sm text-textSecondary">Other Expenses Budget</p>
-				<p
-					v-if="otherExpensesBudget"
-					class="m-0 text-[1.4rem] font-bold text-textPrimary"
-				>
-					{{ formatAmount(otherExpensesBudget.amount) }}
+				<div class="flex items-center justify-between">
+					<p class="m-0 text-sm text-textSecondary">Other Expenses Budget</p>
+					<p
+						v-if="otherExpensesBudget"
+						class="m-0 text-[.95rem] font-bold text-textPrimary"
+					>
+						{{ formatAmount(otherExpensesBudget.amount) }}
+					</p>
+				</div>
+				<p v-if="!otherExpensesBudget" class="m-0 text-sm text-textSecondary">
+					No amount yet
 				</p>
-				<p v-else class="m-0 text-sm text-textSecondary">No amount yet</p>
 			</GlassContainer>
 
 			<OtherItemsSection
@@ -523,11 +534,15 @@
 			/>
 
 			<GlassContainer class="mb-1">
-				<p class="m-0 mb-4 text-sm text-textSecondary">Wants Budget</p>
-				<p v-if="wantsBudget" class="m-0 text-[1.4rem] font-bold text-textPrimary">
-					{{ formatAmount(wantsBudget.amount) }}
+				<div class="flex items-center justify-between">
+					<p class="m-0 text-sm text-textSecondary">Wants Budget</p>
+					<p v-if="wantsBudget" class="m-0 text-[.95rem] font-bold text-textPrimary">
+						{{ formatAmount(wantsBudget.amount) }}
+					</p>
+				</div>
+				<p v-if="!wantsBudget" class="m-0 text-sm text-textSecondary">
+					No amount yet
 				</p>
-				<p v-else class="m-0 text-sm text-textSecondary">No amount yet</p>
 			</GlassContainer>
 		</div>
 

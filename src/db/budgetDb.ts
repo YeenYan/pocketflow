@@ -38,6 +38,8 @@ export interface CycleCutoff {
 	date?: string;
 	allocations: CutoffAllocations;
 	createdAt: string;
+	status?: "active" | "finalized";
+	finalizedAt?: string;
 }
 
 export interface ItemBuilder {
@@ -486,6 +488,17 @@ class BudgetDatabase extends Dexie {
 			incomingBillItems: "id, category, itemBuilderId, createdAt",
 			incomingBillBudgets: "id, category",
 		});
+		this.version(20)
+			.stores({
+				cycleCutoffs: "id, monthKey, slot, label, createdAt, status",
+			})
+			.upgrade(async (tx) => {
+				const cutoffs = await tx.table("cycleCutoffs").toArray();
+				for (const cutoff of cutoffs) {
+					if (cutoff.status) continue;
+					await tx.table("cycleCutoffs").update(cutoff.id, { status: "active" });
+				}
+			});
 	}
 }
 
