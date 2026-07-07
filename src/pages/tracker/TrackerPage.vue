@@ -1011,8 +1011,9 @@
 			(sum, entry) => sum + entry.amount,
 			0,
 		);
-		const newSpent = currentSpent - oldAmount + newAmount;
-		return newSpent + reserved - activeRuleAmount.value;
+		const previousSpent = currentSpent - oldAmount + reserved;
+		const previousExcess = Math.max(0, previousSpent - activeRuleAmount.value);
+		return previousSpent + newAmount - activeRuleAmount.value - previousExcess;
 	}
 
 	async function loadCutoffs() {
@@ -1067,6 +1068,47 @@
 			.where("cutoffId")
 			.equals(cutoffId)
 			.toArray();
+	}
+
+	// When a rule's main items drop back within its allocation, clear their
+	// unexpected records for this cutoff. Budget/Others records are scoped to
+	// their own sections and cleared when their source item is removed.
+	async function reconcileUnexpectedExpenses() {
+		const cutoff = activeCutoff.value;
+		if (!cutoff) return;
+		let changed = false;
+		for (const name of RULE_ORDER) {
+			const allotted = cutoff.allocations?.[name]?.amount ?? 0;
+			const entriesSum = budgetEntries.value
+				.filter(
+					(entry) =>
+						entry.cutoffId === cutoff.id &&
+						entry.ruleName === name &&
+						!entry.parentBudgetEntryId,
+				)
+				.reduce((sum, entry) => sum + entry.amount, 0);
+			const spent =
+				name === "Expenses"
+					? entriesSum + tabBudgetReserved.value + othersReserved.value
+					: entriesSum;
+			if (
+				spent <= allotted &&
+				unexpectedExpenses.value.some(
+					(item) => item.ruleName === name && item.sourceSection === "mainItems",
+				)
+			) {
+				await db.unexpectedExpenses
+					.where("cutoffId")
+					.equals(cutoff.id)
+					.and(
+						(item) =>
+							item.ruleName === name && item.sourceSection === "mainItems",
+					)
+					.delete();
+				changed = true;
+			}
+		}
+		if (changed) await loadUnexpectedExpenses();
 	}
 
 	async function reloadTracker() {
@@ -1630,7 +1672,10 @@
 			(sum, expense) => sum + expense.amount,
 			0,
 		);
-		const excess = currentSpent - oldAmount + amount - othersAllocated.value;
+		const previousSpent = currentSpent - oldAmount;
+		const previousExcess = Math.max(0, previousSpent - othersAllocated.value);
+		const excess =
+			previousSpent + amount - othersAllocated.value - previousExcess;
 
 		const doSave = async () => {
 			savingOthersItem.value = true;
@@ -1843,7 +1888,10 @@
 			(sum, expense) => sum + expense.amount,
 			0,
 		);
-		const excess = currentSpent - oldAmount + amount - tabBudgetAllocated.value;
+		const previousSpent = currentSpent - oldAmount;
+		const previousExcess = Math.max(0, previousSpent - tabBudgetAllocated.value);
+		const excess =
+			previousSpent + amount - tabBudgetAllocated.value - previousExcess;
 
 		const doSave = async () => {
 			savingTabBudgetItem.value = true;
@@ -1960,6 +2008,20 @@
 	watch(activeTab, () => {
 		loadTabBudget();
 	});
+
+	watch(
+		[
+			budgetEntries,
+			tabBudgetExpenses,
+			othersExpenses,
+			tabBudget,
+			othersBudget,
+			cutoffs,
+		],
+		() => {
+			reconcileUnexpectedExpenses();
+		},
+	);
 </script>
 
 <template>
