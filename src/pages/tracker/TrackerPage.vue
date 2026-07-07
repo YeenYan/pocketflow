@@ -459,15 +459,7 @@
 		const entriesSum = budgetEntries.value
 			.filter((entry) => entry.cutoffId === cutoffId && !entry.parentBudgetEntryId)
 			.reduce((sum, entry) => sum + entry.amount, 0);
-		const tabSum = tabBudgetExpenses.value.reduce(
-			(sum, expense) => sum + expense.amount,
-			0,
-		);
-		const othersSum = othersExpenses.value.reduce(
-			(sum, expense) => sum + expense.amount,
-			0,
-		);
-		return entriesSum + tabSum + othersSum;
+		return entriesSum + tabBudgetReserved.value + othersReserved.value;
 	});
 
 	const displaySpent = computed(
@@ -509,7 +501,7 @@
 				.reduce((sum, entry) => sum + entry.amount, 0);
 			const spent =
 				name === "Expenses"
-					? entriesSum + tabBudgetSpent.value + othersSpent.value
+					? entriesSum + tabBudgetReserved.value + othersReserved.value
 					: entriesSum;
 			const allotted = allocations?.[name]?.amount ?? 0;
 			const percent =
@@ -676,7 +668,7 @@
 			0,
 		);
 		if (activeTab.value === "Expenses") {
-			return entriesSum + tabBudgetSpent.value + othersSpent.value;
+			return entriesSum + tabBudgetReserved.value + othersReserved.value;
 		}
 		return entriesSum;
 	});
@@ -726,7 +718,7 @@
 				.reduce((sum, entry) => sum + entry.amount, 0);
 			const spent =
 				rule.name === "Expenses"
-					? entriesSum + tabBudgetSpent.value + othersSpent.value
+					? entriesSum + tabBudgetReserved.value + othersReserved.value
 					: entriesSum;
 			if (spent <= 0) return false;
 		}
@@ -793,6 +785,16 @@
 
 	const tabBudgetSpent = computed(() =>
 		tabBudgetExpenses.value.reduce((sum, expense) => sum + expense.amount, 0),
+	);
+
+	// Budget/Others allocations are reserved from the Expenses budget, so the
+	// allocated amount counts toward Expenses spent (or the actual spent if higher).
+	const tabBudgetReserved = computed(() =>
+		Math.max(tabBudgetAllocated.value, tabBudgetSpent.value),
+	);
+
+	const othersReserved = computed(() =>
+		Math.max(othersAllocated.value, othersSpent.value),
 	);
 
 	const tabBudgetOverBudget = computed(
@@ -1003,7 +1005,7 @@
 	function mainItemBudgetExcess(newAmount: number, oldAmount = 0) {
 		const reserved =
 			activeTab.value === "Expenses"
-				? tabBudgetSpent.value + othersSpent.value
+				? tabBudgetReserved.value + othersReserved.value
 				: 0;
 		const currentSpent = activeRuleEntries.value.reduce(
 			(sum, entry) => sum + entry.amount,
