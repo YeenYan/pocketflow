@@ -69,14 +69,17 @@
 			<div class="flex min-w-0 flex-1 flex-col gap-2">
 				<div>
 					<p class="m-0 text-[0.85rem] text-textSecondary">
-						Budget for {{ activeTab }}
+						{{ activeTab === "Savings" ? "Target" : "Budget" }} for
+						{{ activeTab }}
 					</p>
 					<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
 						{{ displayActiveAmount }}
 					</p>
 				</div>
 				<div>
-					<p class="m-0 text-[0.85rem] text-textSecondary">Budget left</p>
+					<p class="m-0 text-[0.85rem] text-textSecondary">
+						{{ activeTab === "Savings" ? "Remaining" : "Budget left" }}
+					</p>
 					<p
 						class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold"
 						:class="ruleOverBudget ? 'text-progress-red' : 'text-textPrimary'"
@@ -90,7 +93,10 @@
 
 		<div class="rule-progress">
 			<div class="flex items-center justify-between">
-				<span class="rule-progress-spent">-{{ displayRuleSpent }} spent</span>
+				<span class="rule-progress-spent"
+					>-{{ displayRuleSpent }}
+					{{ activeTab === "Savings" ? "Saved" : "spent" }}</span
+				>
 				<p class="rule-progress-pct">{{ ruleProgressPercent }}%</p>
 			</div>
 			<div class="rule-progress-track">

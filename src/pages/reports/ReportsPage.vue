@@ -96,10 +96,20 @@
 		});
 	});
 
-	const totalAllotted = computed(() => selectedCutoff.value?.amount ?? 0);
+	const overallCutoffBudget = computed(() => selectedCutoff.value?.amount ?? 0);
+
+	const totalAllotted = computed(() => {
+		const c = selectedCutoff.value;
+		if (!c) return 0;
+		return (
+			(c.allocations?.Expenses?.amount ?? 0) + (c.allocations?.Wants?.amount ?? 0)
+		);
+	});
 
 	const totalSpent = computed(() =>
-		ruleBreakdown.value.reduce((s, r) => s + r.spent, 0),
+		ruleBreakdown.value
+			.filter((r) => r.name !== "Savings")
+			.reduce((s, r) => s + r.spent, 0),
 	);
 
 	const overallOver = computed(() => totalSpent.value > totalAllotted.value);
@@ -110,9 +120,39 @@
 
 	const overallPercent = computed(() =>
 		totalAllotted.value > 0
-			? Math.round((overallDiff.value / totalAllotted.value) * 100)
+			? Math.round((totalSpent.value / totalAllotted.value) * 100)
 			: 0,
 	);
+
+	const savingsRule = computed(
+		() => ruleBreakdown.value.find((r) => r.name === "Savings") ?? null,
+	);
+
+	const savingsTarget = computed(() => savingsRule.value?.allotted ?? 0);
+	const savingsSaved = computed(() => savingsRule.value?.spent ?? 0);
+	const savingsHit = computed(() => savingsSaved.value >= savingsTarget.value);
+	const savingsDiff = computed(() =>
+		Math.abs(savingsSaved.value - savingsTarget.value),
+	);
+	const savingsPercent = computed(() =>
+		savingsTarget.value > 0
+			? Math.round((savingsSaved.value / savingsTarget.value) * 100)
+			: 0,
+	);
+
+	const GAUGE_R = 80;
+	const GAUGE_LENGTH = Math.PI * GAUGE_R;
+	const gaugePath = `M ${100 - GAUGE_R} 100 A ${GAUGE_R} ${GAUGE_R} 0 0 1 ${100 + GAUGE_R} 100`;
+
+	const summaryGaugeOffset = computed(() => {
+		const pct = Math.min(overallPercent.value, 100);
+		return GAUGE_LENGTH * (1 - pct / 100);
+	});
+
+	const savingsGaugeOffset = computed(() => {
+		const pct = Math.min(savingsPercent.value, 100);
+		return GAUGE_LENGTH * (1 - pct / 100);
+	});
 </script>
 
 <template>
@@ -147,28 +187,84 @@
 			<p v-if="!selectedCutoff" class="empty">No finalized cutoffs yet</p>
 
 			<template v-else>
-				<GlassContainer class="mb-4">
-					<p class="section-title">Summary</p>
-					<div class="row">
-						<span class="text-textSecondary">Allotted budget</span>
-						<span class="strong">{{ formatAmount(totalAllotted) }}</span>
-					</div>
-					<div class="row">
-						<span class="text-textSecondary">Total spent</span>
-						<span class="strong">{{ formatAmount(totalSpent) }}</span>
-					</div>
-					<div class="row">
-						<span class="text-textSecondary">
-							{{ overallOver ? "Overall excess" : "Overall remaining" }}
-						</span>
-						<span
-							class="strong"
+				<GlassContainer class="overall-budget mb-4">
+					<span class="overall-budget-label">Overall Budget Allotted</span>
+					<span class="overall-budget-amount">{{
+						formatAmount(overallCutoffBudget)
+					}}</span>
+				</GlassContainer>
+				<div class="summary-row mb-4">
+					<GlassContainer class="summary">
+						<p class="summary-label">How much spent</p>
+						<p class="summary-spent">{{ formatAmount(totalSpent) }}</p>
+						<p class="summary-allotted">
+							Allotted budget {{ formatAmount(totalAllotted) }}
+						</p>
+						<div class="summary-gauge-wrap">
+							<svg class="summary-gauge" viewBox="0 0 200 120" aria-hidden="true">
+								<path class="summary-gauge-track" :d="gaugePath" fill="none" />
+								<path
+									class="summary-gauge-fill"
+									:d="gaugePath"
+									fill="none"
+									:stroke-dasharray="GAUGE_LENGTH"
+									:stroke-dashoffset="summaryGaugeOffset"
+									:style="{
+										stroke: overallOver
+											? 'var(--color-progress-red)'
+											: 'var(--color-progress-green)',
+									}"
+								/>
+							</svg>
+							<div class="summary-gauge-center">
+								<span class="summary-gauge-pct">{{ overallPercent }}%</span>
+							</div>
+						</div>
+						<p
+							class="summary-status"
 							:class="overallOver ? 'text-progress-red' : 'text-progress-green'"
 						>
-							{{ formatAmount(overallDiff) }} ({{ overallPercent }}%)
-						</span>
-					</div>
-				</GlassContainer>
+							{{ overallOver ? "Over Budget" : "Within Budget" }}
+							{{ formatAmount(overallDiff) }}
+						</p>
+					</GlassContainer>
+
+					<GlassContainer class="summary">
+						<p class="summary-label">How much saved</p>
+						<p class="summary-spent">{{ formatAmount(savingsSaved) }}</p>
+						<p class="summary-allotted">Target {{ formatAmount(savingsTarget) }}</p>
+						<div class="summary-gauge-wrap">
+							<svg class="summary-gauge" viewBox="0 0 200 120" aria-hidden="true">
+								<path class="summary-gauge-track" :d="gaugePath" fill="none" />
+								<path
+									class="summary-gauge-fill"
+									:d="gaugePath"
+									fill="none"
+									:stroke-dasharray="GAUGE_LENGTH"
+									:stroke-dashoffset="savingsGaugeOffset"
+									:style="{
+										stroke: savingsHit
+											? 'var(--color-progress-green)'
+											: 'var(--color-progress-red)',
+									}"
+								/>
+							</svg>
+							<div class="summary-gauge-center">
+								<span class="summary-gauge-pct">{{ savingsPercent }}%</span>
+							</div>
+						</div>
+						<p
+							class="summary-status"
+							:class="savingsHit ? 'text-progress-green' : 'text-progress-red'"
+						>
+							<template v-if="savingsHit && savingsDiff > 0">
+								Excess {{ formatAmount(savingsDiff) }}
+							</template>
+							<template v-else-if="savingsHit">Target Hit</template>
+							<template v-else>Need {{ formatAmount(savingsDiff) }} more</template>
+						</p>
+					</GlassContainer>
+				</div>
 
 				<GlassContainer v-for="rule in ruleBreakdown" :key="rule.name" class="mb-4">
 					<div class="rule-head">
@@ -182,11 +278,15 @@
 						</span>
 					</div>
 					<div class="row">
-						<span class="text-textSecondary">Allotted</span>
+						<span class="text-textSecondary">
+							{{ rule.name === "Savings" ? "Target" : "Allotted" }}
+						</span>
 						<span class="strong">{{ formatAmount(rule.allotted) }}</span>
 					</div>
 					<div class="row">
-						<span class="text-textSecondary">Spent</span>
+						<span class="text-textSecondary">
+							{{ rule.name === "Savings" ? "Saved" : "Spent" }}
+						</span>
 						<span class="strong">{{ formatAmount(rule.spent) }}</span>
 					</div>
 
@@ -283,6 +383,109 @@
 		font-size: 0.95rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
+	}
+
+	.overall-budget {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.overall-budget-label {
+		font-size: 0.85rem;
+		color: var(--color-textSecondary);
+	}
+
+	.overall-budget-amount {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--color-textPrimary);
+	}
+
+	.summary-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.65rem;
+	}
+
+	.summary {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		min-width: 0;
+	}
+
+	.summary-label {
+		margin: 0;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--color-textSecondary);
+	}
+
+	.summary-spent {
+		margin: 0.35rem 0 0;
+		font-size: 1.15rem;
+		font-weight: 700;
+		line-height: 1.15;
+		color: var(--color-textPrimary);
+	}
+
+	.summary-allotted {
+		margin: 0.25rem 0 0;
+		font-size: 0.7rem;
+		color: var(--color-textSecondary);
+	}
+
+	.summary-gauge-wrap {
+		position: relative;
+		width: 100%;
+		max-width: 8.5rem;
+		margin-top: 0.55rem;
+	}
+
+	.summary-gauge {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
+	.summary-gauge-track {
+		stroke: var(--color-inputBorder);
+		stroke-width: 14;
+		stroke-linecap: round;
+		opacity: 0.45;
+	}
+
+	.summary-gauge-fill {
+		stroke-width: 14;
+		stroke-linecap: round;
+		transition: stroke-dashoffset 0.2s ease;
+	}
+
+	.summary-gauge-center {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 55%;
+		display: flex;
+		justify-content: center;
+		pointer-events: none;
+	}
+
+	.summary-gauge-pct {
+		font-size: 1.1rem;
+		font-weight: 700;
+		line-height: 1;
+		color: var(--color-textPrimary);
+	}
+
+	.summary-status {
+		margin-top: 0.15rem;
+		margin-bottom: 0.15rem;
+		font-size: 0.72rem;
+		font-weight: 600;
 	}
 
 	.rule-head {

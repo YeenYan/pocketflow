@@ -6,6 +6,7 @@
 		budgetTitle: string;
 		displayCutoffDate: string;
 		displayAmount: string;
+		displaySpendBudget: string;
 		displaySpent: string;
 		progressPercent: number;
 		hasCutoff: boolean;
@@ -40,11 +41,22 @@
 		<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
 			{{ displayAmount }}
 		</p>
+		<!-- <p class="mt-[0.15rem] mb-0 text-[0.85rem] text-textSecondary">
+			Spend budget {{ displaySpendBudget }}
+		</p> -->
 		<div class="flex items-center justify-between mb-[.]">
-			<p class="mt-[0.35rem] mb-0 text-[0.85rem] text-textSecondary">
-				{{ displaySpent }}
+			<p class="text-[0.85rem] text-textSecondary">
+				Budget:
+				<span class="text-white font-bold text-[.95rem]">{{
+					displaySpendBudget
+				}}</span>
 			</p>
-			<p class="progress-pct">{{ progressPercent }}%</p>
+			<div class="flex items-center justify-end gap-2">
+				<p class="text-white font-bold text-[.95rem]">
+					{{ displaySpent }}
+				</p>
+				<p class="progress-pct">( {{ progressPercent }}% ) spent</p>
+			</div>
 		</div>
 		<div class="progress-track">
 			<div

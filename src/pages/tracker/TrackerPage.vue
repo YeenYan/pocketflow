@@ -301,7 +301,10 @@
 	const formPercents = ref<{ name: RuleName; percent: number }[]>([]);
 
 	const formPercentTotal = computed(() =>
-		formPercents.value.reduce((sum, rule) => sum + (Number(rule.percent) || 0), 0),
+		formPercents.value.reduce(
+			(sum, rule) => sum + (Number(rule.percent) || 0),
+			0,
+		),
 	);
 
 	const cutoffOptions = computed(() => {
@@ -459,7 +462,15 @@
 		);
 	});
 
+	// Overspend uses Expenses + Wants only; Savings is a separate target tracker.
 	const totalAmount = computed(() => activeCutoff.value?.amount || 0);
+
+	const spendBudgetAmount = computed(() => {
+		const allocations = activeCutoff.value?.allocations;
+		return (
+			(allocations?.Expenses?.amount ?? 0) + (allocations?.Wants?.amount ?? 0)
+		);
+	});
 
 	const budgetTitle = computed(() =>
 		activeCutoff.value ? `${activeCutoff.value.label} - Budget` : "Budget",
@@ -480,29 +491,38 @@
 		() => `₱${totalAmount.value.toLocaleString("en-PH")}`,
 	);
 
+	const displaySpendBudget = computed(
+		() => `₱${spendBudgetAmount.value.toLocaleString("en-PH")}`,
+	);
+
 	const spentAmount = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return 0;
 		const entriesSum = budgetEntries.value
-			.filter((entry) => entry.cutoffId === cutoffId && !entry.parentBudgetEntryId)
+			.filter(
+				(entry) =>
+					entry.cutoffId === cutoffId &&
+					!entry.parentBudgetEntryId &&
+					entry.ruleName !== "Savings",
+			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 		return entriesSum + tabBudgetReserved.value + othersReserved.value;
 	});
 
 	const displaySpent = computed(
-		() => `₱${spentAmount.value.toLocaleString("en-PH")} spent already`,
+		() => `₱${spentAmount.value.toLocaleString("en-PH")}`,
 	);
 
 	const progressPercent = computed(() => {
-		if (totalAmount.value <= 0) return 0;
+		if (spendBudgetAmount.value <= 0) return 0;
 		return Math.min(
 			100,
-			Math.round((spentAmount.value / totalAmount.value) * 100),
+			Math.round((spentAmount.value / spendBudgetAmount.value) * 100),
 		);
 	});
 
 	const cutoffExcessAmount = computed(() =>
-		Math.max(0, spentAmount.value - totalAmount.value),
+		Math.max(0, spentAmount.value - spendBudgetAmount.value),
 	);
 
 	const displayCutoffExcess = computed(
@@ -510,8 +530,8 @@
 	);
 
 	const cutoffExcessPercent = computed(() => {
-		if (totalAmount.value <= 0) return 0;
-		return Math.round((cutoffExcessAmount.value / totalAmount.value) * 100);
+		if (spendBudgetAmount.value <= 0) return 0;
+		return Math.round((cutoffExcessAmount.value / spendBudgetAmount.value) * 100);
 	});
 
 	const finalizeSummary = computed(() => {
@@ -706,7 +726,9 @@
 	});
 
 	const ruleOverBudget = computed(
-		() => ruleSpentAmount.value > activeRuleAmount.value,
+		() =>
+			activeTab.value !== "Savings" &&
+			ruleSpentAmount.value > activeRuleAmount.value,
 	);
 
 	const ruleExcessAmount = computed(() =>
@@ -897,7 +919,9 @@
 	});
 
 	const hasRuleUnexpectedBadge = computed(
-		() => activeRuleUnexpectedExpenses.value.length > 0,
+		() =>
+			activeTab.value !== "Savings" &&
+			activeRuleUnexpectedExpenses.value.length > 0,
 	);
 
 	const displayUnexpectedExcessTotal = computed(
@@ -1046,6 +1070,7 @@
 	}
 
 	function mainItemBudgetExcess(newAmount: number, oldAmount = 0) {
+		if (activeTab.value === "Savings") return 0;
 		const reserved =
 			activeTab.value === "Expenses"
 				? tabBudgetReserved.value + othersReserved.value
@@ -1129,6 +1154,19 @@
 			if (!cutoff) return;
 			let changed = false;
 			for (const name of RULE_ORDER) {
+				if (name === "Savings") {
+					const leftover = (
+						await db.unexpectedExpenses.where("cutoffId").equals(cutoff.id).toArray()
+					).filter(
+						(item) =>
+							item.ruleName === "Savings" && item.sourceSection === "mainItems",
+					);
+					for (const record of leftover) {
+						await db.unexpectedExpenses.delete(record.id);
+						changed = true;
+					}
+					continue;
+				}
 				const rule = rules.value.find((r) => r.name === name);
 				if (rule?.id == null) continue;
 				const allotted = cutoff.allocations?.[name]?.amount ?? 0;
@@ -1144,9 +1182,7 @@
 				// Excess only starts once spending passes the allotted budget. For
 				// Expenses the reserved Budget/Others amounts fill the budget first.
 				let running =
-					name === "Expenses"
-						? tabBudgetReserved.value + othersReserved.value
-						: 0;
+					name === "Expenses" ? tabBudgetReserved.value + othersReserved.value : 0;
 				const desiredExcess = new Map<string, number>();
 				for (const entry of mainEntries) {
 					const before = running;
@@ -1617,8 +1653,7 @@
 		const otherSubItemsSum = budgetEntries.value
 			.filter(
 				(e) =>
-					e.parentBudgetEntryId === editItemId.value &&
-					e.id !== subItemEditId.value,
+					e.parentBudgetEntryId === editItemId.value && e.id !== subItemEditId.value,
 			)
 			.reduce((sum, e) => sum + e.amount, 0);
 		if (otherSubItemsSum + amount > parentAmount) {
@@ -2144,6 +2179,7 @@
 					:budget-title="budgetTitle"
 					:display-cutoff-date="displayCutoffDate"
 					:display-amount="displayAmount"
+					:display-spend-budget="displaySpendBudget"
 					:display-spent="displaySpent"
 					:progress-percent="progressPercent"
 					:has-cutoff="!!activeCutoff"
@@ -2385,7 +2421,7 @@
 		<FinalizeModal
 			v-model:open="showFinalizeModal"
 			:message="finalizeModalMessage"
-			:allotted="displayAmount"
+			:allotted="displaySpendBudget"
 			:excess="displayCutoffExcess"
 			:excess-percent="cutoffExcessPercent"
 			:summary="finalizeSummary"
