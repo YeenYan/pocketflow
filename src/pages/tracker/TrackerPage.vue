@@ -246,10 +246,29 @@
 	};
 
 	function progressFillColor(percent: number) {
-		if (percent > 75) return "var(--color-progress-red)";
-		if (percent > 50) return "var(--color-progress-orange)";
-		if (percent > 25) return "var(--color-progress-yellow)";
-		return "var(--color-progress-green)";
+		const value = Math.min(Math.max(percent, 0), 100);
+		if (value >= 88) return "#d96b6b";
+		if (value >= 84) return "#ff5100";
+		if (value >= 80) return "#ff6500";
+		if (value >= 76) return "#ff7a00";
+		if (value >= 72) return "#ff8e00";
+		if (value >= 68) return "#ffa300";
+		if (value >= 64) return "#ffb700";
+		if (value >= 60) return "#ffcc00";
+		if (value >= 56) return "#ffe000";
+		if (value >= 52) return "#fff400";
+		if (value >= 48) return "#f4ff00";
+		if (value >= 44) return "#e0ff00";
+		if (value >= 40) return "#cbff00";
+		if (value >= 36) return "#b7ff00";
+		if (value >= 32) return "#a3ff00";
+		if (value >= 28) return "#8eff00";
+		if (value >= 24) return "#7aff00";
+		if (value >= 20) return "#66ff00";
+		if (value >= 16) return "#51ff00";
+		if (value >= 12) return "#3dff00";
+		if (value >= 8) return "#28ff00";
+		return "#14ff00";
 	}
 
 	// =============================================================================
