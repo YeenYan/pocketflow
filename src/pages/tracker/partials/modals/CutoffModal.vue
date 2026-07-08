@@ -1,5 +1,6 @@
 <script setup lang="ts">
 	import { computed } from "vue";
+	import { MinusIcon, PlusIcon } from "@heroicons/vue/24/outline";
 	import Button from "../../../../components/button/Button.vue";
 	import GlassContainer from "../../../../components/containers/GlassContainer.vue";
 	import AmountField from "../../../../components/inputs/AmountField.vue";
@@ -22,10 +23,9 @@
 	const amount = defineModel<string>("amount", { default: "" });
 	const name = defineModel<string>("name", { default: "" });
 	const date = defineModel<string>("date", { default: "" });
-	const percents = defineModel<{ name: string; percent: number }[]>(
-		"percents",
-		{ default: () => [] },
-	);
+	const percents = defineModel<{ name: string; percent: number }[]>("percents", {
+		default: () => [],
+	});
 
 	const percentTotal = computed(() =>
 		percents.value.reduce((sum, rule) => sum + (Number(rule.percent) || 0), 0),
@@ -35,17 +35,25 @@
 		const value = Number(amount.value) * ((Number(percent) || 0) / 100);
 		return `₱${value.toLocaleString("en-PH")}`;
 	}
+
+	function decreasePercent(rule: { percent: number }) {
+		rule.percent = Math.max(0, (Number(rule.percent) || 0) - 5);
+	}
+
+	function increasePercent(rule: { percent: number }) {
+		rule.percent = Math.min(100, (Number(rule.percent) || 0) + 5);
+	}
 </script>
 
 <template>
 	<Teleport to="body">
 		<div
 			v-if="show"
-			class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+			class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-4"
 			@click.self="emit('close')"
 		>
 			<GlassContainer
-				class="flex w-full min-w-0 max-w-[400px] flex-col gap-4 overflow-hidden"
+				class="flex w-full min-w-0 max-w-[400px] max-h-[calc(100vh-2rem)] flex-col gap-4 overflow-y-auto"
 			>
 				<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
 					{{ isEditing ? "Edit Cutoff" : "Add Cutoff" }}
@@ -69,24 +77,41 @@
 					<div
 						v-for="rule in percents"
 						:key="rule.name"
-						class="flex items-center justify-between gap-3"
+						class="rule-row"
 					>
-						<span class="text-sm text-textPrimary">{{ rule.name }}</span>
-						<div class="flex items-center gap-3">
-							<span class="text-sm text-textSecondary">
-								{{ ruleAmount(rule.percent) }}
-							</span>
-							<div class="pct-input-wrap">
-								<input
-									v-model.number="rule.percent"
-									type="number"
-									min="0"
-									max="100"
-									class="pct-input"
-								/>
-								<span class="pct-sign">%</span>
+						<div class="rule-row-top">
+							<span class="text-sm text-textPrimary">{{ rule.name }}</span>
+							<div class="flex items-center gap-3">
+								<span class="text-sm text-textSecondary">
+									{{ ruleAmount(rule.percent) }}
+								</span>
+								<div class="pct-stepper">
+									<button
+										type="button"
+										class="pct-stepper-btn"
+										@click="decreasePercent(rule)"
+									>
+										<MinusIcon class="pct-stepper-icon" />
+									</button>
+									<span class="pct-stepper-value">{{ rule.percent }}</span>
+									<button
+										type="button"
+										class="pct-stepper-btn"
+										@click="increasePercent(rule)"
+									>
+										<PlusIcon class="pct-stepper-icon" />
+									</button>
+								</div>
 							</div>
 						</div>
+						<input
+							v-model.number="rule.percent"
+							type="range"
+							min="0"
+							max="100"
+							step="5"
+							class="pct-slider"
+						/>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-sm font-semibold text-textPrimary">Total</span>
@@ -144,34 +169,95 @@
 		border-color: var(--color-textSecondary);
 	}
 
-	.pct-input-wrap {
+	.rule-row {
 		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		padding: 0.4rem 0.75rem;
-		border-radius: 9999px;
-		border: 1px solid var(--color-inputBorder);
+		flex-direction: column;
+		gap: 0.75rem;
 	}
 
-	.pct-input {
-		width: 3rem;
+	.rule-row-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.pct-stepper {
+		display: flex;
+		align-items: center;
+		overflow: hidden;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+		background: rgb(255 255 255 / 0.04);
+		touch-action: manipulation;
+	}
+
+	.pct-stepper-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.75rem;
+		height: 2.75rem;
 		border: none;
 		background: transparent;
 		color: var(--color-inputText);
-		font-size: 0.95rem;
-		font-family: inherit;
-		text-align: right;
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+
+	.pct-stepper-value {
+		min-width: 2.5rem;
+		text-align: center;
+		color: var(--color-textPrimary);
+		font-size: 1rem;
+		font-weight: 600;
+	}
+
+	.pct-stepper-icon {
+		width: 1.1rem;
+		height: 1.1rem;
+	}
+
+	.pct-slider {
+		width: 100%;
+		margin: 0;
+		accent-color: var(--color-textPrimary);
+		touch-action: manipulation;
+	}
+
+	.pct-slider:focus {
 		outline: none;
 	}
 
-	.pct-input::-webkit-outer-spin-button,
-	.pct-input::-webkit-inner-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
+	.pct-slider::-webkit-slider-runnable-track {
+		height: 0.25rem;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
 	}
 
-	.pct-sign {
-		color: var(--color-textSecondary);
-		font-size: 0.95rem;
+	.pct-slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 1.2rem;
+		height: 1.2rem;
+		margin-top: -0.475rem;
+		border: none;
+		border-radius: 9999px;
+		background: var(--color-textPrimary);
+	}
+
+	.pct-slider::-moz-range-track {
+		height: 0.25rem;
+		border: none;
+		border-radius: 9999px;
+		background: var(--color-inputBorder);
+	}
+
+	.pct-slider::-moz-range-thumb {
+		width: 1.2rem;
+		height: 1.2rem;
+		border: none;
+		border-radius: 9999px;
+		background: var(--color-textPrimary);
 	}
 </style>
