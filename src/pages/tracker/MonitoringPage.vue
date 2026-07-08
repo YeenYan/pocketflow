@@ -32,7 +32,7 @@
 		</div>
 
 		<TrackerPage v-if="activeTab === 'budget-tracker'" />
-		<IncomingBillsPage v-else />
+		<IncomingBillsPage v-else @moved-to-tracker="activeTab = 'budget-tracker'" />
 	</div>
 </template>
 

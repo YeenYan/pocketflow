@@ -36,7 +36,7 @@
 					v-model="name"
 					label="Name"
 					placeholder="Sub item name"
-					mode="text"
+					mode="both"
 				/>
 
 				<AmountField v-model="amount" label="Amount" placeholder="0.00" />

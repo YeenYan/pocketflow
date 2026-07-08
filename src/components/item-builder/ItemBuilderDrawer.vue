@@ -204,7 +204,7 @@
 						v-model="formName"
 						label="Name"
 						placeholder="Item name"
-						mode="text"
+						mode="both"
 					/>
 
 					<div class="subtitle-divider">

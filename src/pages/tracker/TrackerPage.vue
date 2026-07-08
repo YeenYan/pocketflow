@@ -279,6 +279,11 @@
 	const formDate = ref("");
 	const formError = ref("");
 	const saving = ref(false);
+	const formPercents = ref<{ name: RuleName; percent: number }[]>([]);
+
+	const formPercentTotal = computed(() =>
+		formPercents.value.reduce((sum, rule) => sum + (Number(rule.percent) || 0), 0),
+	);
 
 	const cutoffOptions = computed(() => {
 		const all = [
@@ -376,6 +381,9 @@
 	const showExceedModal = ref(false);
 	const exceedModalExcess = ref(0);
 	let exceedModalOnProceed: (() => Promise<void>) | null = null;
+
+	let reconciling = false;
+	let reconcileAgain = false;
 
 	const showFinalizeModal = ref(false);
 
@@ -521,15 +529,20 @@
 		const cutoff = cutoffs.value.find((c) => c.id === editingCutoffId.value);
 		if (!cutoff) return false;
 		const amount = Number(formAmount.value);
+		const percentsUnchanged = formPercents.value.every(
+			(rule) => rule.percent === (cutoff.allocations?.[rule.name]?.percent ?? 0),
+		);
 		return (
 			amount === cutoff.amount &&
 			formName.value.trim() === cutoff.label &&
-			formDate.value === (cutoff.date ?? "")
+			formDate.value === (cutoff.date ?? "") &&
+			percentsUnchanged
 		);
 	});
 
 	const canSaveCutoff = computed(() => {
 		if (saving.value) return false;
+		if (formPercentTotal.value !== 100) return false;
 		if (isEditingCutoff.value) return !cutoffFormUnchanged.value;
 		return true;
 	});
@@ -850,15 +863,26 @@
 		unexpectedExpenses.value.filter((item) => item.ruleName === activeTab.value),
 	);
 
+	const activeRuleUnexpectedTotal = computed(() =>
+		activeRuleUnexpectedExpenses.value.reduce(
+			(sum, item) => sum + item.excessAmount,
+			0,
+		),
+	);
+
 	const unexpectedExcessPercent = computed(() => {
 		if (activeRuleAmount.value <= 0) return 0;
-		return Math.round((ruleExcessAmount.value / activeRuleAmount.value) * 100);
+		return Math.round(
+			(activeRuleUnexpectedTotal.value / activeRuleAmount.value) * 100,
+		);
 	});
 
-	const hasRuleUnexpectedBadge = computed(() => ruleOverBudget.value);
+	const hasRuleUnexpectedBadge = computed(
+		() => activeRuleUnexpectedExpenses.value.length > 0,
+	);
 
 	const displayUnexpectedExcessTotal = computed(
-		() => `₱${ruleExcessAmount.value.toLocaleString("en-PH")}`,
+		() => `₱${activeRuleUnexpectedTotal.value.toLocaleString("en-PH")}`,
 	);
 
 	const editItemSubItems = computed(() =>
@@ -1070,45 +1094,96 @@
 			.toArray();
 	}
 
-	// When a rule's main items drop back within its allocation, clear their
-	// unexpected records for this cutoff. Budget/Others records are scoped to
-	// their own sections and cleared when their source item is removed.
+	// Keep the mainItems unexpected records in sync with the current over-budget
+	// state so the excess is always recorded, whether the overrun came from an
+	// item change or from lowering the rule's allocation. Budget/Others records
+	// are scoped to their own sections and cleared when their source is removed.
+	// The guard serializes overlapping watcher runs so they can't double-insert.
 	async function reconcileUnexpectedExpenses() {
-		const cutoff = activeCutoff.value;
-		if (!cutoff) return;
-		let changed = false;
-		for (const name of RULE_ORDER) {
-			const allotted = cutoff.allocations?.[name]?.amount ?? 0;
-			const entriesSum = budgetEntries.value
-				.filter(
-					(entry) =>
-						entry.cutoffId === cutoff.id &&
-						entry.ruleName === name &&
-						!entry.parentBudgetEntryId,
-				)
-				.reduce((sum, entry) => sum + entry.amount, 0);
-			const spent =
-				name === "Expenses"
-					? entriesSum + tabBudgetReserved.value + othersReserved.value
-					: entriesSum;
-			if (
-				spent <= allotted &&
-				unexpectedExpenses.value.some(
-					(item) => item.ruleName === name && item.sourceSection === "mainItems",
-				)
-			) {
-				await db.unexpectedExpenses
-					.where("cutoffId")
-					.equals(cutoff.id)
-					.and(
-						(item) =>
-							item.ruleName === name && item.sourceSection === "mainItems",
+		if (reconciling) {
+			reconcileAgain = true;
+			return;
+		}
+		reconciling = true;
+		try {
+			const cutoff = activeCutoff.value;
+			if (!cutoff) return;
+			let changed = false;
+			for (const name of RULE_ORDER) {
+				const rule = rules.value.find((r) => r.name === name);
+				if (rule?.id == null) continue;
+				const allotted = cutoff.allocations?.[name]?.amount ?? 0;
+				const mainEntries = budgetEntries.value
+					.filter(
+						(entry) =>
+							entry.cutoffId === cutoff.id &&
+							entry.ruleName === name &&
+							!entry.parentBudgetEntryId,
 					)
-					.delete();
-				changed = true;
+					.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+				// Excess only starts once spending passes the allotted budget. For
+				// Expenses the reserved Budget/Others amounts fill the budget first.
+				let running =
+					name === "Expenses"
+						? tabBudgetReserved.value + othersReserved.value
+						: 0;
+				const desiredExcess = new Map<string, number>();
+				for (const entry of mainEntries) {
+					const before = running;
+					running += entry.amount;
+					const itemExcess =
+						Math.max(0, running - allotted) - Math.max(0, before - allotted);
+					if (itemExcess > 0) desiredExcess.set(entry.id, itemExcess);
+				}
+
+				const existing = (
+					await db.unexpectedExpenses.where("cutoffId").equals(cutoff.id).toArray()
+				).filter(
+					(item) => item.ruleName === name && item.sourceSection === "mainItems",
+				);
+				const kept = new Set<string>();
+				for (const record of existing) {
+					const excess = desiredExcess.get(record.sourceId);
+					if (excess == null || kept.has(record.sourceId)) {
+						await db.unexpectedExpenses.delete(record.id);
+						changed = true;
+						continue;
+					}
+					kept.add(record.sourceId);
+					if (record.excessAmount !== excess) {
+						await db.unexpectedExpenses.update(record.id, {
+							excessAmount: excess,
+						});
+						changed = true;
+					}
+				}
+				for (const [sourceId, excess] of desiredExcess) {
+					if (kept.has(sourceId)) continue;
+					const entry = mainEntries.find((e) => e.id === sourceId)!;
+					await db.unexpectedExpenses.add({
+						id: createId(),
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						itemName: entry.name,
+						excessAmount: excess,
+						ruleId: rule.id,
+						ruleName: name,
+						date: todayDate(),
+						sourceSection: "mainItems",
+						sourceId,
+					});
+					changed = true;
+				}
+			}
+			if (changed) await loadUnexpectedExpenses();
+		} finally {
+			reconciling = false;
+			if (reconcileAgain) {
+				reconcileAgain = false;
+				await reconcileUnexpectedExpenses();
 			}
 		}
-		if (changed) await loadUnexpectedExpenses();
 	}
 
 	async function reloadTracker() {
@@ -1159,11 +1234,19 @@
 			formAmount.value = String(activeCutoff.value.amount);
 			formName.value = activeCutoff.value.label;
 			formDate.value = activeCutoff.value.date ?? todayDate();
+			formPercents.value = RULE_ORDER.map((name) => ({
+				name,
+				percent: activeCutoff.value!.allocations?.[name]?.percent ?? 0,
+			}));
 		} else {
 			editingCutoffId.value = "";
 			formAmount.value = "";
 			formName.value = "";
 			formDate.value = todayDate();
+			formPercents.value = RULE_ORDER.map((name) => ({
+				name,
+				percent: rules.value.find((rule) => rule.name === name)?.percent ?? 0,
+			}));
 		}
 		showModal.value = true;
 	}
@@ -1191,6 +1274,10 @@
 			formError.value = "Enter a date";
 			return;
 		}
+		if (formPercentTotal.value !== 100) {
+			formError.value = "Rule percentages must total 100%";
+			return;
+		}
 
 		const monthKey = date.slice(0, 7);
 		const slot = (name === "1st cutoff" ? 1 : 2) as 1 | 2;
@@ -1212,7 +1299,7 @@
 				label: name,
 				amount,
 				date,
-				allocations: buildCutoffAllocations(amount, rules.value),
+				allocations: buildCutoffAllocations(amount, formPercents.value),
 			});
 		} else {
 			await db.cycleCutoffs.add({
@@ -1222,7 +1309,7 @@
 				label: name,
 				amount,
 				date,
-				allocations: buildCutoffAllocations(amount, rules.value),
+				allocations: buildCutoffAllocations(amount, formPercents.value),
 				createdAt: new Date().toISOString(),
 			});
 		}
@@ -1307,15 +1394,6 @@
 				itemBuilderId: builder.id,
 				createdAt: new Date().toISOString(),
 			});
-			if (excess > 0) {
-				await addUnexpectedExpense(
-					builder.name,
-					excess,
-					"mainItems",
-					entryId,
-					activeTab.value,
-				);
-			}
 			await loadBudgetEntries();
 			savingItem.value = false;
 			closeItemModal();
@@ -1362,15 +1440,6 @@
 		const doSave = async () => {
 			savingEditItem.value = true;
 			await db.budgetEntries.update(editItemId.value, { amount });
-			if (excess > 0) {
-				await addUnexpectedExpense(
-					editItemName.value,
-					excess,
-					"mainItems",
-					editItemId.value,
-					entry?.ruleName ?? activeTab.value,
-				);
-			}
 			await reloadTracker();
 			savingEditItem.value = false;
 			closeEditItemModal();
@@ -1522,13 +1591,27 @@
 			return;
 		}
 
+		const parentEntry = budgetEntries.value.find(
+			(e) => e.id === editItemId.value,
+		);
+		const parentAmount = parentEntry?.amount ?? 0;
+		const otherSubItemsSum = budgetEntries.value
+			.filter(
+				(e) =>
+					e.parentBudgetEntryId === editItemId.value &&
+					e.id !== subItemEditId.value,
+			)
+			.reduce((sum, e) => sum + e.amount, 0);
+		if (otherSubItemsSum + amount > parentAmount) {
+			const left = Math.max(0, parentAmount - otherSubItemsSum);
+			subItemError.value = `Amount exceeds parent budget (₱${left.toLocaleString("en-PH")} left)`;
+			return;
+		}
+
 		savingSubItem.value = true;
 		if (subItemEditId.value) {
 			await db.budgetEntries.update(subItemEditId.value, { name, amount });
 		} else {
-			const parentEntry = budgetEntries.value.find(
-				(e) => e.id === editItemId.value,
-			);
 			if (!parentEntry) {
 				savingSubItem.value = false;
 				return;
@@ -2163,6 +2246,7 @@
 			v-model:amount="formAmount"
 			v-model:name="formName"
 			v-model:date="formDate"
+			v-model:percents="formPercents"
 			@close="closeModal"
 			@save="saveCutoff"
 		/>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+	import { computed } from "vue";
 	import Button from "../../../../components/button/Button.vue";
 	import GlassContainer from "../../../../components/containers/GlassContainer.vue";
 	import AmountField from "../../../../components/inputs/AmountField.vue";
 	import SelectField from "../../../../components/inputs/SelectField.vue";
+	import Divider from "../../../../components/divider/Divider.vue";
 
 	defineProps<{
 		show: boolean;
@@ -20,6 +22,19 @@
 	const amount = defineModel<string>("amount", { default: "" });
 	const name = defineModel<string>("name", { default: "" });
 	const date = defineModel<string>("date", { default: "" });
+	const percents = defineModel<{ name: string; percent: number }[]>(
+		"percents",
+		{ default: () => [] },
+	);
+
+	const percentTotal = computed(() =>
+		percents.value.reduce((sum, rule) => sum + (Number(rule.percent) || 0), 0),
+	);
+
+	function ruleAmount(percent: number) {
+		const value = Number(amount.value) * ((Number(percent) || 0) / 100);
+		return `₱${value.toLocaleString("en-PH")}`;
+	}
 </script>
 
 <template>
@@ -47,6 +62,42 @@
 					<span class="text-base text-textPrimary">Date</span>
 					<input v-model="date" type="date" class="field-input field-input-date" />
 				</label>
+
+				<Divider margin-top="0.25rem" margin-bottom="0.25rem" />
+
+				<div class="flex flex-col gap-3">
+					<div
+						v-for="rule in percents"
+						:key="rule.name"
+						class="flex items-center justify-between gap-3"
+					>
+						<span class="text-sm text-textPrimary">{{ rule.name }}</span>
+						<div class="flex items-center gap-3">
+							<span class="text-sm text-textSecondary">
+								{{ ruleAmount(rule.percent) }}
+							</span>
+							<div class="pct-input-wrap">
+								<input
+									v-model.number="rule.percent"
+									type="number"
+									min="0"
+									max="100"
+									class="pct-input"
+								/>
+								<span class="pct-sign">%</span>
+							</div>
+						</div>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold text-textPrimary">Total</span>
+						<span
+							class="text-sm font-semibold"
+							:class="percentTotal === 100 ? 'text-textPrimary' : 'text-[#f87171]'"
+						>
+							{{ percentTotal }}%
+						</span>
+					</div>
+				</div>
 
 				<p v-if="error" class="m-0 text-center text-sm text-[#f87171]">
 					{{ error }}
@@ -91,5 +142,36 @@
 
 	.field-input:focus {
 		border-color: var(--color-textSecondary);
+	}
+
+	.pct-input-wrap {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.4rem 0.75rem;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+	}
+
+	.pct-input {
+		width: 3rem;
+		border: none;
+		background: transparent;
+		color: var(--color-inputText);
+		font-size: 0.95rem;
+		font-family: inherit;
+		text-align: right;
+		outline: none;
+	}
+
+	.pct-input::-webkit-outer-spin-button,
+	.pct-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
+	.pct-sign {
+		color: var(--color-textSecondary);
+		font-size: 0.95rem;
 	}
 </style>

@@ -35,7 +35,7 @@
 					v-model="name"
 					label="Name"
 					placeholder="Expense name"
-					mode="text"
+					mode="both"
 				/>
 				<AmountField v-model="amount" label="Amount" placeholder="0.00" />
 				<p v-if="error" class="m-0 text-center text-sm text-[#f87171]">

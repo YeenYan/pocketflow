@@ -1,23 +1,40 @@
 <script setup lang="ts">
 	import { computed, onMounted, ref, watch } from "vue";
-	import { PlusIcon, TrashIcon } from "@heroicons/vue/24/outline";
+	import {
+		ArchiveBoxXMarkIcon,
+		PaperAirplaneIcon,
+		PlusIcon,
+		TrashIcon,
+	} from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import Divider from "../../components/divider/Divider.vue";
 	import ItemBuilderDrawer, {
 		type ItemBuilderFormData,
 	} from "../../components/item-builder/ItemBuilderDrawer.vue";
 	import AmountField from "../../components/inputs/AmountField.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
 	import {
+		buildCutoffAllocations,
 		createId,
 		db,
+		FIXED_RULES,
 		type IncomingBillBudget,
 		type IncomingBillBudgetCategory,
 		type IncomingBillItem,
 		type IncomingBillItemCategory,
 		type ItemBuilder,
+		type Rule,
+		type RuleName,
 	} from "../../db/budgetDb";
+	import CutoffModal from "./partials/modals/CutoffModal.vue";
 	import OtherItemsSection from "./partials/sections/OtherItemsSection.vue";
+
+	const emit = defineEmits<{
+		"moved-to-tracker": [];
+	}>();
+
+	const RULE_ORDER: RuleName[] = ["Expenses", "Savings", "Wants"];
 
 	const ITEM_COLOR_OPTIONS = [
 		{
@@ -154,6 +171,22 @@
 	const showCreateItemDrawer = ref(false);
 	const savingCreateItem = ref(false);
 
+	const rules = ref<Rule[]>([]);
+	const cutoffs = ref<{ id: string; monthKey: string; slot: 1 | 2 }[]>([]);
+
+	const showResetConfirm = ref(false);
+	const showActiveTrackerModal = ref(false);
+	const showMoveConfirm = ref(false);
+
+	const showCutoffModal = ref(false);
+	const cutoffFormAmount = ref("");
+	const cutoffFormName = ref("");
+	const cutoffFormDate = ref("");
+	const cutoffFormPercents = ref<{ name: RuleName; percent: number }[]>([]);
+	const cutoffFormError = ref("");
+	const cutoffSaving = ref(false);
+	const editingCutoffId = ref("");
+
 	const showEditModal = ref(false);
 	const editType = ref<"budget" | "item">("budget");
 	const editId = ref("");
@@ -186,13 +219,47 @@
 		budgets.value.find((b) => b.category === "wants"),
 	);
 
-	const displayTotal = computed(() => {
+	const incomingTotal = computed(() => {
 		const itemsSum = items.value.reduce((sum, item) => sum + item.amount, 0);
 		const budgetsSum = budgets.value.reduce(
 			(sum, budget) => sum + budget.amount,
 			0,
 		);
-		return formatAmount(itemsSum + budgetsSum);
+		return itemsSum + budgetsSum;
+	});
+
+	const displayTotal = computed(() => formatAmount(incomingTotal.value));
+
+	const canMoveToTracker = computed(
+		() => items.value.length > 0 || budgets.value.length > 0,
+	);
+
+	const cutoffFormPercentTotal = computed(() =>
+		cutoffFormPercents.value.reduce(
+			(sum, rule) => sum + (Number(rule.percent) || 0),
+			0,
+		),
+	);
+
+	const cutoffOptions = computed(() => {
+		const all = [
+			{ value: "1st cutoff", label: "1st cutoff" },
+			{ value: "2nd cutoff", label: "2nd cutoff" },
+		];
+		const monthKey = cutoffFormDate.value ? cutoffFormDate.value.slice(0, 7) : "";
+		if (!monthKey) return all;
+		const usedSlots = cutoffs.value
+			.filter((c) => c.monthKey === monthKey && c.id !== editingCutoffId.value)
+			.map((c) => c.slot);
+		return all.filter(
+			(opt) => !usedSlots.includes(opt.value === "1st cutoff" ? 1 : 2),
+		);
+	});
+
+	const canSaveCutoff = computed(() => {
+		if (cutoffSaving.value) return false;
+		if (cutoffFormPercentTotal.value !== 100) return false;
+		return true;
 	});
 
 	const expenseMainItems = computed(() =>
@@ -266,6 +333,199 @@
 
 	function formatAmount(amount: number) {
 		return `₱${amount.toLocaleString("en-PH")}`;
+	}
+
+	function todayDate() {
+		const now = new Date();
+		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+	}
+
+	async function loadRules() {
+		let existingRules = await db.rules.toArray();
+		if (existingRules.length === 0) {
+			await db.rules.bulkAdd(FIXED_RULES);
+			existingRules = await db.rules.toArray();
+		}
+		rules.value = existingRules;
+	}
+
+	async function loadCutoffs() {
+		cutoffs.value = await db.cycleCutoffs.toArray();
+	}
+
+	async function hasActiveTracker() {
+		const all = await db.cycleCutoffs.toArray();
+		return all.some((cutoff) => cutoff.status !== "finalized");
+	}
+
+	function openResetConfirm() {
+		showResetConfirm.value = true;
+	}
+
+	function closeResetConfirm() {
+		showResetConfirm.value = false;
+	}
+
+	async function confirmReset() {
+		await db.incomingBillItems.clear();
+		await db.incomingBillBudgets.clear();
+		items.value = [];
+		budgets.value = [];
+		expenseSwipeOffsets.value = {};
+		savingsSwipeOffsets.value = {};
+		resetForm();
+		closeResetConfirm();
+	}
+
+	async function onMoveClick() {
+		if (!canMoveToTracker.value) return;
+		if (await hasActiveTracker()) {
+			showActiveTrackerModal.value = true;
+			return;
+		}
+		showMoveConfirm.value = true;
+	}
+
+	function closeActiveTrackerModal() {
+		showActiveTrackerModal.value = false;
+	}
+
+	function closeMoveConfirm() {
+		showMoveConfirm.value = false;
+	}
+
+	function openCutoffModal() {
+		closeMoveConfirm();
+		cutoffFormError.value = "";
+		editingCutoffId.value = "";
+		cutoffFormAmount.value =
+			incomingTotal.value > 0 ? String(incomingTotal.value) : "";
+		cutoffFormName.value = "";
+		cutoffFormDate.value = todayDate();
+		cutoffFormPercents.value = RULE_ORDER.map((name) => ({
+			name,
+			percent: rules.value.find((rule) => rule.name === name)?.percent ?? 0,
+		}));
+		showCutoffModal.value = true;
+	}
+
+	function closeCutoffModal() {
+		cutoffFormError.value = "";
+		editingCutoffId.value = "";
+		showCutoffModal.value = false;
+	}
+
+	async function saveCutoffAndTransfer() {
+		const amount = Number(cutoffFormAmount.value);
+		const name = cutoffFormName.value.trim();
+		const date = cutoffFormDate.value;
+
+		if (!cutoffFormAmount.value || Number.isNaN(amount) || amount < 0) {
+			cutoffFormError.value = "Enter a valid amount";
+			return;
+		}
+		if (!name) {
+			cutoffFormError.value = "Select a name";
+			return;
+		}
+		if (!date) {
+			cutoffFormError.value = "Enter a date";
+			return;
+		}
+		if (cutoffFormPercentTotal.value !== 100) {
+			cutoffFormError.value = "Rule percentages must total 100%";
+			return;
+		}
+
+		const monthKey = date.slice(0, 7);
+		const slot = (name === "1st cutoff" ? 1 : 2) as 1 | 2;
+		const existing = await db.cycleCutoffs
+			.where("monthKey")
+			.equals(monthKey)
+			.toArray();
+
+		if (existing.some((c) => c.slot === slot)) {
+			cutoffFormError.value = `${name} already exists for this month`;
+			return;
+		}
+
+		cutoffSaving.value = true;
+		const cutoffId = createId();
+		const now = new Date().toISOString();
+		await db.cycleCutoffs.add({
+			id: cutoffId,
+			monthKey,
+			slot,
+			label: name,
+			amount,
+			date,
+			allocations: buildCutoffAllocations(amount, cutoffFormPercents.value),
+			createdAt: now,
+			status: "active",
+		});
+
+		for (const item of items.value.filter(
+			(entry) => entry.category === "expense-main",
+		)) {
+			await db.budgetEntries.add({
+				id: createId(),
+				cutoffId,
+				monthKey,
+				ruleName: "Expenses",
+				name: item.name,
+				amount: item.amount,
+				itemBuilderId: item.itemBuilderId,
+				createdAt: item.createdAt,
+			});
+		}
+
+		if (cutoffBudget.value) {
+			await db.tabBudgets.add({
+				id: createId(),
+				cutoffId,
+				monthKey,
+				ruleName: "Expenses",
+				budgetAllocated: cutoffBudget.value.amount,
+				createdAt: now,
+			});
+		}
+
+		if (otherExpensesBudget.value) {
+			await db.othersBudgets.add({
+				id: createId(),
+				cutoffId,
+				monthKey,
+				budgetAllocated: otherExpensesBudget.value.amount,
+				createdAt: now,
+			});
+		}
+
+		for (const item of items.value.filter(
+			(entry) => entry.category === "savings",
+		)) {
+			await db.budgetEntries.add({
+				id: createId(),
+				cutoffId,
+				monthKey,
+				ruleName: "Savings",
+				name: item.name,
+				amount: item.amount,
+				itemBuilderId: item.itemBuilderId,
+				createdAt: item.createdAt,
+			});
+		}
+
+		await db.incomingBillItems.clear();
+		await db.incomingBillBudgets.clear();
+		items.value = [];
+		budgets.value = [];
+		expenseSwipeOffsets.value = {};
+		savingsSwipeOffsets.value = {};
+		resetForm();
+		await loadCutoffs();
+		cutoffSaving.value = false;
+		closeCutoffModal();
+		emit("moved-to-tracker");
 	}
 
 	async function loadItems() {
@@ -367,7 +627,10 @@
 		closeModal();
 	}
 
-	function openBudgetEdit(budget: IncomingBillBudget | undefined, title: string) {
+	function openBudgetEdit(
+		budget: IncomingBillBudget | undefined,
+		title: string,
+	) {
 		if (!budget) return;
 		editType.value = "budget";
 		editId.value = budget.id;
@@ -513,7 +776,18 @@
 		formError.value = "";
 	});
 
+	watch(cutoffFormDate, () => {
+		if (
+			cutoffFormName.value &&
+			!cutoffOptions.value.some((opt) => opt.value === cutoffFormName.value)
+		) {
+			cutoffFormName.value = "";
+		}
+	});
+
 	onMounted(async () => {
+		await loadRules();
+		await loadCutoffs();
 		await loadItemBuilders();
 		await loadItems();
 		await loadBudgets();
@@ -627,6 +901,29 @@
 					No amount yet
 				</p>
 			</GlassContainer>
+
+			<Divider margin-top="2rem" margin-bottom="1.5rem" />
+
+			<div class="incoming-actions">
+				<button
+					type="button"
+					class="move-btn"
+					:class="{ 'is-disabled': !canMoveToTracker }"
+					:disabled="!canMoveToTracker"
+					@click="onMoveClick"
+				>
+					<span>Move to Tracker</span>
+					<PaperAirplaneIcon class="move-btn-icon" />
+				</button>
+				<button
+					type="button"
+					class="reset-btn"
+					aria-label="Reset all entries"
+					@click="openResetConfirm"
+				>
+					<ArchiveBoxXMarkIcon class="reset-btn-icon" />
+				</button>
+			</div>
 		</div>
 
 		<Teleport to="body">
@@ -745,6 +1042,86 @@
 			:saving="savingCreateItem"
 			@save="saveCreateItem"
 		/>
+
+		<CutoffModal
+			:show="showCutoffModal"
+			:is-editing="false"
+			:error="cutoffFormError"
+			:options="cutoffOptions"
+			:can-save="canSaveCutoff"
+			v-model:amount="cutoffFormAmount"
+			v-model:name="cutoffFormName"
+			v-model:date="cutoffFormDate"
+			v-model:percents="cutoffFormPercents"
+			@close="closeCutoffModal"
+			@save="saveCutoffAndTransfer"
+		/>
+
+		<Teleport to="body">
+			<div
+				v-if="showResetConfirm"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeResetConfirm"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Reset Entries
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Are you sure you want to reset all entered data on this page?
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeResetConfirm">Cancel</Button>
+						<Button variant="danger" block @click="confirmReset">Reset</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showActiveTrackerModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeActiveTrackerModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Active Tracker Found!
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						You cannot process this request while a budget tracker is in progress.
+						Finalize the active tracker first.
+					</p>
+					<Button block variant="primary" @click="closeActiveTrackerModal">
+						OK
+					</Button>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showMoveConfirm"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeMoveConfirm"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Move to Budget Tracker
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Are you sure you want to move all details to active budget tracking on the
+						Budget Tracker page?
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeMoveConfirm">Cancel</Button>
+						<Button variant="primary" block @click="openCutoffModal">
+							Continue
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
 	</div>
 </template>
 
@@ -776,5 +1153,58 @@
 	.remove-amount-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.incoming-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 80%;
+		margin: 0 auto 5rem;
+	}
+
+	.move-btn {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.85rem 1.25rem;
+		border: 1px solid transparent;
+		border-radius: 9999px;
+		background-color: var(--color-primaryDark);
+		color: var(--color-onColor);
+		font-size: 0.95rem;
+		font-family: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.move-btn.is-disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.move-btn-icon {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.reset-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.85rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: transparent;
+		color: #f87171;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.reset-btn-icon {
+		width: 1.25rem;
+		height: 1.25rem;
 	}
 </style>
