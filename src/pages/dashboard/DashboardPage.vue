@@ -32,7 +32,6 @@
 	const showAllRecentItems = ref(false);
 
 	const now = new Date();
-	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 	const greetingLabel = (() => {
 		const hour = now.getHours();
 		if (hour < 12) return "Good Morning";
@@ -90,9 +89,7 @@
 	onMounted(loadData);
 
 	const activeCutoff = computed(() => {
-		const list = cutoffs.value.filter(
-			(c) => c.monthKey === currentMonthKey && c.status !== "finalized",
-		);
+		const list = cutoffs.value.filter((c) => c.status !== "finalized");
 		if (list.length === 0) return null;
 		return list.reduce((latest, c) =>
 			!latest || c.createdAt > latest.createdAt ? c : latest,

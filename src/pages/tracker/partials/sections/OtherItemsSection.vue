@@ -17,6 +17,7 @@
 			swipeOffset: (id: string) => number;
 			hideAddButton?: boolean;
 			hideDate?: boolean;
+			disabled?: boolean;
 		}>(),
 		{ hideAddButton: false, hideDate: false },
 	);
@@ -50,6 +51,7 @@
 			:padding="false"
 			class="plus-btn absolute right-[.6rem] top-[.6rem]"
 			aria-label="Add item"
+			:disabled="disabled"
 			@click="emit('openItemModal')"
 		>
 			<PlusIcon class="h-5 w-5" />

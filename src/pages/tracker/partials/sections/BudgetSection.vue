@@ -12,6 +12,7 @@
 		overBudget: boolean;
 		hasBudget: boolean;
 		progressFillColor: (percent: number) => string;
+		disabled?: boolean;
 	}>();
 
 	const emit = defineEmits<{
@@ -28,6 +29,7 @@
 			:padding="false"
 			class="plus-btn absolute right-[.6rem] top-[.6rem]"
 			:aria-label="hasBudget ? 'Edit budget' : 'Add budget'"
+			:disabled="disabled"
 			@click="emit('openBudgetModal')"
 		>
 			<PencilIcon v-if="hasBudget" class="h-5 w-5" />

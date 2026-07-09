@@ -23,6 +23,7 @@
 		chartData: ChartData<"doughnut", number[], string>;
 		chartOptions: ChartOptions<"doughnut">;
 		progressFillColor: (percent: number) => string;
+		disabled?: boolean;
 	}>();
 
 	const emit = defineEmits<{
@@ -40,6 +41,7 @@
 			:padding="false"
 			class="plus-btn absolute right-[.6rem] top-[.6rem]"
 			aria-label="Add item"
+			:disabled="disabled"
 			@click="emit('openItemModal')"
 		>
 			<PlusIcon class="h-5 w-5" />

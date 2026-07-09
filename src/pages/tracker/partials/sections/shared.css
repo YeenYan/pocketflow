@@ -4,6 +4,11 @@
 	flex-shrink: 0;
 }
 
+.plus-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
 :global(.dark) .plus-btn {
 	color: var(--color-onColor);
 }

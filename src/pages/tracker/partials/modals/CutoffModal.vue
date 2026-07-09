@@ -195,10 +195,12 @@
 	.modal-shell {
 		max-height: 85dvh;
 		overflow: hidden;
+		overflow-x: hidden;
 	}
 
 	.modal-body {
 		max-height: calc(85dvh - 2rem);
+		overflow-x: hidden;
 		overflow-y: auto;
 		-webkit-overflow-scrolling: touch;
 		overscroll-behavior: contain;
@@ -241,6 +243,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
+		min-width: 0;
 	}
 
 	.rule-row-top {
@@ -248,6 +251,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
+		min-width: 0;
 	}
 
 	.pct-stepper {

@@ -271,6 +271,10 @@
 		return "#14ff00";
 	}
 
+	const props = defineProps<{
+		initialMonthKey?: string;
+	}>();
+
 	// =============================================================================
 	// STATE
 	// =============================================================================
@@ -447,7 +451,6 @@
 	});
 
 	const canGoNext = computed(() => {
-		if (viewMonthKey.value >= currentMonthKey) return false;
 		const index = monthKeys.value.indexOf(viewMonthKey.value);
 		return index >= 0 && index < monthKeys.value.length - 1;
 	});
@@ -827,22 +830,16 @@
 	const canFinalizeBudget = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return false;
-		for (const rule of FIXED_RULES) {
-			const entriesSum = budgetEntries.value
-				.filter(
-					(entry) =>
-						entry.cutoffId === cutoffId &&
-						entry.ruleName === rule.name &&
-						!entry.parentBudgetEntryId,
-				)
-				.reduce((sum, entry) => sum + entry.amount, 0);
-			const spent =
-				rule.name === "Expenses"
-					? entriesSum + tabBudgetReserved.value + othersReserved.value
-					: entriesSum;
-			if (spent <= 0) return false;
-		}
-		return true;
+		const entriesSum = budgetEntries.value
+			.filter(
+				(entry) =>
+					entry.cutoffId === cutoffId &&
+					entry.ruleName === "Expenses" &&
+					!entry.parentBudgetEntryId,
+			)
+			.reduce((sum, entry) => sum + entry.amount, 0);
+		const spent = entriesSum + tabBudgetReserved.value + othersReserved.value;
+		return spent > 0;
 	});
 
 	const finalizeButtonLabel = computed(() =>
@@ -2225,6 +2222,17 @@
 		}
 		rules.value = existingRules;
 		await loadCutoffs();
+		if (props.initialMonthKey) {
+			viewMonthKey.value = props.initialMonthKey;
+		} else {
+			const activeList = cutoffs.value.filter((c) => c.status !== "finalized");
+			if (activeList.length) {
+				const active = activeList.reduce((latest, c) =>
+					!latest || c.createdAt > latest.createdAt ? c : latest,
+				);
+				viewMonthKey.value = active.monthKey;
+			}
+		}
 		await loadItemBuilders();
 		await loadBudgetEntries();
 		await loadOthers();
@@ -2261,13 +2269,13 @@
 	<div
 		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
-		<!-- <PeriodNavSection
+		<PeriodNavSection
 			:period-label="periodLabel"
 			:can-go-prev="canGoPrev"
 			:can-go-next="canGoNext"
 			@prev="goPrev"
 			@next="goNext"
-		/> -->
+		/>
 
 		<div class="tracker-scroll min-h-0 flex-1">
 			<div class="tracker-fixed shrink-0">
@@ -2300,6 +2308,7 @@
 				:chart-data="chartData"
 				:chart-options="chartOptions"
 				:progress-fill-color="progressFillColor"
+				:disabled="!activeCutoff"
 				@open-item-modal="openItemModal"
 				@open-unexpected-drawer="openUnexpectedDrawer"
 			/>
@@ -2332,6 +2341,7 @@
 					:over-budget="tabBudgetOverBudget"
 					:has-budget="!!tabBudget"
 					:progress-fill-color="progressFillColor"
+					:disabled="!activeCutoff"
 					@open-budget-modal="openTabBudgetModal"
 				/>
 
@@ -2339,6 +2349,7 @@
 					title="Budget Items"
 					:expenses="tabBudgetExpenses"
 					:swipe-offset="tabBudgetSwipeOffset"
+					:disabled="!activeCutoff"
 					@open-item-modal="openTabBudgetItemModal"
 					@delete-expense="deleteTabBudgetExpense"
 					@swipe-start="onTabBudgetSwipeStart"
@@ -2357,6 +2368,7 @@
 					:over-budget="othersOverBudget"
 					:has-budget="!!othersBudget"
 					:progress-fill-color="progressFillColor"
+					:disabled="!activeCutoff"
 					@open-budget-modal="openOthersBudgetModal"
 				/>
 
@@ -2364,6 +2376,7 @@
 					title="Other Items"
 					:expenses="othersExpenses"
 					:swipe-offset="othersSwipeOffset"
+					:disabled="!activeCutoff"
 					@open-item-modal="openOthersItemModal"
 					@delete-expense="deleteOthersExpense"
 					@swipe-start="onOthersSwipeStart"

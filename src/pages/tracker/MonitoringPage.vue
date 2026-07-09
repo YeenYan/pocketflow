@@ -6,6 +6,12 @@
 	type MonitoringTab = "incoming-bills" | "budget-tracker";
 
 	const activeTab = ref<MonitoringTab>("budget-tracker");
+	const trackerMonthKey = ref("");
+
+	function onMovedToTracker(monthKey: string) {
+		trackerMonthKey.value = monthKey;
+		activeTab.value = "budget-tracker";
+	}
 </script>
 
 <template>
@@ -31,8 +37,11 @@
 			</div>
 		</div>
 
-		<TrackerPage v-if="activeTab === 'budget-tracker'" />
-		<IncomingBillsPage v-else @moved-to-tracker="activeTab = 'budget-tracker'" />
+		<TrackerPage
+			v-if="activeTab === 'budget-tracker'"
+			:initial-month-key="trackerMonthKey || undefined"
+		/>
+		<IncomingBillsPage v-else @moved-to-tracker="onMovedToTracker" />
 	</div>
 </template>
 

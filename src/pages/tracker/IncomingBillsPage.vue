@@ -19,6 +19,7 @@
 		createId,
 		db,
 		FIXED_RULES,
+		type CycleCutoff,
 		type IncomingBillBudget,
 		type IncomingBillBudgetCategory,
 		type IncomingBillItem,
@@ -31,7 +32,7 @@
 	import OtherItemsSection from "./partials/sections/OtherItemsSection.vue";
 
 	const emit = defineEmits<{
-		"moved-to-tracker": [];
+		"moved-to-tracker": [monthKey: string];
 	}>();
 
 	const RULE_ORDER: RuleName[] = ["Expenses", "Savings", "Wants"];
@@ -172,7 +173,7 @@
 	const savingCreateItem = ref(false);
 
 	const rules = ref<Rule[]>([]);
-	const cutoffs = ref<{ id: string; monthKey: string; slot: 1 | 2 }[]>([]);
+	const cutoffs = ref<CycleCutoff[]>([]);
 
 	const showResetConfirm = ref(false);
 	const showActiveTrackerModal = ref(false);
@@ -183,9 +184,11 @@
 	const cutoffFormName = ref("");
 	const cutoffFormDate = ref("");
 	const cutoffFormPercents = ref<{ name: RuleName; percent: number }[]>([]);
+	const cutoffFormUseCarryOver = ref(false);
 	const cutoffFormError = ref("");
 	const cutoffSaving = ref(false);
 	const editingCutoffId = ref("");
+	const availableCarryOver = ref(0);
 
 	const showEditModal = ref(false);
 	const editType = ref<"budget" | "item">("budget");
@@ -261,6 +264,56 @@
 		if (cutoffFormPercentTotal.value !== 100) return false;
 		return true;
 	});
+
+	const previousCutoff = computed(() => {
+		const sorted = [...cutoffs.value].sort((a, b) =>
+			a.createdAt.localeCompare(b.createdAt),
+		);
+		return sorted.length ? sorted[sorted.length - 1] : null;
+	});
+
+	const showCarryOverOption = computed(() => availableCarryOver.value > 0);
+
+	async function loadCarryOverForCutoff(cutoff: CycleCutoff) {
+		const spendAllotted =
+			(cutoff.allocations?.Expenses?.amount ?? 0) +
+			(cutoff.allocations?.Wants?.amount ?? 0);
+		const cutoffId = cutoff.id;
+		const entries = await db.budgetEntries
+			.where("cutoffId")
+			.equals(cutoffId)
+			.toArray();
+		const expensesEntriesSum = entries
+			.filter(
+				(entry) =>
+					entry.ruleName === "Expenses" && !entry.parentBudgetEntryId,
+			)
+			.reduce((sum, entry) => sum + entry.amount, 0);
+		const wantsEntriesSum = entries
+			.filter((entry) => entry.ruleName === "Wants" && !entry.parentBudgetEntryId)
+			.reduce((sum, entry) => sum + entry.amount, 0);
+		const tabBudget = await db.tabBudgets
+			.where({ cutoffId, ruleName: "Expenses" })
+			.first();
+		const tabExpenses = await db.tabBudgetExpenses
+			.where({ cutoffId, ruleName: "Expenses" })
+			.toArray();
+		const tabSpent = tabExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+		const tabReserved = Math.max(tabBudget?.budgetAllocated ?? 0, tabSpent);
+		const othersBudget = await db.othersBudgets
+			.where("cutoffId")
+			.equals(cutoffId)
+			.first();
+		const othersExp = await db.othersExpenses
+			.where("cutoffId")
+			.equals(cutoffId)
+			.toArray();
+		const othersSpent = othersExp.reduce((sum, expense) => sum + expense.amount, 0);
+		const othersReserved = Math.max(othersBudget?.budgetAllocated ?? 0, othersSpent);
+		const spent =
+			expensesEntriesSum + wantsEntriesSum + tabReserved + othersReserved;
+		return Math.max(0, spendAllotted - spent);
+	}
 
 	const expenseMainItems = computed(() =>
 		items.value
@@ -394,10 +447,12 @@
 		showMoveConfirm.value = false;
 	}
 
-	function openCutoffModal() {
+	async function openCutoffModal() {
 		closeMoveConfirm();
 		cutoffFormError.value = "";
 		editingCutoffId.value = "";
+		availableCarryOver.value = 0;
+		cutoffFormUseCarryOver.value = false;
 		cutoffFormAmount.value =
 			incomingTotal.value > 0 ? String(incomingTotal.value) : "";
 		cutoffFormName.value = "";
@@ -406,12 +461,17 @@
 			name,
 			percent: rules.value.find((rule) => rule.name === name)?.percent ?? 0,
 		}));
+		const previous = previousCutoff.value;
+		if (previous && !previous.carryOverDecision) {
+			availableCarryOver.value = await loadCarryOverForCutoff(previous);
+		}
 		showCutoffModal.value = true;
 	}
 
 	function closeCutoffModal() {
 		cutoffFormError.value = "";
 		editingCutoffId.value = "";
+		cutoffFormUseCarryOver.value = false;
 		showCutoffModal.value = false;
 	}
 
@@ -452,6 +512,20 @@
 		cutoffSaving.value = true;
 		const cutoffId = createId();
 		const now = new Date().toISOString();
+		let newCarryOver = 0;
+		const previous = previousCutoff.value;
+		if (previous && availableCarryOver.value > 0) {
+			if (cutoffFormUseCarryOver.value) {
+				newCarryOver = availableCarryOver.value;
+				await db.cycleCutoffs.update(previous.id, {
+					carryOverDecision: "used",
+				});
+			} else {
+				await db.cycleCutoffs.update(previous.id, {
+					carryOverDecision: "declined",
+				});
+			}
+		}
 		await db.cycleCutoffs.add({
 			id: cutoffId,
 			monthKey,
@@ -459,7 +533,11 @@
 			label: name,
 			amount,
 			date,
-			allocations: buildCutoffAllocations(amount, cutoffFormPercents.value),
+			carryOverAmount: newCarryOver || undefined,
+			allocations: buildCutoffAllocations(
+				amount + newCarryOver,
+				cutoffFormPercents.value,
+			),
 			createdAt: now,
 			status: "active",
 		});
@@ -525,7 +603,7 @@
 		await loadCutoffs();
 		cutoffSaving.value = false;
 		closeCutoffModal();
-		emit("moved-to-tracker");
+		emit("moved-to-tracker", monthKey);
 	}
 
 	async function loadItems() {
@@ -1049,10 +1127,13 @@
 			:error="cutoffFormError"
 			:options="cutoffOptions"
 			:can-save="canSaveCutoff"
+			:show-carry-over-option="showCarryOverOption"
+			:carry-over-amount="availableCarryOver"
 			v-model:amount="cutoffFormAmount"
 			v-model:name="cutoffFormName"
 			v-model:date="cutoffFormDate"
 			v-model:percents="cutoffFormPercents"
+			v-model:use-carry-over="cutoffFormUseCarryOver"
 			@close="closeCutoffModal"
 			@save="saveCutoffAndTransfer"
 		/>
