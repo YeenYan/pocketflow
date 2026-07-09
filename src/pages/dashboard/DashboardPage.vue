@@ -1,10 +1,10 @@
 <script setup lang="ts">
 	import { computed, onMounted, ref } from "vue";
-	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import {
 		HandThumbUpIcon,
 		FaceFrownIcon,
 		CalendarDaysIcon,
+		BanknotesIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
@@ -29,6 +29,7 @@
 	const othersExpenses = ref<OthersExpense[]>([]);
 	const displayName = ref("");
 	const photoUrl = ref("");
+	const showAllRecentItems = ref(false);
 
 	const now = new Date();
 	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -38,132 +39,6 @@
 		if (hour < 18) return "Good Afternoon";
 		return "Good Evening";
 	})();
-
-	const ITEM_COLOR_OPTIONS = [
-		{
-			value: "slate-500",
-			wrap:
-				"bg-slate-500/15 dark:bg-slate-500/25 text-slate-700 dark:text-slate-200",
-			hex: "#64748b",
-		},
-		{
-			value: "gray-500",
-			wrap: "bg-gray-500/15 dark:bg-gray-500/25 text-gray-700 dark:text-gray-200",
-			hex: "#6b7280",
-		},
-		{
-			value: "zinc-500",
-			wrap: "bg-zinc-500/15 dark:bg-zinc-500/25 text-zinc-700 dark:text-zinc-200",
-			hex: "#71717a",
-		},
-		{
-			value: "neutral-500",
-			wrap:
-				"bg-neutral-500/15 dark:bg-neutral-500/25 text-neutral-700 dark:text-neutral-200",
-			hex: "#737373",
-		},
-		{
-			value: "stone-500",
-			wrap:
-				"bg-stone-500/15 dark:bg-stone-500/25 text-stone-700 dark:text-stone-200",
-			hex: "#78716c",
-		},
-		{
-			value: "red-500",
-			wrap: "bg-red-500/15 dark:bg-red-500/25 text-red-700 dark:text-red-300",
-			hex: "#ef4444",
-		},
-		{
-			value: "orange-500",
-			wrap:
-				"bg-orange-500/15 dark:bg-orange-500/25 text-orange-700 dark:text-orange-300",
-			hex: "#f97316",
-		},
-		{
-			value: "amber-500",
-			wrap:
-				"bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300",
-			hex: "#f59e0b",
-		},
-		{
-			value: "yellow-500",
-			wrap:
-				"bg-yellow-500/15 dark:bg-yellow-500/25 text-yellow-700 dark:text-yellow-300",
-			hex: "#eab308",
-		},
-		{
-			value: "lime-500",
-			wrap: "bg-lime-500/15 dark:bg-lime-500/25 text-lime-700 dark:text-lime-300",
-			hex: "#84cc16",
-		},
-		{
-			value: "green-500",
-			wrap:
-				"bg-green-500/15 dark:bg-green-500/25 text-green-700 dark:text-green-300",
-			hex: "#22c55e",
-		},
-		{
-			value: "emerald-500",
-			wrap:
-				"bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300",
-			hex: "#10b981",
-		},
-		{
-			value: "teal-500",
-			wrap: "bg-teal-500/15 dark:bg-teal-500/25 text-teal-700 dark:text-teal-300",
-			hex: "#14b8a6",
-		},
-		{
-			value: "cyan-500",
-			wrap: "bg-cyan-500/15 dark:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300",
-			hex: "#06b6d4",
-		},
-		{
-			value: "sky-500",
-			wrap: "bg-sky-500/15 dark:bg-sky-500/25 text-sky-700 dark:text-sky-300",
-			hex: "#0ea5e9",
-		},
-		{
-			value: "blue-500",
-			wrap: "bg-blue-500/15 dark:bg-blue-500/25 text-blue-700 dark:text-blue-300",
-			hex: "#3b82f6",
-		},
-		{
-			value: "indigo-500",
-			wrap:
-				"bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300",
-			hex: "#6366f1",
-		},
-		{
-			value: "violet-500",
-			wrap:
-				"bg-violet-500/15 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300",
-			hex: "#8b5cf6",
-		},
-		{
-			value: "purple-500",
-			wrap:
-				"bg-purple-500/15 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300",
-			hex: "#a855f7",
-		},
-		{
-			value: "fuchsia-500",
-			wrap:
-				"bg-fuchsia-500/15 dark:bg-fuchsia-500/25 text-fuchsia-700 dark:text-fuchsia-300",
-			hex: "#d946ef",
-		},
-		{
-			value: "pink-500",
-			wrap: "bg-pink-500/15 dark:bg-pink-500/25 text-pink-700 dark:text-pink-300",
-			hex: "#ec4899",
-		},
-		{
-			value: "rose-500",
-			wrap: "bg-rose-500/15 dark:bg-rose-500/25 text-rose-700 dark:text-rose-300",
-			hex: "#f43f5e",
-		},
-	];
-	const DEFAULT_ITEM_COLOR = "emerald-500";
 
 	const RULE_COLORS: Record<"Expenses" | "Wants", string> = {
 		Expenses: "#d96b6b",
@@ -183,6 +58,7 @@
 	const CHIP_CIRC = 2 * Math.PI * CHIP_R;
 	const SAVE_R = 18;
 	const SAVE_CIRC = 2 * Math.PI * SAVE_R;
+	const SAVINGS_COLOR = "#10b981";
 
 	const tickLines = Array.from({ length: TICK_COUNT }, (_, i) => {
 		const angle = (i / TICK_COUNT) * Math.PI * 2 - Math.PI / 2;
@@ -407,9 +283,13 @@
 		});
 	});
 
-	const savingsItems = computed(() => {
+	const savingsTarget = computed(
+		() => activeCutoff.value?.allocations?.Savings?.amount ?? 0,
+	);
+
+	const savingsSaved = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
-		if (!cutoffId) return [];
+		if (!cutoffId) return 0;
 		return budgetEntries.value
 			.filter(
 				(entry) =>
@@ -417,33 +297,53 @@
 					entry.ruleName === "Savings" &&
 					!entry.parentBudgetEntryId,
 			)
-			.map((entry) => {
-				const builder = entry.itemBuilderId
-					? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
-					: itemBuilders.value.find((item) => item.name === entry.name);
-				const color = builder?.color ?? DEFAULT_ITEM_COLOR;
-				const colorOption =
-					ITEM_COLOR_OPTIONS.find((option) => option.value === color) ??
-					ITEM_COLOR_OPTIONS.find((option) => option.value === DEFAULT_ITEM_COLOR)!;
-				const childrenSum = budgetEntries.value
-					.filter((child) => child.parentBudgetEntryId === entry.id)
-					.reduce((sum, child) => sum + child.amount, 0);
-				const saved = builder?.hasChildItems ? childrenSum : entry.amount;
-				const percent =
-					entry.amount > 0
-						? Math.min(100, Math.round((saved / entry.amount) * 100))
-						: 0;
-				return {
-					id: entry.id,
-					target: entry.amount,
-					saved,
-					percent,
-					icon: builder?.icon ?? "HomeIcon",
-					iconWrapClass: colorOption.wrap,
-					color: colorOption.hex,
-					offset: SAVE_CIRC * (1 - percent / 100),
-				};
+			.reduce((sum, entry) => sum + entry.amount, 0);
+	});
+
+	const savingsPercent = computed(() => {
+		if (savingsTarget.value <= 0) return 0;
+		return Math.min(
+			100,
+			Math.round((savingsSaved.value / savingsTarget.value) * 100),
+		);
+	});
+
+	const savingsRingOffset = computed(
+		() => SAVE_CIRC * (1 - savingsPercent.value / 100),
+	);
+
+	const childItemRows = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return [];
+		const rows: Array<{
+			id: string;
+			name: string;
+			amount: number;
+			childrenSpent: number;
+			percent: number;
+		}> = [];
+		for (const entry of budgetEntries.value) {
+			if (entry.cutoffId !== cutoffId || entry.parentBudgetEntryId) continue;
+			const builder = entry.itemBuilderId
+				? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.value.find((item) => item.name === entry.name);
+			if (!builder?.hasChildItems) continue;
+			const childrenSpent = budgetEntries.value
+				.filter((child) => child.parentBudgetEntryId === entry.id)
+				.reduce((sum, child) => sum + child.amount, 0);
+			const percent =
+				entry.amount > 0
+					? Math.min(100, Math.round((childrenSpent / entry.amount) * 100))
+					: 0;
+			rows.push({
+				id: entry.id,
+				name: builder.name ?? entry.name,
+				amount: entry.amount,
+				childrenSpent,
+				percent,
 			});
+		}
+		return rows;
 	});
 
 	const budgetOthersRows = computed(() => {
@@ -476,6 +376,58 @@
 			},
 		];
 	});
+
+	const recentItems = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return [];
+		const items: Array<{
+			id: string;
+			name: string;
+			amount: number;
+			createdAt: string;
+		}> = [];
+
+		for (const entry of budgetEntries.value) {
+			if (entry.cutoffId !== cutoffId) continue;
+			const builder = entry.itemBuilderId
+				? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.value.find((item) => item.name === entry.name);
+			items.push({
+				id: entry.id,
+				name: builder?.name ?? entry.name,
+				amount: entry.amount,
+				createdAt: entry.createdAt,
+			});
+		}
+
+		for (const expense of tabBudgetExpenses.value) {
+			if (expense.cutoffId !== cutoffId) continue;
+			items.push({
+				id: expense.id,
+				name: expense.expenseName,
+				amount: expense.amount,
+				createdAt: expense.createdAt,
+			});
+		}
+
+		for (const expense of othersExpenses.value) {
+			if (expense.cutoffId !== cutoffId) continue;
+			items.push({
+				id: expense.id,
+				name: expense.expenseName,
+				amount: expense.amount,
+				createdAt: expense.createdAt,
+			});
+		}
+
+		return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	});
+
+	const visibleRecentItems = computed(() =>
+		showAllRecentItems.value ? recentItems.value : recentItems.value.slice(0, 5),
+	);
+
+	const hasMoreRecentItems = computed(() => recentItems.value.length > 5);
 </script>
 
 <template>
@@ -581,76 +533,73 @@
 		</GlassContainer>
 
 		<GlassContainer v-if="activeCutoff" class="savings-section">
-			<div v-if="savingsItems.length" class="savings-list">
-				<div v-for="item in savingsItems" :key="item.id" class="savings-card">
-					<span class="savings-icon-wrap" :class="item.iconWrapClass">
-						<component
-							:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
-							class="savings-icon"
-						/>
-					</span>
-					<div class="savings-main">
-						<p class="savings-name">Savings</p>
-						<p class="savings-amount">
-							<span class="savings-saved"
-								>₱{{ item.saved.toLocaleString("en-PH") }}</span
-							>
-							<span class="savings-target">
-								of ₱{{ item.target.toLocaleString("en-PH") }}
-							</span>
-						</p>
-					</div>
-					<div class="savings-ring-wrap">
-						<svg class="savings-ring" viewBox="0 0 44 44" aria-hidden="true">
-							<circle
-								class="savings-ring-track"
-								cx="22"
-								cy="22"
-								:r="SAVE_R"
-								fill="none"
-							/>
-							<circle
-								class="savings-ring-fill"
-								cx="22"
-								cy="22"
-								:r="SAVE_R"
-								fill="none"
-								:stroke="item.color"
-								:stroke-dasharray="SAVE_CIRC"
-								:stroke-dashoffset="item.offset"
-							/>
-						</svg>
-						<span class="savings-ring-pct" :style="{ color: item.color }">
-							{{ item.percent }}%
+			<div class="savings-card">
+				<span
+					class="savings-icon-wrap bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300"
+				>
+					<BanknotesIcon class="savings-icon" />
+				</span>
+				<div class="savings-main">
+					<p class="savings-name">Savings</p>
+					<p class="savings-amount">
+						<span class="savings-saved"
+							>₱{{ savingsSaved.toLocaleString("en-PH") }}</span
+						>
+						<span class="savings-target">
+							of ₱{{ savingsTarget.toLocaleString("en-PH") }}
 						</span>
-					</div>
+					</p>
+				</div>
+				<div class="savings-ring-wrap">
+					<svg class="savings-ring" viewBox="0 0 44 44" aria-hidden="true">
+						<circle
+							class="savings-ring-track"
+							cx="22"
+							cy="22"
+							:r="SAVE_R"
+							fill="none"
+						/>
+						<circle
+							class="savings-ring-fill"
+							cx="22"
+							cy="22"
+							:r="SAVE_R"
+							fill="none"
+							:stroke="SAVINGS_COLOR"
+							:stroke-dasharray="SAVE_CIRC"
+							:stroke-dashoffset="savingsRingOffset"
+						/>
+					</svg>
+					<span class="savings-ring-pct" :style="{ color: SAVINGS_COLOR }">
+						{{ savingsPercent }}%
+					</span>
 				</div>
 			</div>
-			<p v-else class="savings-empty">No savings items yet</p>
 		</GlassContainer>
 
 		<template v-if="activeCutoff">
 			<Divider margin-top="0" margin-bottom="0" />
 
-			<GlassContainer class="budget-others-section">
-				<div
-					v-for="row in budgetOthersRows"
-					:key="row.name"
-					class="budget-others-row"
-				>
-					<p class="budget-others-name">{{ row.name }}</p>
-					<p class="budget-others-allocated">
-						₱{{ row.allocated.toLocaleString("en-PH") }}
-					</p>
-					<div class="budget-others-meta">
-						<span class="budget-others-spent"
-							>-₱{{ row.spent.toLocaleString("en-PH") }} spent</span
-						>
-						<span class="budget-others-pct">{{ row.percent }}%</span>
+			<GlassContainer class="child-items-section">
+				<div v-for="row in budgetOthersRows" :key="row.name" class="child-item-row">
+					<p class="child-item-name">{{ row.name }}</p>
+					<div class="child-item-head">
+						<p class="child-item-label">
+							Alloted:
+							<span class="child-item-budget"
+								>₱{{ row.allocated.toLocaleString("en-PH") }}</span
+							>
+						</p>
+						<div class="child-item-spent-meta">
+							<p class="child-item-spent-amount">
+								₱{{ row.spent.toLocaleString("en-PH") }}
+							</p>
+							<p class="child-item-pct">( {{ row.percent }}% ) spent</p>
+						</div>
 					</div>
-					<div class="budget-others-track">
+					<div class="child-item-track">
 						<div
-							class="budget-others-fill"
+							class="child-item-fill"
 							:style="{
 								width: row.percent + '%',
 								background: progressFillColor(row.percent),
@@ -658,6 +607,75 @@
 						/>
 					</div>
 				</div>
+			</GlassContainer>
+		</template>
+
+		<template v-if="activeCutoff && childItemRows.length">
+			<Divider margin-top="0" margin-bottom="0" />
+
+			<GlassContainer class="child-items-section">
+				<div v-for="row in childItemRows" :key="row.id" class="child-item-row">
+					<p class="child-item-name">{{ row.name }}</p>
+					<div class="child-item-head">
+						<p class="child-item-label">
+							Alloted:
+							<span class="child-item-budget"
+								>₱{{ row.amount.toLocaleString("en-PH") }}</span
+							>
+						</p>
+						<div class="child-item-spent-meta">
+							<p class="child-item-spent-amount">
+								₱{{ row.childrenSpent.toLocaleString("en-PH") }}
+							</p>
+							<p class="child-item-pct">( {{ row.percent }}% ) spent</p>
+						</div>
+					</div>
+					<div class="child-item-track">
+						<div
+							class="child-item-fill"
+							:style="{
+								width: row.percent + '%',
+								background: progressFillColor(row.percent),
+							}"
+						/>
+					</div>
+				</div>
+			</GlassContainer>
+		</template>
+
+		<template v-if="activeCutoff && recentItems.length">
+			<Divider margin-top="0" margin-bottom="0" />
+
+			<GlassContainer class="recent-items-section">
+				<p class="recent-items-title">Recent Items</p>
+				<ul class="recent-items-list">
+					<li
+						v-for="item in visibleRecentItems"
+						:key="item.id"
+						class="recent-item-row"
+					>
+						<span class="recent-item-name">{{ item.name }}</span>
+						<span class="recent-item-amount"
+							>₱{{ item.amount.toLocaleString("en-PH") }}</span
+						>
+					</li>
+				</ul>
+				<button
+					v-if="hasMoreRecentItems && !showAllRecentItems"
+					type="button"
+					class="recent-items-more"
+					@click="showAllRecentItems = true"
+				>
+					Show more
+				</button>
+				<button
+					v-if="hasMoreRecentItems && showAllRecentItems"
+					type="button"
+					class="recent-items-more"
+					@click="showAllRecentItems = false"
+				>
+					Show less
+				</button>
 			</GlassContainer>
 		</template>
 	</div>
@@ -900,12 +918,6 @@
 		max-width: 480px;
 	}
 
-	.savings-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
 	.savings-card {
 		display: flex;
 		align-items: center;
@@ -990,13 +1002,7 @@
 		font-weight: 700;
 	}
 
-	.savings-empty {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--color-textSecondary);
-	}
-
-	.budget-others-section {
+	.child-items-section {
 		width: 100%;
 		max-width: 480px;
 		display: flex;
@@ -1004,55 +1010,120 @@
 		gap: 1rem;
 	}
 
-	.budget-others-row {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-	}
-
-	.budget-others-name {
-		margin: 0;
+	.child-item-name {
+		margin: 0 0 0.35rem;
 		font-size: 0.9rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
 
-	.budget-others-allocated {
-		margin: 0.15rem 0 0;
-		font-size: 0.8rem;
-		color: var(--color-textSecondary);
-	}
-
-	.budget-others-meta {
+	.child-item-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		margin-bottom: 0.25rem;
 	}
 
-	.budget-others-spent {
+	.child-item-label {
+		margin: 0;
 		font-size: 0.85rem;
 		color: var(--color-textSecondary);
 	}
 
-	.budget-others-pct {
+	.child-item-budget {
+		font-weight: 700;
+		font-size: 0.95rem;
+		color: var(--color-textPrimary);
+	}
+
+	.child-item-spent-meta {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.5rem;
+	}
+
+	.child-item-spent-amount {
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--color-textPrimary);
+	}
+
+	.child-item-pct {
+		margin: 0;
 		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
 
-	.budget-others-track {
+	.child-item-track {
 		height: 0.5rem;
 		border-radius: 9999px;
 		background: var(--color-inputBorder);
 		overflow: hidden;
 	}
 
-	.budget-others-fill {
+	.child-item-fill {
 		height: 100%;
 		border-radius: 9999px;
 		transition:
 			width 0.2s,
 			background-color 0.2s;
+	}
+
+	.recent-items-section {
+		width: 100%;
+		max-width: 480px;
+	}
+
+	.recent-items-title {
+		margin: 0 0 0.85rem;
+		font-size: 1.2rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.recent-items-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+	}
+
+	.recent-item-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.recent-item-name {
+		min-width: 0;
+		font-size: 0.9rem;
+		color: var(--color-textPrimary);
+	}
+
+	.recent-item-amount {
+		flex-shrink: 0;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.recent-items-more {
+		display: block;
+		width: 100%;
+		margin-top: 0.85rem;
+		padding: 0;
+		border: none;
+		background: none;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-info);
+		cursor: pointer;
+		text-align: center;
 	}
 </style>
