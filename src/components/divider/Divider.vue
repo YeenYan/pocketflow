@@ -18,10 +18,11 @@
 <style scoped>
 	.divider {
 		width: 80%;
-		height: 0.8px;
+		height: 1px;
+		min-height: 1px;
+		flex-shrink: 0;
 		margin-left: auto;
 		margin-right: auto;
-		background: var(--color-inputBorder);
-		opacity: 0.7;
+		background: color-mix(in srgb, var(--color-inputBorder) 40%, transparent);
 	}
 </style>

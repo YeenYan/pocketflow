@@ -8,6 +8,7 @@ import ReportsPage from './pages/reports/ReportsPage.vue'
 import MePage from './pages/me/MePage.vue'
 import AccountPage from './pages/me/AccountPage.vue'
 import ItemsPage from './pages/me/ItemsPage.vue'
+import SavingsPage from './pages/me/SavingsPage.vue'
 import ChatPage from './pages/chat/ChatPage.vue'
 import OnboardingPage from './pages/auth/OnboardingPage.vue'
 import LockScreen from './pages/auth/LockScreen.vue'
@@ -27,6 +28,7 @@ const router = createRouter({
     { path: '/me', component: MePage },
     { path: '/me/account', component: AccountPage },
     { path: '/me/items', component: ItemsPage },
+    { path: '/me/savings', component: SavingsPage },
     { path: '/chat', component: ChatPage },
     { path: '/onboarding', component: OnboardingPage },
     { path: '/lock', component: LockScreen },

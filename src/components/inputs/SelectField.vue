@@ -15,8 +15,9 @@
 			}[];
 			placeholder?: string;
 			disabled?: boolean;
+			menuZIndex?: number;
 		}>(),
-		{ placeholder: "Select", disabled: false },
+		{ placeholder: "Select", disabled: false, menuZIndex: 50 },
 	);
 
 	const model = defineModel<string>({ default: "" });
@@ -115,7 +116,13 @@
 		</button>
 
 		<Teleport to="body">
-			<div v-if="open" ref="menuRef" class="menu" :style="menuStyle" @click.stop>
+			<div
+				v-if="open"
+				ref="menuRef"
+				class="menu"
+				:style="{ ...menuStyle, zIndex: menuZIndex }"
+				@click.stop
+			>
 				<input
 					v-model="query"
 					type="text"

@@ -1,7 +1,11 @@
 <script setup lang="ts">
 	import { onMounted, ref } from "vue";
 	import { useRouter } from "vue-router";
-	import { ChevronRightIcon, BookOpenIcon } from "@heroicons/vue/24/outline";
+	import {
+		ChevronRightIcon,
+		BookOpenIcon,
+		BanknotesIcon,
+	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
 	import { db } from "../../db/budgetDb";
@@ -9,12 +13,16 @@
 	const router = useRouter();
 	const displayName = ref("");
 	const photoUrl = ref("");
+	const itemsCount = ref(0);
 
 	onMounted(async () => {
 		const profile = await db.userProfiles.get(1);
-		if (!profile) return;
-		displayName.value = profile.displayName;
-		photoUrl.value = profile.photoUrl || "";
+		if (profile) {
+			displayName.value = profile.displayName;
+			photoUrl.value = profile.photoUrl || "";
+		}
+		const items = await db.itemBuilders.toArray();
+		itemsCount.value = items.filter((item) => item.isActive).length;
 	});
 </script>
 
@@ -37,13 +45,23 @@
 
 		<Divider />
 
-		<GlassContainer class="menu-card" @click="router.push('/me/items')">
-			<span class="icon-box">
-				<BookOpenIcon class="menu-icon" />
-			</span>
-			<span class="menu-label">My Items</span>
-			<ChevronRightIcon class="chevron" />
-		</GlassContainer>
+		<div class="menu-grid">
+			<GlassContainer class="menu-tile is-clickable" @click="router.push('/me/items')">
+				<span class="tile-icon-box tile-icon-box-items">
+					<BookOpenIcon class="tile-icon" />
+				</span>
+				<p class="tile-title">My Items</p>
+				<p class="tile-subtitle">{{ itemsCount }} items | Manage</p>
+			</GlassContainer>
+
+			<GlassContainer class="menu-tile is-clickable" @click="router.push('/me/savings')">
+				<span class="tile-icon-box tile-icon-box-savings">
+					<BanknotesIcon class="tile-icon" />
+				</span>
+				<p class="tile-title">My Savings</p>
+				<p class="tile-subtitle">Track | Goals</p>
+			</GlassContainer>
+		</div>
 	</div>
 </template>
 
@@ -121,37 +139,69 @@
 		height: 1rem;
 	}
 
-	.menu-card {
-		display: flex;
-		align-items: center;
+	.menu-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.75rem;
 		width: 100%;
-		cursor: pointer;
-		box-shadow: none;
 	}
 
-	.icon-box {
+	.menu-tile {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.625rem;
+		aspect-ratio: 1;
+		box-shadow: none;
+		text-align: center;
+	}
+
+	.menu-tile.is-clickable {
+		cursor: pointer;
+	}
+
+	.tile-icon-box {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 2.25rem;
-		height: 2.25rem;
-		border-radius: 0.5rem;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 0.625rem;
 		flex-shrink: 0;
+	}
+
+	.tile-icon-box-items {
 		background: rgba(59, 130, 246, 0.15);
 	}
 
-	.menu-icon {
-		width: 1.25rem;
-		height: 1.25rem;
+	.tile-icon-box-items .tile-icon {
 		color: #3b82f6;
 	}
 
-	.menu-label {
-		flex: 1;
-		font-size: 0.95rem;
-		font-weight: 500;
+	.tile-icon-box-savings {
+		background: rgba(16, 185, 129, 0.15);
+	}
+
+	.tile-icon-box-savings .tile-icon {
+		color: #10b981;
+	}
+
+	.tile-icon {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.tile-title {
+		margin: 0;
+		font-size: 0.9375rem;
+		font-weight: 600;
 		color: var(--color-textPrimary);
-		text-align: left;
+	}
+
+	.tile-subtitle {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
 	}
 </style>
