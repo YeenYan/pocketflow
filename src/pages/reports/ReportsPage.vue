@@ -96,7 +96,26 @@
 		});
 	});
 
-	const overallCutoffBudget = computed(() => selectedCutoff.value?.amount ?? 0);
+	const overallCutoffBudget = computed(() => {
+		const c = selectedCutoff.value;
+		if (!c) return 0;
+		return c.amount + (c.carryOverAmount ?? 0);
+	});
+
+	const incomingCarryOver = computed(
+		() => selectedCutoff.value?.carryOverAmount ?? 0,
+	);
+
+	const outgoingCarryOver = computed(() =>
+		Math.max(0, totalAllotted.value - totalSpent.value),
+	);
+
+	const outgoingCarryOverLabel = computed(() => {
+		const decision = selectedCutoff.value?.carryOverDecision;
+		if (decision === "used") return "Used in next cutoff";
+		if (decision === "declined") return "Not used";
+		return "Available";
+	});
 
 	const totalAllotted = computed(() => {
 		const c = selectedCutoff.value;
@@ -188,10 +207,21 @@
 
 			<template v-else>
 				<GlassContainer class="overall-budget mb-4">
-					<span class="overall-budget-label">Overall Budget Allotted</span>
-					<span class="overall-budget-amount">{{
-						formatAmount(overallCutoffBudget)
-					}}</span>
+					<div class="overall-budget-top">
+						<span class="overall-budget-label">Overall Budget Allotted</span>
+						<span class="overall-budget-amount">{{
+							formatAmount(overallCutoffBudget)
+						}}</span>
+					</div>
+					<p v-if="incomingCarryOver > 0" class="carry-detail">
+						Carry over from previous cutoff:
+						{{ formatAmount(incomingCarryOver) }}
+					</p>
+					<p v-if="outgoingCarryOver > 0" class="carry-detail">
+						Carry over to next cutoff:
+						{{ formatAmount(outgoingCarryOver) }}
+						<span class="carry-status">({{ outgoingCarryOverLabel }})</span>
+					</p>
 				</GlassContainer>
 				<div class="summary-row mb-4">
 					<GlassContainer class="summary">
@@ -387,9 +417,25 @@
 
 	.overall-budget {
 		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.overall-budget-top {
+		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
 		gap: 0.75rem;
+	}
+
+	.carry-detail {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
+	}
+
+	.carry-status {
+		color: var(--color-textSecondary);
 	}
 
 	.overall-budget-label {

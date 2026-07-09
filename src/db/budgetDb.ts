@@ -40,6 +40,8 @@ export interface CycleCutoff {
 	createdAt: string;
 	status?: "active" | "finalized";
 	finalizedAt?: string;
+	carryOverAmount?: number;
+	carryOverDecision?: "used" | "declined";
 }
 
 export interface ItemBuilder {

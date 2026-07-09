@@ -6,6 +6,7 @@
 		budgetTitle: string;
 		displayCutoffDate: string;
 		displayAmount: string;
+		displayAmountDetail: string;
 		displaySpendBudget: string;
 		displaySpent: string;
 		progressPercent: number;
@@ -38,9 +39,14 @@
 		<p class="mb-0 text-xs text-textSecondary">
 			Cutoff Date: {{ displayCutoffDate }}
 		</p>
-		<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
-			{{ displayAmount }}
-		</p>
+		<div class="amount-row">
+			<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
+				{{ displayAmount }}
+			</p>
+			<p v-if="displayAmountDetail" class="amount-detail">
+				{{ displayAmountDetail }}
+			</p>
+		</div>
 		<!-- <p class="mt-[0.15rem] mb-0 text-[0.85rem] text-textSecondary">
 			Spend budget {{ displaySpendBudget }}
 		</p> -->
@@ -72,4 +78,17 @@
 
 <style scoped>
 	@import "./shared.css";
+
+	.amount-row {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.5rem;
+	}
+
+	.amount-detail {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
+	}
 </style>
