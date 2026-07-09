@@ -3,6 +3,7 @@
 	import { useRouter } from "vue-router";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import FadeIn from "../../components/containers/FadeIn.vue";
+	import { db, type RuleName } from "../../db/budgetDb";
 
 	const router = useRouter();
 	const input = ref("");
@@ -10,6 +11,297 @@
 	const loading = ref(false);
 	const error = ref("");
 	const messagesEl = ref<HTMLElement | null>(null);
+
+	async function buildBudgetContext() {
+		const profile = await db.userProfiles.get(1);
+		const cutoffs = await db.cycleCutoffs.toArray();
+		const budgetEntries = await db.budgetEntries.toArray();
+		const itemBuilders = await db.itemBuilders.toArray();
+		const tabBudgets = await db.tabBudgets.toArray();
+		const tabBudgetExpenses = await db.tabBudgetExpenses.toArray();
+		const othersBudgets = await db.othersBudgets.toArray();
+		const othersExpenses = await db.othersExpenses.toArray();
+
+		const lines: string[] = [];
+		if (profile?.displayName) {
+			lines.push(`User: ${profile.displayName}`);
+		}
+
+		const sortedCutoffs = [...cutoffs].sort((a, b) =>
+			a.createdAt.localeCompare(b.createdAt),
+		);
+		if (!sortedCutoffs.length) {
+			lines.push("No cutoffs found.");
+			return lines.join("\n");
+		}
+
+		const ruleNames: RuleName[] = ["Expenses", "Savings", "Wants"];
+		const byYear: Record<
+			string,
+			{
+				cutoffCount: number;
+				income: number;
+				expensesAllotted: number;
+				expensesSpent: number;
+				savingsAllotted: number;
+				savingsSpent: number;
+				wantsAllotted: number;
+				wantsSpent: number;
+				overspentCutoffs: number;
+			}
+		> = {};
+		const cutoffBlocks: string[][] = [];
+
+		for (const cutoff of sortedCutoffs) {
+			const cutoffId = cutoff.id;
+			const tabSpent = tabBudgetExpenses
+				.filter((e) => e.cutoffId === cutoffId && e.ruleName === "Expenses")
+				.reduce((sum, e) => sum + e.amount, 0);
+			const othersSpent = othersExpenses
+				.filter((e) => e.cutoffId === cutoffId)
+				.reduce((sum, e) => sum + e.amount, 0);
+			const year = cutoff.monthKey.slice(0, 4);
+			if (!byYear[year]) {
+				byYear[year] = {
+					cutoffCount: 0,
+					income: 0,
+					expensesAllotted: 0,
+					expensesSpent: 0,
+					savingsAllotted: 0,
+					savingsSpent: 0,
+					wantsAllotted: 0,
+					wantsSpent: 0,
+					overspentCutoffs: 0,
+				};
+			}
+			const yearTotals = byYear[year];
+			yearTotals.cutoffCount += 1;
+			yearTotals.income += cutoff.amount;
+
+			const block: string[] = [];
+			const status = cutoff.status === "finalized" ? "finalized" : "active";
+			block.push(`--- ${cutoff.label} · ${cutoff.monthKey} (${status}) ---`);
+			block.push(`Income: ₱${cutoff.amount.toLocaleString("en-PH")}`);
+
+			let expensesAllotted = 0;
+			let expensesSpent = 0;
+			let wantsAllotted = 0;
+			let wantsSpent = 0;
+
+			for (const rule of ruleNames) {
+				const allotted = cutoff.allocations?.[rule]?.amount ?? 0;
+				const entriesSum = budgetEntries
+					.filter(
+						(e) =>
+							e.cutoffId === cutoffId &&
+							e.ruleName === rule &&
+							!e.parentBudgetEntryId,
+					)
+					.reduce((sum, e) => sum + e.amount, 0);
+				const spent =
+					rule === "Expenses" ? entriesSum + tabSpent + othersSpent : entriesSum;
+				block.push(
+					`${rule}: allotted ₱${allotted.toLocaleString("en-PH")}, spent ₱${spent.toLocaleString("en-PH")}`,
+				);
+				if (rule === "Expenses") {
+					expensesAllotted = allotted;
+					expensesSpent = spent;
+					yearTotals.expensesAllotted += allotted;
+					yearTotals.expensesSpent += spent;
+				} else if (rule === "Savings") {
+					yearTotals.savingsAllotted += allotted;
+					yearTotals.savingsSpent += spent;
+				} else {
+					wantsAllotted = allotted;
+					wantsSpent = spent;
+					yearTotals.wantsAllotted += allotted;
+					yearTotals.wantsSpent += spent;
+				}
+			}
+
+			if (expensesSpent > expensesAllotted || wantsSpent > wantsAllotted) {
+				yearTotals.overspentCutoffs += 1;
+			}
+			cutoffBlocks.push(block);
+		}
+
+		lines.push("Yearly totals (pre-computed):");
+		for (const year of Object.keys(byYear).sort()) {
+			const y = byYear[year];
+			lines.push(`${year} (${y.cutoffCount} cutoffs):`);
+			lines.push(`- Income: ₱${y.income.toLocaleString("en-PH")}`);
+			lines.push(
+				`- Expenses: allotted ₱${y.expensesAllotted.toLocaleString("en-PH")}, spent ₱${y.expensesSpent.toLocaleString("en-PH")}`,
+			);
+			lines.push(
+				`- Savings: allotted ₱${y.savingsAllotted.toLocaleString("en-PH")}, saved ₱${y.savingsSpent.toLocaleString("en-PH")}`,
+			);
+			lines.push(
+				`- Wants: allotted ₱${y.wantsAllotted.toLocaleString("en-PH")}, spent ₱${y.wantsSpent.toLocaleString("en-PH")}`,
+			);
+			lines.push(`- Cutoffs over budget: ${y.overspentCutoffs}`);
+		}
+
+		lines.push("");
+		lines.push("Recent cutoffs (last 6):");
+		for (const block of cutoffBlocks.slice(-6)) {
+			lines.push(...block);
+		}
+
+		const activeList = cutoffs.filter((c) => c.status !== "finalized");
+		const activeCutoff =
+			activeList.length === 0
+				? null
+				: activeList.reduce((latest, c) =>
+						!latest || c.createdAt > latest.createdAt ? c : latest,
+					);
+
+		if (!activeCutoff) {
+			return lines.join("\n");
+		}
+
+		const cutoffId = activeCutoff.id;
+		lines.push("");
+		lines.push("Active cutoff detail:");
+		lines.push(`Active cutoff month: ${activeCutoff.monthKey}`);
+		lines.push(
+			`Active cutoff: ${activeCutoff.label}, total income ₱${activeCutoff.amount.toLocaleString("en-PH")}`,
+		);
+		if (activeCutoff.date) {
+			lines.push(`Cutoff date: ${activeCutoff.date}`);
+		}
+
+		const tabBudget = tabBudgets.find(
+			(b) => b.cutoffId === cutoffId && b.ruleName === "Expenses",
+		);
+		const tabExpenses = tabBudgetExpenses.filter(
+			(e) => e.cutoffId === cutoffId && e.ruleName === "Expenses",
+		);
+		const tabAllocated = tabBudget?.budgetAllocated ?? 0;
+		const tabSpent = tabExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+		const othersBudget = othersBudgets.find((b) => b.cutoffId === cutoffId);
+		const othersExpenseList = othersExpenses.filter((e) => e.cutoffId === cutoffId);
+		const othersAllocated = othersBudget?.budgetAllocated ?? 0;
+		const othersSpent = othersExpenseList.reduce((sum, e) => sum + e.amount, 0);
+
+		const expensesEntriesSum = budgetEntries
+			.filter(
+				(e) =>
+					e.cutoffId === cutoffId &&
+					e.ruleName === "Expenses" &&
+					!e.parentBudgetEntryId,
+			)
+			.reduce((sum, e) => sum + e.amount, 0);
+		const wantsEntriesSum = budgetEntries
+			.filter(
+				(e) =>
+					e.cutoffId === cutoffId &&
+					e.ruleName === "Wants" &&
+					!e.parentBudgetEntryId,
+			)
+			.reduce((sum, e) => sum + e.amount, 0);
+		const spendBudgetAllotted =
+			(activeCutoff.allocations?.Expenses?.amount ?? 0) +
+			(activeCutoff.allocations?.Wants?.amount ?? 0);
+		const spendBudgetSpent =
+			expensesEntriesSum + wantsEntriesSum + tabSpent + othersSpent;
+		const spendBudgetRemaining = Math.max(
+			0,
+			spendBudgetAllotted - spendBudgetSpent,
+		);
+		lines.push(
+			`Spend budget remaining (Expenses + Wants): ₱${spendBudgetRemaining.toLocaleString("en-PH")} of ₱${spendBudgetAllotted.toLocaleString("en-PH")} allotted (₱${spendBudgetSpent.toLocaleString("en-PH")} spent)`,
+		);
+
+		for (const rule of ruleNames) {
+			const allotted = activeCutoff.allocations?.[rule]?.amount ?? 0;
+			const entriesSum = budgetEntries
+				.filter(
+					(e) =>
+						e.cutoffId === cutoffId &&
+						e.ruleName === rule &&
+						!e.parentBudgetEntryId,
+				)
+				.reduce((sum, e) => sum + e.amount, 0);
+			const spent =
+				rule === "Expenses" ? entriesSum + tabSpent + othersSpent : entriesSum;
+			const left = Math.max(0, allotted - spent);
+			lines.push(
+				`${rule}: allotted ₱${allotted.toLocaleString("en-PH")}, spent ₱${spent.toLocaleString("en-PH")}, remaining ₱${left.toLocaleString("en-PH")}`,
+			);
+		}
+
+		lines.push(
+			`Budget for this Cutoff: allotted ₱${tabAllocated.toLocaleString("en-PH")}, spent ₱${tabSpent.toLocaleString("en-PH")}`,
+		);
+		lines.push(
+			`Budget for Other expenses: allotted ₱${othersAllocated.toLocaleString("en-PH")}, spent ₱${othersSpent.toLocaleString("en-PH")}`,
+		);
+
+		const mainItems = budgetEntries.filter(
+			(e) => e.cutoffId === cutoffId && !e.parentBudgetEntryId,
+		);
+		if (mainItems.length) {
+			lines.push("Main items:");
+			for (const entry of mainItems) {
+				const builder = entry.itemBuilderId
+					? itemBuilders.find((item) => item.id === entry.itemBuilderId)
+					: itemBuilders.find((item) => item.name === entry.name);
+				const name = builder?.name ?? entry.name;
+				let itemLine = `- ${name} (${entry.ruleName}): ₱${entry.amount.toLocaleString("en-PH")}`;
+				if (builder?.hasChildItems) {
+					const childrenSpent = budgetEntries
+						.filter((child) => child.parentBudgetEntryId === entry.id)
+						.reduce((sum, child) => sum + child.amount, 0);
+					itemLine += `, child items used ₱${childrenSpent.toLocaleString("en-PH")}`;
+				}
+				lines.push(itemLine);
+			}
+		}
+
+		const recent: Array<{
+			name: string;
+			amount: number;
+			createdAt: string;
+		}> = [];
+		for (const entry of budgetEntries) {
+			if (entry.cutoffId !== cutoffId) continue;
+			const builder = entry.itemBuilderId
+				? itemBuilders.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.find((item) => item.name === entry.name);
+			recent.push({
+				name: builder?.name ?? entry.name,
+				amount: entry.amount,
+				createdAt: entry.createdAt,
+			});
+		}
+		for (const expense of tabExpenses) {
+			recent.push({
+				name: expense.expenseName,
+				amount: expense.amount,
+				createdAt: expense.createdAt,
+			});
+		}
+		for (const expense of othersExpenseList) {
+			recent.push({
+				name: expense.expenseName,
+				amount: expense.amount,
+				createdAt: expense.createdAt,
+			});
+		}
+		recent.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+		if (recent.length) {
+			lines.push("Recent items:");
+			for (const item of recent.slice(0, 10)) {
+				lines.push(
+					`- ${item.name}: ₱${item.amount.toLocaleString("en-PH")}`,
+				);
+			}
+		}
+
+		return lines.join("\n");
+	}
 
 	async function sendMessage() {
 		const text = input.value.trim();
@@ -22,10 +314,11 @@
 		await scrollToBottom();
 
 		try {
+			const context = await buildBudgetContext();
 			const response = await fetch("/api/chat", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ messages: messages.value }),
+				body: JSON.stringify({ messages: messages.value, context }),
 			});
 
 			const data = await response.json();
@@ -73,7 +366,7 @@
 			<FadeIn v-if="messages.length === 0" :delay="80">
 				<div class="welcome">
 					<h2>How can I help with your finances today?</h2>
-					<p>Ask about budgeting, saving, debt, or spending habits.</p>
+					<p>Ask about your budget, spending, savings, or habits.</p>
 				</div>
 			</FadeIn>
 

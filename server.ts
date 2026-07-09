@@ -10,7 +10,7 @@ const isProd = process.argv.includes("--prod");
 const env = loadEnv(isProd ? "production" : "development", __dirname, "");
 
 const SYSTEM_PROMPT =
-	"You are Pocketflow's personal finance assistant. Give practical, clear advice on budgeting, saving, debt, and spending habits. Use plain language. Do not give legal or tax advice — suggest consulting a professional for that. If the user shares numbers, help them reason about tradeoffs; do not invent account data.";
+	"You are Pocketflow's personal finance assistant built into the user's budgeting app. The app sends you their real budget records in each request, including pre-computed yearly totals. You MUST answer budget questions using those records. Never say you cannot access their data, that you are only text-based, or that they need to share numbers you already have. Use the pre-computed yearly totals for year analysis instead of recalculating totals yourself. Use plain language. Do not give legal or tax advice. Never ask for or reference PINs, passwords, lock settings, or other credentials.";
 
 const app = express();
 const server = http.createServer(app);
@@ -23,11 +23,27 @@ app.post("/api/chat", async (req, res) => {
 		return;
 	}
 
-	const { messages } = req.body as { messages?: unknown };
+	const { messages, context } = req.body as {
+		messages?: unknown;
+		context?: unknown;
+	};
 	if (!Array.isArray(messages)) {
 		res.status(400).json({ error: "messages must be an array" });
 		return;
 	}
+
+	const systemContent =
+		typeof context === "string" && context.trim()
+			? `${SYSTEM_PROMPT}\n\n--- Pocketflow budget records (use these figures) ---\n${context}\n--- End of records ---`
+			: `${SYSTEM_PROMPT}\n\nNo budget records were provided for this message. Tell the user you could not load their cutoff data and suggest they open the Tracker and confirm an active cutoff is set.`;
+
+	const chatMessages = messages.filter(
+		(m): m is { role: string; content: string } =>
+			!!m &&
+			typeof m === "object" &&
+			(m as { role?: string }).role !== "system" &&
+			typeof (m as { content?: string }).content === "string",
+	);
 
 	try {
 		const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -38,7 +54,7 @@ app.post("/api/chat", async (req, res) => {
 			},
 			body: JSON.stringify({
 				model: "llama-3.3-70b-versatile",
-				messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+				messages: [{ role: "system", content: systemContent }, ...chatMessages],
 			}),
 		});
 
