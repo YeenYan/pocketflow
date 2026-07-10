@@ -329,6 +329,10 @@
 	}
 
 	.pill.active {
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pill.active {
 		background: var(--color-textPrimary);
 	}
 
@@ -375,6 +379,10 @@
 	}
 
 	.pin-dot.filled {
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pin-dot.filled {
 		background: var(--color-textPrimary);
 	}
 

@@ -21,15 +21,15 @@
 	--color-danger: var(--color-red-600);
 	--color-info: var(--color-sky-600);
 	--color-accent: var(--color-emerald-500);
-	--color-muted: var(--color-slate-400);
+	--color-muted: var(--color-slate-500);
 
 	--color-surfaceHover: var(--color-slate-100);
 	--color-surfaceActive: var(--color-slate-200);
 	--color-accentBg: var(--color-emerald-100);
 	--color-accentText: var(--color-emerald-700);
-	--color-inputBg: var(--color-slate-50);
+	--color-inputBg: #ffffff;
 	--color-inputBorder: var(--color-slate-300);
-	--color-inputText: var(--color-slate-700);
+	--color-inputText: var(--color-slate-800);
 
 	--color-overlay: oklch(0.13 0.03 256 / 0.5);
 	--color-onColor: #ffffff;
@@ -57,12 +57,17 @@
 	--color-progress-orange: var(--color-orange-500);
 	--color-progress-red: var(--color-red-500);
 
-	--color-glass-bg: rgb(255 255 255 / 0.45);
-	--color-glass-border: rgb(255 255 255 / 0.65);
-	--shadow-glass: 0 8px 32px rgb(15 23 42 / 0.08);
+	--color-glass-bg: rgb(255 255 255 / 0.88);
+	--color-glass-border: rgb(148 163 184 / 0.35);
+	--shadow-glass: 0 8px 28px rgb(15 23 42 / 0.1);
 	--blur-glass: 20px;
-	--color-blob-a: rgb(167 139 250 / 0.35);
-	--color-blob-b: rgb(244 114 182 / 0.3);
+	--color-blob-a: rgb(167 139 250 / 0.28);
+	--color-blob-b: rgb(244 114 182 / 0.22);
+}
+
+/* Light-mode fill for solid black controls (tabs, primary actions, etc.) */
+:root {
+	--gradient-fill: linear-gradient(to top right, #5b21b6 0%, #c4b5fd 100%);
 }
 
 .dark {

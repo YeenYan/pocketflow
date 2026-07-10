@@ -136,11 +136,11 @@
 				</p>
 
 				<div class="flex flex-col gap-2 text-sm">
-					<div class="flex justify-between text-white">
+					<div class="flex justify-between text-textSecondary">
 						<span>Allotted budget</span>
 						<span class="font-semibold text-textPrimary">{{ allotted }}</span>
 					</div>
-					<div class="flex justify-between text-white">
+					<div class="flex justify-between text-textSecondary">
 						<span>Overall excess</span>
 						<span class="font-semibold text-progress-red">
 							{{ excess }} ({{ excessPercent }}%)
@@ -161,7 +161,7 @@
 							<div v-else class="bg-progress-red rounded-full p-1">
 								<XMarkIcon class="h-4 w-4 text-white" />
 							</div>
-							<span class="text-white">{{ row.name }}</span>
+							<span class="text-textPrimary">{{ row.name }}</span>
 						</div>
 						<span
 							class="flex items-center gap-1 font-semibold"
@@ -289,6 +289,10 @@
 	}
 
 	.pin-dot.filled {
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pin-dot.filled {
 		background: var(--color-textPrimary);
 	}
 

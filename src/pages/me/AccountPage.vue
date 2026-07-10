@@ -678,6 +678,10 @@
 	}
 
 	.pin-dot.filled {
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pin-dot.filled {
 		background: var(--color-textPrimary);
 	}
 

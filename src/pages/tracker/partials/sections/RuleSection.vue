@@ -193,9 +193,10 @@
 		width: 100%;
 		margin: 0.5rem 0 0;
 		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--color-glass-border);
+		border: 1px solid var(--color-border);
 		border-radius: 0.5rem;
-		background: var(--color-glass-bg);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-sm);
 		color: var(--color-textPrimary);
 		font-size: 0.75rem;
 		font-weight: 600;
@@ -205,6 +206,12 @@
 	.extra-budget-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	:global(.dark) .extra-budget-btn {
+		background: var(--color-glass-bg);
+		border-color: var(--color-glass-border);
+		box-shadow: none;
 	}
 
 	.unexpected-spending-badge {

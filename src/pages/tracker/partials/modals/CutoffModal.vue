@@ -214,7 +214,7 @@
 		padding: 0.875rem 1.25rem;
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
-		background: transparent;
+		background: var(--color-inputBg);
 		color: var(--color-inputText);
 		font-size: 1rem;
 		font-family: inherit;
@@ -260,7 +260,7 @@
 		overflow: hidden;
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
-		background: rgb(255 255 255 / 0.04);
+		background: var(--color-inputBg);
 		touch-action: manipulation;
 	}
 
@@ -315,6 +315,10 @@
 		margin-top: -0.475rem;
 		border: none;
 		border-radius: 9999px;
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pct-slider::-webkit-slider-thumb {
 		background: var(--color-textPrimary);
 	}
 
@@ -330,6 +334,10 @@
 		height: 1.2rem;
 		border: none;
 		border-radius: 9999px;
+		background: var(--gradient-fill);
+	}
+
+	:global(.dark) .pct-slider::-moz-range-thumb {
 		background: var(--color-textPrimary);
 	}
 </style>

@@ -578,7 +578,7 @@
 		height: 36px;
 		border: none;
 		border-radius: 50%;
-		background: var(--color-textPrimary);
+		background: var(--gradient-fill);
 		color: var(--color-onColor);
 		font-size: 1.1rem;
 		cursor: pointer;
@@ -587,12 +587,21 @@
 		justify-content: center;
 	}
 
+	:global(.dark) .send-btn {
+		background: var(--color-textPrimary);
+	}
+
 	.send-btn:disabled {
 		background: var(--color-disabled);
 		cursor: not-allowed;
 	}
 
 	.send-btn:not(:disabled):hover {
+		filter: brightness(1.05);
+	}
+
+	:global(.dark) .send-btn:not(:disabled):hover {
+		filter: none;
 		background: var(--color-textSecondary);
 	}
 

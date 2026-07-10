@@ -42,6 +42,11 @@
 
 	.tab.active {
 		border-color: transparent;
+		background: var(--gradient-fill);
+		color: #ffffff;
+	}
+
+	:global(.dark) .tab.active {
 		background: var(--color-textPrimary);
 		color: var(--color-bg);
 	}

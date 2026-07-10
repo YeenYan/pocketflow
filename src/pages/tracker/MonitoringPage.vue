@@ -70,6 +70,11 @@
 		background: rgb(255 255 255 / 0.04);
 	}
 
+	:global(:root:not(.dark)) .monitoring-tabs {
+		background: var(--color-surface);
+		box-shadow: var(--shadow-sm);
+	}
+
 	.monitoring-tab {
 		flex: 1;
 		padding: 0.55rem 0.75rem;
@@ -84,6 +89,11 @@
 	}
 
 	.monitoring-tab.active {
+		background: var(--gradient-fill);
+		color: #ffffff;
+	}
+
+	:global(.dark) .monitoring-tab.active {
 		background: rgb(255 255 255 / 0.12);
 		color: var(--color-textPrimary);
 	}

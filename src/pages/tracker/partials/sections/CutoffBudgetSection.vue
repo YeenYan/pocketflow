@@ -53,12 +53,12 @@
 		<div class="flex items-center justify-between mb-[.]">
 			<p class="text-[0.85rem] text-textSecondary">
 				Budget:
-				<span class="text-white font-bold text-[.95rem]">{{
+				<span class="text-textPrimary font-bold text-[.95rem]">{{
 					displaySpendBudget
 				}}</span>
 			</p>
 			<div class="flex items-center justify-end gap-2">
-				<p class="text-white font-bold text-[.95rem]">
+				<p class="text-textPrimary font-bold text-[.95rem]">
 					{{ displaySpent }}
 				</p>
 				<p class="progress-pct">( {{ progressPercent }}% ) spent</p>

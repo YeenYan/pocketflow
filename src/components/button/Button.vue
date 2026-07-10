@@ -46,18 +46,28 @@
 	}
 
 	.btn.shade {
-		background: rgb(100 116 139 / 0.12);
+		background: var(--color-surface);
+		border-color: var(--color-border);
 		color: var(--color-textPrimary);
+		box-shadow: var(--shadow-sm);
 	}
 
 	:global(.dark) .btn.shade {
 		background: rgb(148 163 184 / 0.14);
+		border-color: transparent;
+		box-shadow: none;
 		color: var(--color-textPrimary);
 	}
 
 	.btn.primary {
 		background-color: var(--color-primaryDark);
+		background-image: var(--gradient-fill);
 		color: var(--color-onColor);
+	}
+
+	:global(.dark) .btn.primary {
+		background-image: none;
+		background-color: var(--color-primaryDark);
 	}
 
 	.btn.secondary {

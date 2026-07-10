@@ -182,7 +182,7 @@
 		padding: 0.875rem 1.25rem;
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
-		background: transparent;
+		background: var(--color-inputBg);
 		color: var(--color-inputText);
 		font-size: 1rem;
 		font-family: inherit;
