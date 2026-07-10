@@ -46,28 +46,32 @@
 	}
 
 	.btn.shade {
-		background: var(--color-surface);
-		border-color: var(--color-border);
+		background: rgb(148 163 184 / 0.2);
+		border-color: rgb(148 163 184 / 0.35);
 		color: var(--color-textPrimary);
-		box-shadow: var(--shadow-sm);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 	}
 
 	:global(.dark) .btn.shade {
-		background: rgb(148 163 184 / 0.14);
-		border-color: transparent;
-		box-shadow: none;
+		background: rgb(148 163 184 / 0.12);
+		border-color: rgb(255 255 255 / 0.14);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
 		color: var(--color-textPrimary);
 	}
 
 	.btn.primary {
-		background-color: var(--color-primaryDark);
 		background-image: var(--gradient-fill);
 		color: var(--color-onColor);
+		border-color: rgb(147 197 253 / 0.45);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
 	}
 
 	:global(.dark) .btn.primary {
-		background-image: none;
-		background-color: var(--color-primaryDark);
+		background-image: var(--gradient-fill);
+		border-color: rgb(147 197 253 / 0.35);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
 	}
 
 	.btn.secondary {

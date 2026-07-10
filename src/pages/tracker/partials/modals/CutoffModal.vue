@@ -219,6 +219,9 @@
 		font-size: 1rem;
 		font-family: inherit;
 		outline: none;
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
 	}
 
 	.field-input-date {
@@ -262,6 +265,9 @@
 		border: 1px solid var(--color-inputBorder);
 		background: var(--color-inputBg);
 		touch-action: manipulation;
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
 	}
 
 	.pct-stepper-btn {

@@ -63,6 +63,9 @@ function onInput(event: Event) {
 		border-radius: 9999px;
 		border: 1px solid var(--color-inputBorder);
 		background: var(--color-inputBg);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
 	}
 
 	.input-wrap:focus-within {
