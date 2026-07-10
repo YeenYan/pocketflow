@@ -10,6 +10,8 @@
 		type OthersExpense,
 		type TabBudgetExpense,
 		type RuleName,
+		type SavingsTransfer,
+		type RuleExtraBudget,
 	} from "../../db/budgetDb";
 
 	const RULE_ORDER: RuleName[] = ["Expenses", "Savings", "Wants"];
@@ -18,6 +20,8 @@
 	const budgetEntries = ref<BudgetEntry[]>([]);
 	const tabBudgetExpenses = ref<TabBudgetExpense[]>([]);
 	const othersExpenses = ref<OthersExpense[]>([]);
+	const savingsTransfers = ref<SavingsTransfer[]>([]);
+	const ruleExtraBudgets = ref<RuleExtraBudget[]>([]);
 	const selectedIndex = ref(0);
 
 	onMounted(async () => {
@@ -28,6 +32,8 @@
 		budgetEntries.value = await db.budgetEntries.toArray();
 		tabBudgetExpenses.value = await db.tabBudgetExpenses.toArray();
 		othersExpenses.value = await db.othersExpenses.toArray();
+		savingsTransfers.value = await db.savingsTransfers.toArray();
+		ruleExtraBudgets.value = await db.ruleExtraBudgets.toArray();
 		selectedIndex.value = Math.max(0, cutoffs.value.length - 1);
 	});
 
@@ -92,7 +98,34 @@
 			const diff = Math.abs(spent - allotted);
 			const percent = allotted > 0 ? Math.round((diff / allotted) * 100) : 0;
 			const good = name === "Savings" ? spent >= allotted : spent <= allotted;
-			return { name, allotted, spent, over, diff, percent, good, entries };
+			const savingsBoost =
+				name === "Expenses" || name === "Wants"
+					? savingsTransfers.value
+							.filter(
+								(transfer) =>
+									transfer.cutoffId === c.id && transfer.targetRule === name,
+							)
+							.reduce((sum, transfer) => sum + transfer.amount, 0)
+					: 0;
+			const extraBudget = ruleExtraBudgets.value
+				.filter((entry) => entry.cutoffId === c.id && entry.ruleName === name)
+				.reduce((sum, entry) => sum + entry.amount, 0);
+			const baseAllotted = Math.max(0, allotted - extraBudget - savingsBoost);
+			const hasBoost = extraBudget > 0 || savingsBoost > 0;
+			return {
+				name,
+				allotted,
+				baseAllotted,
+				spent,
+				over,
+				diff,
+				percent,
+				good,
+				entries,
+				savingsBoost,
+				extraBudget,
+				hasBoost,
+			};
 		});
 	});
 
@@ -148,6 +181,8 @@
 	);
 
 	const savingsTarget = computed(() => savingsRule.value?.allotted ?? 0);
+	const savingsBaseTarget = computed(() => savingsRule.value?.baseAllotted ?? 0);
+	const savingsExtraBudget = computed(() => savingsRule.value?.extraBudget ?? 0);
 	const savingsSaved = computed(() => savingsRule.value?.spent ?? 0);
 	const savingsHit = computed(() => savingsSaved.value >= savingsTarget.value);
 	const savingsDiff = computed(() =>
@@ -262,7 +297,15 @@
 					<GlassContainer class="summary">
 						<p class="summary-label">How much saved</p>
 						<p class="summary-spent">{{ formatAmount(savingsSaved) }}</p>
-						<p class="summary-allotted">Target {{ formatAmount(savingsTarget) }}</p>
+						<p class="summary-allotted">
+							Target {{ formatAmount(savingsBaseTarget) }}
+						</p>
+						<p v-if="savingsExtraBudget > 0" class="summary-allotted">
+							Extra budget {{ formatAmount(savingsExtraBudget) }}
+						</p>
+						<p v-if="savingsExtraBudget > 0" class="summary-allotted">
+							Total target {{ formatAmount(savingsTarget) }}
+						</p>
 						<div class="summary-gauge-wrap">
 							<svg class="summary-gauge" viewBox="0 0 200 120" aria-hidden="true">
 								<path class="summary-gauge-track" :d="gaugePath" fill="none" />
@@ -310,6 +353,20 @@
 					<div class="row">
 						<span class="text-textSecondary">
 							{{ rule.name === "Savings" ? "Target" : "Allotted" }}
+						</span>
+						<span class="strong">{{ formatAmount(rule.baseAllotted) }}</span>
+					</div>
+					<div v-if="rule.extraBudget > 0" class="row">
+						<span class="text-textSecondary">Extra budget</span>
+						<span class="strong">{{ formatAmount(rule.extraBudget) }}</span>
+					</div>
+					<div v-if="rule.savingsBoost > 0" class="row">
+						<span class="text-textSecondary">From savings</span>
+						<span class="strong">{{ formatAmount(rule.savingsBoost) }}</span>
+					</div>
+					<div v-if="rule.hasBoost" class="row">
+						<span class="text-textSecondary">
+							{{ rule.name === "Savings" ? "Total target" : "Total allotted" }}
 						</span>
 						<span class="strong">{{ formatAmount(rule.allotted) }}</span>
 					</div>

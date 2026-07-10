@@ -10,12 +10,16 @@
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
+	import AmountField from "../../components/inputs/AmountField.vue";
+	import Button from "../../components/button/Button.vue";
 	import Divider from "../../components/divider/Divider.vue";
 	import {
+		createId,
 		db,
 		type BudgetEntry,
 		type CycleCutoff,
 		type ItemBuilder,
+		type SavingsTransfer,
 	} from "../../db/budgetDb";
 
 	const router = useRouter();
@@ -151,9 +155,30 @@
 	const itemBuilders = ref<ItemBuilder[]>([]);
 	const budgetEntries = ref<BudgetEntry[]>([]);
 	const cutoffs = ref<CycleCutoff[]>([]);
+	const savingsTransfers = ref<SavingsTransfer[]>([]);
 	const showHistoryDrawer = ref(false);
+	const showItemDrawer = ref(false);
+	const showTransferModal = ref(false);
+	const showTransferConfirm = ref(false);
+	const showNoCutoffWarning = ref(false);
 	const historyFilter = ref("all");
 	const hideBalance = ref(true);
+	const selectedItem = ref<{
+		id: string;
+		name: string;
+		icon: string;
+		iconWrapClass: string;
+		totalSaved: number;
+	} | null>(null);
+	const transferRule = ref<"Expenses" | "Wants">("Expenses");
+	const transferAmount = ref("");
+	const transferError = ref("");
+	const savingTransfer = ref(false);
+
+	const transferRuleOptions = [
+		{ value: "Expenses", label: "Expenses" },
+		{ value: "Wants", label: "Wants" },
+	];
 
 	function iconWrapClass(color?: string) {
 		const value = color ?? DEFAULT_ITEM_COLOR;
@@ -249,11 +274,14 @@
 
 	const savingsHistory = computed(() => {
 		const cutoffMap = new Map(cutoffs.value.map((cutoff) => [cutoff.id, cutoff]));
+		const transferMap = new Map(
+			savingsTransfers.value.map((transfer) => [transfer.budgetEntryId, transfer]),
+		);
 		const rows: Array<{
 			id: string;
 			itemName: string;
 			itemBuilderId: string;
-			cutoffLabel: string;
+			historySubtitle: string;
 			amount: number;
 			createdAt: string;
 			icon: string;
@@ -270,11 +298,14 @@
 				const builder = parent ? findBuilder(parent) : findBuilder(entry);
 				const cutoff = cutoffMap.get(entry.cutoffId);
 				if (!cutoff) continue;
+				const transfer = transferMap.get(entry.id);
 				rows.push({
 					id: entry.id,
 					itemName: builder?.name ?? entry.name,
 					itemBuilderId: builder?.id ?? "",
-					cutoffLabel: cutoffLabel(cutoff),
+					historySubtitle: transfer
+						? `Used for ${transfer.targetRule}`
+						: cutoffLabel(cutoff),
 					amount: entry.amount,
 					createdAt: entry.createdAt,
 					icon: builder?.icon ?? "HomeIcon",
@@ -288,11 +319,14 @@
 
 			const cutoff = cutoffMap.get(entry.cutoffId);
 			if (!cutoff) continue;
+			const transfer = transferMap.get(entry.id);
 			rows.push({
 				id: entry.id,
 				itemName: builder?.name ?? entry.name,
 				itemBuilderId: builder?.id ?? "",
-				cutoffLabel: cutoffLabel(cutoff),
+				historySubtitle: transfer
+					? `Used for ${transfer.targetRule}`
+					: cutoffLabel(cutoff),
 				amount: entry.amount,
 				createdAt: entry.createdAt,
 				icon: builder?.icon ?? "HomeIcon",
@@ -301,6 +335,31 @@
 		}
 
 		return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	});
+
+	const activeCutoff = computed(() => {
+		const list = cutoffs.value.filter((c) => c.status !== "finalized");
+		if (list.length === 0) return null;
+		return list.reduce((latest, c) =>
+			!latest || c.createdAt > latest.createdAt ? c : latest,
+		);
+	});
+
+	const itemHistory = computed(() => {
+		if (!selectedItem.value) return [];
+		return savingsHistory.value.filter(
+			(entry) => entry.itemBuilderId === selectedItem.value!.id,
+		);
+	});
+
+	const canConfirmTransfer = computed(() => {
+		const amount = Number(transferAmount.value);
+		return (
+			!savingTransfer.value &&
+			amount > 0 &&
+			!!selectedItem.value &&
+			amount <= selectedItem.value.totalSaved
+		);
 	});
 
 	const totalSavings = computed(() =>
@@ -355,11 +414,130 @@
 		showHistoryDrawer.value = false;
 	}
 
-	onMounted(async () => {
+	function openItemDrawer(item: (typeof savingsItems.value)[number]) {
+		selectedItem.value = item;
+		showItemDrawer.value = true;
+	}
+
+	function closeItemDrawer() {
+		showItemDrawer.value = false;
+		selectedItem.value = null;
+	}
+
+	function onUseSavingsClick() {
+		if (!activeCutoff.value) {
+			showNoCutoffWarning.value = true;
+			return;
+		}
+		transferRule.value = "Expenses";
+		transferAmount.value = "";
+		transferError.value = "";
+		showTransferModal.value = true;
+	}
+
+	function closeTransferModal() {
+		showTransferModal.value = false;
+		transferError.value = "";
+	}
+
+	function closeTransferConfirm() {
+		showTransferConfirm.value = false;
+	}
+
+	function openTransferConfirm() {
+		const item = selectedItem.value;
+		const amount = Number(transferAmount.value);
+		if (!item || !activeCutoff.value || amount <= 0 || amount > item.totalSaved) {
+			transferError.value = "Enter an amount up to your saved balance.";
+			return;
+		}
+		transferError.value = "";
+		showTransferConfirm.value = true;
+	}
+
+	function closeNoCutoffWarning() {
+		showNoCutoffWarning.value = false;
+	}
+
+	async function loadPageData() {
 		itemBuilders.value = await db.itemBuilders.toArray();
 		budgetEntries.value = await db.budgetEntries.toArray();
 		cutoffs.value = await db.cycleCutoffs.toArray();
-	});
+		savingsTransfers.value = await db.savingsTransfers.toArray();
+	}
+
+	async function confirmTransfer() {
+		const item = selectedItem.value;
+		const cutoff = activeCutoff.value;
+		const amount = Number(transferAmount.value);
+		const targetRule = transferRule.value;
+		if (!item || !cutoff || amount <= 0 || amount > item.totalSaved) {
+			transferError.value = "Enter an amount up to your saved balance.";
+			return;
+		}
+
+		savingTransfer.value = true;
+		transferError.value = "";
+		const entryId = createId();
+		const now = new Date().toISOString();
+
+		try {
+			await db.transaction(
+				"rw",
+				[db.cycleCutoffs, db.budgetEntries, db.savingsTransfers],
+				async () => {
+					await db.savingsTransfers.add({
+						id: createId(),
+						itemBuilderId: item.id,
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						targetRule,
+						amount,
+						budgetEntryId: entryId,
+						createdAt: now,
+					});
+
+					await db.budgetEntries.add({
+						id: entryId,
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						ruleName: "Savings",
+						name: item.name,
+						amount: -amount,
+						itemBuilderId: item.id,
+						createdAt: now,
+					});
+
+					const freshCutoff = await db.cycleCutoffs.get(cutoff.id);
+					if (!freshCutoff?.allocations) return;
+
+					const allocations = {
+						Expenses: { ...freshCutoff.allocations.Expenses },
+						Savings: { ...freshCutoff.allocations.Savings },
+						Wants: { ...freshCutoff.allocations.Wants },
+					};
+					allocations[targetRule] = {
+						...allocations[targetRule],
+						amount: allocations[targetRule].amount + amount,
+					};
+					await db.cycleCutoffs.update(cutoff.id, { allocations });
+				},
+			);
+
+			await loadPageData();
+			selectedItem.value =
+				savingsItems.value.find((row) => row.id === item.id) ?? null;
+			showTransferConfirm.value = false;
+			showTransferModal.value = false;
+		} catch {
+			transferError.value = "Transfer failed. Please try again.";
+			showTransferConfirm.value = false;
+		} finally {
+			savingTransfer.value = false;
+		}
+	}
+
+	onMounted(loadPageData);
 </script>
 
 <template>
@@ -399,8 +577,12 @@
 			<div
 				v-for="item in savingsItems"
 				:key="item.id"
-				class="goal-card"
+				class="goal-card is-clickable"
 				:class="item.cardWrapClass"
+				role="button"
+				tabindex="0"
+				@click="openItemDrawer(item)"
+				@keydown.enter="openItemDrawer(item)"
 			>
 				<span class="goal-card-logo" :class="item.iconWrapClass">
 					<component
@@ -442,7 +624,7 @@
 					</span>
 					<div class="history-main">
 						<p class="history-name">{{ entry.itemName }}</p>
-						<p class="history-cutoff">{{ entry.cutoffLabel }}</p>
+						<p class="history-cutoff">{{ entry.historySubtitle }}</p>
 					</div>
 					<div class="history-amount-col">
 						<span
@@ -459,6 +641,77 @@
 		</GlassContainer>
 
 		<Teleport to="body">
+			<div
+				v-if="showItemDrawer && selectedItem"
+				class="drawer-overlay"
+				@click.self="closeItemDrawer"
+			>
+				<GlassContainer class="drawer-sheet">
+					<div class="drawer-handle" />
+					<div class="drawer-header">
+						<h2 class="drawer-title">{{ selectedItem.name }}</h2>
+						<button
+							type="button"
+							class="drawer-close"
+							aria-label="Close"
+							@click="closeItemDrawer"
+						>
+							<XMarkIcon class="h-5 w-5" />
+						</button>
+					</div>
+
+					<div class="item-drawer-summary">
+						<!-- <span class="item-drawer-icon" :class="selectedItem.iconWrapClass">
+							<component
+								:is="OutlineIcons[selectedItem.icon as keyof typeof OutlineIcons]"
+								class="item-drawer-icon-svg"
+							/>
+						</span> -->
+						<div class="item-drawer-main">
+							<p class="item-drawer-label">Total Saved</p>
+							<div class="item-drawer-amount-row">
+								<p class="item-drawer-amount">
+									{{ formatAmount(selectedItem.totalSaved) }}
+								</p>
+								<Button class="use-savings-btn" @click="onUseSavingsClick">
+									Use savings
+								</Button>
+							</div>
+						</div>
+					</div>
+
+					<p class="item-drawer-history-title">Saving History</p>
+					<ul v-if="itemHistory.length" class="history-list">
+						<li v-for="entry in itemHistory" :key="entry.id" class="history-row">
+							<span class="history-icon-wrap" :class="entry.iconWrapClass">
+								<component
+									:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
+									class="history-icon"
+								/>
+							</span>
+							<div class="history-main">
+								<p class="history-name">{{ entry.itemName }}</p>
+								<p class="history-cutoff">{{ entry.historySubtitle }}</p>
+							</div>
+							<div class="history-amount-col">
+								<span
+									class="history-amount"
+									:class="
+										entry.amount >= 0 ? 'text-progress-green' : 'text-progress-red'
+									"
+								>
+									{{ formatSignedAmount(entry.amount) }}
+								</span>
+								<span class="history-date">{{
+									formatHistoryDate(entry.createdAt)
+								}}</span>
+							</div>
+						</li>
+					</ul>
+					<p v-else class="empty">No savings history yet</p>
+				</GlassContainer>
+			</div>
+
 			<div
 				v-if="showHistoryDrawer"
 				class="drawer-overlay"
@@ -500,7 +753,7 @@
 							</span>
 							<div class="history-main">
 								<p class="history-name">{{ entry.itemName }}</p>
-								<p class="history-cutoff">{{ entry.cutoffLabel }}</p>
+								<p class="history-cutoff">{{ entry.historySubtitle }}</p>
 							</div>
 							<div class="history-amount-col">
 								<span
@@ -518,6 +771,78 @@
 						</li>
 					</ul>
 					<p v-else class="empty">No savings history yet</p>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showNoCutoffWarning"
+				class="modal-overlay"
+				@click.self="closeNoCutoffWarning"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">No Active Cutoff</h2>
+					<p class="modal-text">
+						There is no active tracker or cutoff. Create or activate a cutoff first
+						before using savings.
+					</p>
+					<div class="modal-actions">
+						<Button block @click="closeNoCutoffWarning">OK</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showTransferModal"
+				class="modal-overlay"
+				@click.self="closeTransferModal"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Use Savings</h2>
+					<SelectField
+						v-model="transferRule"
+						label="Select a rule"
+						:options="transferRuleOptions"
+						:menu-z-index="80"
+					/>
+					<AmountField
+						v-model="transferAmount"
+						label="How much to transfer"
+						placeholder="0"
+					/>
+					<p v-if="selectedItem" class="modal-hint">
+						Available: {{ formatAmount(selectedItem.totalSaved) }}
+					</p>
+					<p v-if="transferError" class="modal-error">{{ transferError }}</p>
+					<div class="modal-actions">
+						<Button block @click="closeTransferModal">Cancel</Button>
+						<Button block :disabled="!canConfirmTransfer" @click="openTransferConfirm">
+							Transfer
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showTransferConfirm"
+				class="modal-overlay confirm-overlay"
+				@click.self="closeTransferConfirm"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Confirm Transfer</h2>
+					<p v-if="selectedItem" class="modal-text">
+						Transfer {{ formatAmount(Number(transferAmount)) }} from
+						{{ selectedItem.name }} to {{ transferRule }}?
+					</p>
+					<div class="modal-actions">
+						<Button block @click="closeTransferConfirm">Cancel</Button>
+						<Button
+							block
+							:disabled="savingTransfer"
+							@click="confirmTransfer"
+						>
+							{{ savingTransfer ? "Transferring..." : "Confirm" }}
+						</Button>
+					</div>
 				</GlassContainer>
 			</div>
 		</Teleport>
@@ -654,6 +979,12 @@
 		justify-content: space-between;
 		gap: 0.75rem;
 		color: var(--color-textPrimary);
+	}
+
+	.goal-card.is-clickable {
+		cursor: pointer;
+		border: none;
+		text-align: left;
 	}
 
 	.goal-card-logo {
@@ -829,5 +1160,120 @@
 		margin: 0;
 		font-size: 0.875rem;
 		color: var(--color-textSecondary);
+	}
+
+	.item-drawer-summary {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		padding: 0 1rem;
+	}
+
+	.item-drawer-main {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.item-drawer-amount-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 0.15rem;
+	}
+
+	.item-drawer-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 0.65rem;
+		flex-shrink: 0;
+	}
+
+	.item-drawer-icon-svg {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.item-drawer-label {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
+	}
+
+	.item-drawer-amount {
+		margin: 0;
+		font-size: 1.35rem;
+		font-weight: 700;
+		color: var(--color-textPrimary);
+	}
+
+	.item-drawer-history-title {
+		margin: 0;
+		padding: 0 1rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.use-savings-btn {
+		flex-shrink: 0;
+	}
+
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 70;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+		background: var(--color-overlay);
+	}
+
+	.confirm-overlay {
+		z-index: 80;
+	}
+
+	.modal {
+		width: 100%;
+		max-width: 400px;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.modal-title {
+		margin: 0;
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+		text-align: center;
+	}
+
+	.modal-text {
+		margin: 0;
+		font-size: 0.875rem;
+		text-align: center;
+		color: var(--color-textSecondary);
+	}
+
+	.modal-hint {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--color-textSecondary);
+	}
+
+	.modal-error {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--color-danger);
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: 0.75rem;
 	}
 </style>

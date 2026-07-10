@@ -141,6 +141,29 @@ export interface IncomingBillBudget {
 	createdAt: string;
 }
 
+export interface SavingsTransfer {
+	id: string;
+	itemBuilderId: string;
+	cutoffId: string;
+	monthKey: string;
+	targetRule: "Expenses" | "Wants";
+	amount: number;
+	budgetEntryId: string;
+	createdAt: string;
+}
+
+export interface RuleExtraBudget {
+	id: string;
+	cutoffId: string;
+	monthKey: string;
+	ruleName: RuleName;
+	amount: number;
+	label: string;
+	itemBuilderId?: string;
+	budgetEntryId?: string;
+	createdAt: string;
+}
+
 export const FIXED_RULES: Omit<Rule, "id">[] = [
 	{ name: "Expenses", percent: 50, itemCount: 0 },
 	{ name: "Savings", percent: 30, itemCount: 0 },
@@ -239,6 +262,8 @@ class BudgetDatabase extends Dexie {
 	unexpectedExpenses!: Table<UnexpectedExpense>;
 	incomingBillItems!: Table<IncomingBillItem>;
 	incomingBillBudgets!: Table<IncomingBillBudget>;
+	savingsTransfers!: Table<SavingsTransfer>;
+	ruleExtraBudgets!: Table<RuleExtraBudget>;
 
 	constructor() {
 		super("pocketflow-budget-db");
@@ -501,6 +526,14 @@ class BudgetDatabase extends Dexie {
 					await tx.table("cycleCutoffs").update(cutoff.id, { status: "active" });
 				}
 			});
+		this.version(21).stores({
+			savingsTransfers:
+				"id, itemBuilderId, cutoffId, monthKey, targetRule, budgetEntryId, createdAt",
+		});
+		this.version(22).stores({
+			ruleExtraBudgets:
+				"id, cutoffId, monthKey, ruleName, itemBuilderId, budgetEntryId, createdAt",
+		});
 	}
 }
 

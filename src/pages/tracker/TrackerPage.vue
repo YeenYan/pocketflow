@@ -3,6 +3,11 @@
 	import { PaperAirplaneIcon } from "@heroicons/vue/24/outline";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
 	import Divider from "../../components/divider/Divider.vue";
+	import Button from "../../components/button/Button.vue";
+	import GlassContainer from "../../components/containers/GlassContainer.vue";
+	import AmountField from "../../components/inputs/AmountField.vue";
+	import InputField from "../../components/inputs/InputField.vue";
+	import SelectField from "../../components/inputs/SelectField.vue";
 	import ItemBuilderDrawer, {
 		type ItemBuilderFormData,
 	} from "../../components/item-builder/ItemBuilderDrawer.vue";
@@ -22,6 +27,8 @@
 		type RuleName,
 		type UnexpectedExpenseSource,
 		type UnexpectedExpense,
+		type SavingsTransfer,
+		type RuleExtraBudget,
 	} from "../../db/budgetDb";
 	import PeriodNavSection from "./partials/sections/PeriodNavSection.vue";
 	import CutoffBudgetSection from "./partials/sections/CutoffBudgetSection.vue";
@@ -290,6 +297,8 @@
 	const tabBudget = ref<TabBudget | null>(null);
 	const tabBudgetExpenses = ref<TabBudgetExpense[]>([]);
 	const unexpectedExpenses = ref<UnexpectedExpense[]>([]);
+	const savingsTransfers = ref<SavingsTransfer[]>([]);
+	const ruleExtraBudgets = ref<RuleExtraBudget[]>([]);
 
 	const now = new Date();
 	const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -337,6 +346,13 @@
 	});
 
 	const showItemModal = ref(false);
+	const showExtraBudgetModal = ref(false);
+	const showExtraBudgetConfirm = ref(false);
+	const extraBudgetAmount = ref("");
+	const extraBudgetLabel = ref("Extra Budget");
+	const extraBudgetSavingsItemId = ref("");
+	const extraBudgetError = ref("");
+	const savingExtraBudget = ref(false);
 	const itemFormId = ref("");
 	const itemFormAmount = ref("");
 	const itemFormError = ref("");
@@ -741,9 +757,61 @@
 		() => activeCutoff.value?.allocations?.[activeTab.value]?.amount ?? 0,
 	);
 
-	const displayActiveAmount = computed(
-		() => `₱${activeRuleAmount.value.toLocaleString("en-PH")}`,
+	const savingsBoostForActiveRule = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId || activeTab.value === "Savings") return 0;
+		return savingsTransfers.value
+			.filter(
+				(transfer) =>
+					transfer.cutoffId === cutoffId &&
+					transfer.targetRule === activeTab.value,
+			)
+			.reduce((sum, transfer) => sum + transfer.amount, 0);
+	});
+
+	const extraBudgetForActiveRule = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return 0;
+		return ruleExtraBudgets.value
+			.filter(
+				(entry) =>
+					entry.cutoffId === cutoffId && entry.ruleName === activeTab.value,
+			)
+			.reduce((sum, entry) => sum + entry.amount, 0);
+	});
+
+	const baseRuleAmount = computed(() =>
+		Math.max(
+			0,
+			activeRuleAmount.value -
+				extraBudgetForActiveRule.value -
+				savingsBoostForActiveRule.value,
+		),
 	);
+
+	const displayActiveAmount = computed(
+		() => `₱${baseRuleAmount.value.toLocaleString("en-PH")}`,
+	);
+
+	const displaySavingsBoost = computed(() => {
+		if (savingsBoostForActiveRule.value <= 0) return "";
+		return `+₱${savingsBoostForActiveRule.value.toLocaleString("en-PH")} from savings`;
+	});
+
+	const displayExtraBudget = computed(() => {
+		if (extraBudgetForActiveRule.value <= 0) return "";
+		return `+₱${extraBudgetForActiveRule.value.toLocaleString("en-PH")} extra budget`;
+	});
+
+	const displayTotalRuleAmount = computed(() => {
+		if (
+			extraBudgetForActiveRule.value <= 0 &&
+			savingsBoostForActiveRule.value <= 0
+		) {
+			return "";
+		}
+		return `Total ₱${activeRuleAmount.value.toLocaleString("en-PH")}`;
+	});
 
 	const activeRuleEntries = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
@@ -1022,6 +1090,20 @@
 			});
 	});
 
+	const savingsExtraItemOptions = computed(() =>
+		itemBuilders.value
+			.filter((item) => item.isActive && item.categories.includes("Savings"))
+			.map((item) => ({ value: item.id, label: item.name })),
+	);
+
+	const canConfirmExtraBudget = computed(() => {
+		const amount = Number(extraBudgetAmount.value);
+		if (savingExtraBudget.value || amount <= 0) return false;
+		if (!extraBudgetLabel.value.trim()) return false;
+		if (activeTab.value === "Savings" && !extraBudgetSavingsItemId.value) return false;
+		return true;
+	});
+
 	// =============================================================================
 	// CHART — data & options
 	// =============================================================================
@@ -1157,6 +1239,14 @@
 
 	async function loadBudgetEntries() {
 		budgetEntries.value = await db.budgetEntries.toArray();
+	}
+
+	async function loadSavingsTransfers() {
+		savingsTransfers.value = await db.savingsTransfers.toArray();
+	}
+
+	async function loadRuleExtraBudgets() {
+		ruleExtraBudgets.value = await db.ruleExtraBudgets.toArray();
 	}
 
 	async function loadOthers() {
@@ -1480,6 +1570,128 @@
 	function closeItemModal() {
 		itemFormError.value = "";
 		showItemModal.value = false;
+	}
+
+	function openExtraBudgetModal() {
+		if (!activeCutoff.value) {
+			extraBudgetError.value = "Add a cutoff first";
+			return;
+		}
+		extraBudgetAmount.value = "";
+		extraBudgetLabel.value = "Extra Budget";
+		extraBudgetSavingsItemId.value = "";
+		extraBudgetError.value = "";
+		showExtraBudgetModal.value = true;
+	}
+
+	function closeExtraBudgetModal() {
+		showExtraBudgetModal.value = false;
+		extraBudgetError.value = "";
+	}
+
+	function openExtraBudgetConfirm() {
+		const amount = Number(extraBudgetAmount.value);
+		const label = extraBudgetLabel.value.trim();
+		if (!activeCutoff.value) {
+			extraBudgetError.value = "Add a cutoff first";
+			return;
+		}
+		if (!label) {
+			extraBudgetError.value = "Enter a label";
+			return;
+		}
+		if (!extraBudgetAmount.value || Number.isNaN(amount) || amount <= 0) {
+			extraBudgetError.value = "Enter a valid amount";
+			return;
+		}
+		if (activeTab.value === "Savings" && !extraBudgetSavingsItemId.value) {
+			extraBudgetError.value = "Select a savings item";
+			return;
+		}
+		extraBudgetError.value = "";
+		showExtraBudgetConfirm.value = true;
+	}
+
+	function closeExtraBudgetConfirm() {
+		showExtraBudgetConfirm.value = false;
+	}
+
+	async function confirmExtraBudget() {
+		const cutoff = activeCutoff.value;
+		const amount = Number(extraBudgetAmount.value);
+		const label = extraBudgetLabel.value.trim();
+		const ruleName = activeTab.value;
+		if (!cutoff || !label || amount <= 0) return;
+		if (ruleName === "Savings" && !extraBudgetSavingsItemId.value) return;
+
+		savingExtraBudget.value = true;
+		extraBudgetError.value = "";
+		const now = new Date().toISOString();
+		const extraBudgetId = createId();
+		let budgetEntryId: string | undefined;
+
+		try {
+			await db.transaction(
+				"rw",
+				[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
+				async () => {
+					if (ruleName === "Savings") {
+						budgetEntryId = createId();
+						const builder = itemBuilders.value.find(
+							(item) => item.id === extraBudgetSavingsItemId.value,
+						);
+						await db.budgetEntries.add({
+							id: budgetEntryId,
+							cutoffId: cutoff.id,
+							monthKey: cutoff.monthKey,
+							ruleName: "Savings",
+							name: builder?.name ?? label,
+							amount,
+							itemBuilderId: extraBudgetSavingsItemId.value,
+							createdAt: now,
+						});
+					}
+
+					await db.ruleExtraBudgets.add({
+						id: extraBudgetId,
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						ruleName,
+						amount,
+						label,
+						itemBuilderId:
+							ruleName === "Savings" ? extraBudgetSavingsItemId.value : undefined,
+						budgetEntryId,
+						createdAt: now,
+					});
+
+					const freshCutoff = await db.cycleCutoffs.get(cutoff.id);
+					if (!freshCutoff?.allocations) return;
+
+					const allocations = {
+						Expenses: { ...freshCutoff.allocations.Expenses },
+						Savings: { ...freshCutoff.allocations.Savings },
+						Wants: { ...freshCutoff.allocations.Wants },
+					};
+					allocations[ruleName] = {
+						...allocations[ruleName],
+						amount: allocations[ruleName].amount + amount,
+					};
+					await db.cycleCutoffs.update(cutoff.id, { allocations });
+				},
+			);
+
+			await loadCutoffs();
+			await loadBudgetEntries();
+			await loadRuleExtraBudgets();
+			showExtraBudgetConfirm.value = false;
+			showExtraBudgetModal.value = false;
+		} catch {
+			extraBudgetError.value = "Failed to add extra budget. Please try again.";
+			showExtraBudgetConfirm.value = false;
+		} finally {
+			savingExtraBudget.value = false;
+		}
 	}
 
 	function openCreateItemDrawer() {
@@ -2235,6 +2447,8 @@
 		}
 		await loadItemBuilders();
 		await loadBudgetEntries();
+		await loadSavingsTransfers();
+		await loadRuleExtraBudgets();
 		await loadOthers();
 		await loadTabBudget();
 		await loadUnexpectedExpenses();
@@ -2298,6 +2512,9 @@
 				:active-tab="activeTab"
 				:active-rule-percent="activeRulePercent"
 				:display-active-amount="displayActiveAmount"
+				:display-savings-boost="displaySavingsBoost"
+				:display-extra-budget="displayExtraBudget"
+				:display-total-rule-amount="displayTotalRuleAmount"
 				:display-rule-left="displayRuleLeft"
 				:display-rule-spent="displayRuleSpent"
 				:rule-progress-percent="ruleProgressPercent"
@@ -2310,6 +2527,7 @@
 				:progress-fill-color="progressFillColor"
 				:disabled="!activeCutoff"
 				@open-item-modal="openItemModal"
+				@open-extra-budget-modal="openExtraBudgetModal"
 				@open-unexpected-drawer="openUnexpectedDrawer"
 			/>
 
@@ -2530,6 +2748,83 @@
 			@close="closeExceedModal"
 			@proceed="confirmExceedProceed"
 		/>
+
+		<Teleport to="body">
+			<div
+				v-if="showExtraBudgetModal && !showExceedModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeExtraBudgetModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Add Extra Budget
+					</h2>
+					<InputField
+						v-model="extraBudgetLabel"
+						label="Label"
+						placeholder="Extra Budget"
+					/>
+					<AmountField
+						v-model="extraBudgetAmount"
+						label="Amount"
+						placeholder="0"
+					/>
+					<SelectField
+						v-if="activeTab === 'Savings'"
+						v-model="extraBudgetSavingsItemId"
+						label="Savings Item"
+						:options="savingsExtraItemOptions"
+						placeholder="Select item"
+						:menu-z-index="80"
+					/>
+					<p v-if="extraBudgetError" class="m-0 text-center text-sm text-[#f87171]">
+						{{ extraBudgetError }}
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeExtraBudgetModal">
+							Cancel
+						</Button>
+						<Button
+							block
+							variant="primary"
+							:disabled="!canConfirmExtraBudget"
+							@click="openExtraBudgetConfirm"
+						>
+							Continue
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showExtraBudgetConfirm"
+				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeExtraBudgetConfirm"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Confirm Extra Budget
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Add ₱{{ Number(extraBudgetAmount).toLocaleString("en-PH") }} extra
+						budget to {{ activeTab }} as "{{ extraBudgetLabel.trim() }}"?
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeExtraBudgetConfirm">
+							Cancel
+						</Button>
+						<Button
+							block
+							variant="primary"
+							:disabled="savingExtraBudget"
+							@click="confirmExtraBudget"
+						>
+							{{ savingExtraBudget ? "Adding..." : "Confirm" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
 
 		<FinalizeModal
 			v-model:open="showFinalizeModal"

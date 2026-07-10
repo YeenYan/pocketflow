@@ -13,6 +13,9 @@
 		activeTab: RuleName;
 		activeRulePercent: number;
 		displayActiveAmount: string;
+		displaySavingsBoost?: string;
+		displayExtraBudget?: string;
+		displayTotalRuleAmount?: string;
 		displayRuleLeft: string;
 		displayRuleSpent: string;
 		ruleProgressPercent: number;
@@ -28,6 +31,7 @@
 
 	const emit = defineEmits<{
 		openItemModal: [];
+		openExtraBudgetModal: [];
 		openUnexpectedDrawer: [];
 	}>();
 </script>
@@ -77,6 +81,24 @@
 					<p class="mt-[-.1rem] mb-0 text-[1.4rem] font-bold text-textPrimary">
 						{{ displayActiveAmount }}
 					</p>
+					<p
+						v-if="displaySavingsBoost"
+						class="m-0 mt-0.5 text-[0.72rem] text-textSecondary"
+					>
+						{{ displaySavingsBoost }}
+					</p>
+					<p
+						v-if="displayExtraBudget"
+						class="m-0 mt-0.5 text-[0.72rem] text-textSecondary"
+					>
+						{{ displayExtraBudget }}
+					</p>
+					<p
+						v-if="displayTotalRuleAmount"
+						class="m-0 mt-0.5 text-[0.8rem] font-semibold text-textPrimary"
+					>
+						{{ displayTotalRuleAmount }}
+					</p>
 				</div>
 				<div>
 					<p class="m-0 text-[0.85rem] text-textSecondary">
@@ -92,7 +114,14 @@
 				</div>
 			</div>
 		</div>
-
+		<button
+			type="button"
+			class="extra-budget-btn"
+			:disabled="disabled"
+			@click="emit('openExtraBudgetModal')"
+		>
+			Add Extra Budget
+		</button>
 		<div class="rule-progress">
 			<div class="flex items-center justify-between">
 				<span class="rule-progress-spent"
@@ -157,6 +186,25 @@
 		justify-content: center;
 		text-align: center;
 		pointer-events: none;
+	}
+
+	.extra-budget-btn {
+		display: block;
+		width: 100%;
+		margin: 0.5rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--color-glass-border);
+		border-radius: 0.5rem;
+		background: var(--color-glass-bg);
+		color: var(--color-textPrimary);
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.extra-budget-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.unexpected-spending-badge {
