@@ -135,7 +135,10 @@
 					class="rule-progress-fill"
 					:style="{
 						width: ruleProgressPercent + '%',
-						background: progressFillColor(ruleProgressPercent),
+						background:
+							activeTab === 'Savings'
+								? 'var(--color-progress-green)'
+								: progressFillColor(ruleProgressPercent),
 					}"
 				/>
 			</div>

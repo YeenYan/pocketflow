@@ -815,7 +815,11 @@
 					<p v-if="transferError" class="modal-error">{{ transferError }}</p>
 					<div class="modal-actions">
 						<Button block @click="closeTransferModal">Cancel</Button>
-						<Button block :disabled="!canConfirmTransfer" @click="openTransferConfirm">
+						<Button
+							block
+							:disabled="!canConfirmTransfer"
+							@click="openTransferConfirm"
+						>
 							Transfer
 						</Button>
 					</div>
@@ -835,11 +839,7 @@
 					</p>
 					<div class="modal-actions">
 						<Button block @click="closeTransferConfirm">Cancel</Button>
-						<Button
-							block
-							:disabled="savingTransfer"
-							@click="confirmTransfer"
-						>
+						<Button block :disabled="savingTransfer" @click="confirmTransfer">
 							{{ savingTransfer ? "Transferring..." : "Confirm" }}
 						</Button>
 					</div>

@@ -1216,9 +1216,10 @@
 
 	function mainItemBudgetExcess(newAmount: number, oldAmount = 0) {
 		if (activeTab.value === "Savings") return 0;
+		// Use allocated only — Budget/Others overspend is tracked on those items.
 		const reserved =
 			activeTab.value === "Expenses"
-				? tabBudgetReserved.value + othersReserved.value
+				? tabBudgetAllocated.value + othersAllocated.value
 				: 0;
 		const currentSpent = activeRuleEntries.value.reduce(
 			(sum, entry) => sum + entry.amount,
@@ -1333,9 +1334,12 @@
 					.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
 				// Excess only starts once spending passes the allotted budget. For
-				// Expenses the reserved Budget/Others amounts fill the budget first.
+				// Expenses, Budget/Others allocations fill the budget first (not their
+				// overspend — that excess is recorded on those section items).
 				let running =
-					name === "Expenses" ? tabBudgetReserved.value + othersReserved.value : 0;
+					name === "Expenses"
+						? tabBudgetAllocated.value + othersAllocated.value
+						: 0;
 				const desiredExcess = new Map<string, number>();
 				for (const entry of mainEntries) {
 					const before = running;
