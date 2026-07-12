@@ -110,77 +110,79 @@
 
 <template>
 	<div class="page-shell relative">
-		<div class="absolute bottom-0 right-0 poko-wrap">
-			<div class="lock-bubble">
-				<p class="lock-bubble-name">Poko</p>
-				<p class="lock-bubble-text">{{ welcomeTip }}</p>
-			</div>
-			<img :src="poko" alt="" class="max-w-[12rem]" />
-		</div>
-
 		<!-- <GlassContainer class="page h-[60dvh]"> </GlassContainer> -->
-		<div class="w-[90%] flex flex-col items-center h-full pt-[8rem]">
-			<div class="profile">
-				<img v-if="photoUrl" :src="photoUrl" alt="" class="avatar" />
-				<div v-else class="avatar placeholder">
-					{{ displayName.charAt(0) || "?" }}
+		<div class="w-[90%] flex flex-col items-center justify-between gap-4 h-full">
+			<div class="flex flex-col items-center w-full pt-[5rem]">
+				<div class="profile">
+					<img v-if="photoUrl" :src="photoUrl" alt="" class="avatar" />
+					<div v-else class="avatar placeholder">
+						{{ displayName.charAt(0) || "?" }}
+					</div>
+					<p class="name">{{ displayName }}</p>
 				</div>
-				<p class="name">{{ displayName }}</p>
-			</div>
 
-			<!-- v-if="useBiometric" -->
-			<button
-				type="button"
-				class="bio-btn"
-				aria-label="Unlock with Face ID"
-				:disabled="unlocking"
-				@click="unlockWithFaceId"
-			>
-				<ViewfinderCircleIcon class="bio-btn-icon" />
-			</button>
-
-			<template v-if="hasPin && showPin">
-				<div
-					class="pin-row"
-					:class="{ 'pin-row-error': !!pinError }"
-					@click="pinInputRef?.focus()"
+				<!-- v-if="useBiometric" -->
+				<button
+					type="button"
+					class="bio-btn"
+					aria-label="Unlock with Face ID"
+					:disabled="unlocking"
+					@click="unlockWithFaceId"
 				>
-					<span
-						v-for="(digit, i) in pinDigits"
-						:key="'pin-' + i"
-						class="pin-dot"
-						:class="{ filled: !!digit }"
-					/>
-					<input
-						ref="pinInputRef"
-						:value="pin"
-						type="text"
-						inputmode="numeric"
-						maxlength="5"
-						class="pin-input-hidden"
-						@input="onPinInput"
-					/>
-				</div>
+					<ViewfinderCircleIcon class="bio-btn-icon" />
+				</button>
+
+				<template v-if="hasPin && showPin">
+					<div
+						class="pin-row"
+						:class="{ 'pin-row-error': !!pinError }"
+						@click="pinInputRef?.focus()"
+					>
+						<span
+							v-for="(digit, i) in pinDigits"
+							:key="'pin-' + i"
+							class="pin-dot"
+							:class="{ filled: !!digit }"
+						/>
+						<input
+							ref="pinInputRef"
+							:value="pin"
+							type="text"
+							inputmode="numeric"
+							maxlength="5"
+							class="pin-input-hidden"
+							@input="onPinInput"
+						/>
+					</div>
+
+					<Button
+						:variant="useBiometric ? 'shade' : 'primary'"
+						class="w-full max-w-[15rem]"
+						:disabled="pin.length !== 5"
+						@click="unlockWithPin"
+					>
+						Unlock with PIN
+					</Button>
+				</template>
 
 				<Button
-					:variant="useBiometric ? 'shade' : 'primary'"
-					class="w-full max-w-[15rem]"
-					:disabled="pin.length !== 5"
-					@click="unlockWithPin"
+					v-if="hasPin && useBiometric && !showPin"
+					class="w-full"
+					@click="showPin = true"
 				>
-					Unlock with PIN
+					Use PIN instead
 				</Button>
-			</template>
 
-			<Button
-				v-if="hasPin && useBiometric && !showPin"
-				class="w-full"
-				@click="showPin = true"
-			>
-				Use PIN instead
-			</Button>
+				<p v-if="pinError" class="error">{{ pinError }}</p>
+			</div>
 
-			<p v-if="pinError" class="error">{{ pinError }}</p>
+			<div class="poko-wrap pl-[5rem]">
+				<div class="lock-bubble">
+					<p class="lock-bubble-name">Poko</p>
+					<p class="lock-bubble-text">{{ welcomeTip }}</p>
+				</div>
+				<img :src="poko" alt="" class="max-w-[8rem]" />
+			</div>
 		</div>
 	</div>
 </template>
@@ -315,7 +317,7 @@
 	.lock-bubble {
 		position: relative;
 		max-width: 12.5rem;
-		margin-right: 7.75rem;
+		margin-right: 4.75rem;
 		padding: 0.65rem 0.8rem;
 		border-radius: 1rem;
 		background: #ffd0b0;
