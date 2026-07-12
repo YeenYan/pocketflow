@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
 
       // Include static assets in the precache manifest
-      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.svg', 'App_Icon.webp', 'pwa-192x192.png', 'pwa-512x512.png'],
 
       // Web App Manifest (used when user taps "Add to Home Screen" on iPhone)
       manifest: {
@@ -37,6 +37,12 @@ export default defineConfig(({ mode }) => ({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+          },
+          {
+            src: 'App_Icon.webp',
+            sizes: 'any',
+            type: 'image/webp',
+            purpose: 'any',
           },
         ],
       },

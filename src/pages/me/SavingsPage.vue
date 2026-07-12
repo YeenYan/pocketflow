@@ -13,6 +13,7 @@
 	import AmountField from "../../components/inputs/AmountField.vue";
 	import Button from "../../components/button/Button.vue";
 	import Divider from "../../components/divider/Divider.vue";
+	import pokoImg from "../../assets/img/image_2.webp";
 	import {
 		createId,
 		db,
@@ -238,17 +239,27 @@
 		return `${date}, ${time}`;
 	}
 
+	function countsTowardSavings(entry: BudgetEntry) {
+		const cutoff = cutoffs.value.find((c) => c.id === entry.cutoffId);
+		if (cutoff?.status === "finalized") return true;
+		return savingsTransfers.value.some(
+			(transfer) => transfer.budgetEntryId === entry.id,
+		);
+	}
+
 	function itemSavedTotal(builder: ItemBuilder) {
 		const parents = budgetEntries.value.filter(
 			(entry) =>
 				entry.ruleName === "Savings" &&
 				!entry.parentBudgetEntryId &&
+				countsTowardSavings(entry) &&
 				(entry.itemBuilderId === builder.id || entry.name === builder.name),
 		);
 		if (builder.hasChildItems) {
 			return parents.reduce((sum, parent) => {
 				const children = budgetEntries.value.filter(
-					(child) => child.parentBudgetEntryId === parent.id,
+					(child) =>
+						child.parentBudgetEntryId === parent.id && countsTowardSavings(child),
 				);
 				return (
 					sum + children.reduce((childSum, child) => childSum + child.amount, 0)
@@ -272,6 +283,37 @@
 			})),
 	);
 
+	const savingsGoalItems = computed(() =>
+		itemBuilders.value
+			.filter(
+				(item) =>
+					item.categories.includes("Savings") &&
+					item.hasTarget &&
+					(item.targetAmount ?? 0) > 0,
+			)
+			.map((item) => {
+				const totalSaved = itemSavedTotal(item);
+				const targetAmount = item.targetAmount ?? 0;
+				const percent =
+					targetAmount > 0
+						? Math.min(100, Math.round((totalSaved / targetAmount) * 100))
+						: 0;
+				const neededMore = Math.max(0, targetAmount - totalSaved);
+				return {
+					id: item.id,
+					name: item.name,
+					icon: item.icon ?? "HomeIcon",
+					color: item.color ?? DEFAULT_ITEM_COLOR,
+					iconWrapClass: iconWrapClass(item.color),
+					cardWrapClass: cardWrapClass(item.color),
+					totalSaved,
+					targetAmount,
+					percent,
+					neededMore,
+				};
+			}),
+	);
+
 	const savingsHistory = computed(() => {
 		const cutoffMap = new Map(cutoffs.value.map((cutoff) => [cutoff.id, cutoff]));
 		const transferMap = new Map(
@@ -290,6 +332,7 @@
 
 		for (const entry of budgetEntries.value) {
 			if (entry.ruleName !== "Savings") continue;
+			if (!countsTowardSavings(entry)) continue;
 
 			if (entry.parentBudgetEntryId) {
 				const parent = budgetEntries.value.find(
@@ -367,8 +410,9 @@
 	);
 
 	const savedLastCutoff = computed(() => {
-		if (!cutoffs.value.length) return 0;
-		const lastCutoff = cutoffs.value.reduce((latest, cutoff) =>
+		const finalized = cutoffs.value.filter((c) => c.status === "finalized");
+		if (!finalized.length) return 0;
+		const lastCutoff = finalized.reduce((latest, cutoff) =>
 			!latest || cutoff.createdAt > latest.createdAt ? cutoff : latest,
 		);
 		let sum = 0;
@@ -384,6 +428,36 @@
 			sum += entry.amount;
 		}
 		return sum;
+	});
+
+	const tipMessage = computed(() => {
+		const hl = (text: string) => `<strong class="tip-hl">${text}</strong>`;
+		const total = `₱${Math.round(totalSavings.value).toLocaleString("en-PH")}`;
+		const last = `₱${Math.round(savedLastCutoff.value).toLocaleString("en-PH")}`;
+		const goals = savingsGoalItems.value;
+
+		if (totalSavings.value <= 0) {
+			return `Hey… your savings jar is still quiet. Even a tiny start counts. Future you will thank you!!`;
+		}
+
+		if (goals.length) {
+			const best = goals.reduce((a, b) => (a.percent >= b.percent ? a : b));
+			if (best.percent >= 100) {
+				return `You did it!! ${hl(best.name)} hit the target. That warm feeling? You earned it. Keep going!!`;
+			}
+			if (best.percent >= 70) {
+				return `So close on ${hl(best.name)} at ${hl(`${best.percent}%`)}! Don't stop now. You're almost there.`;
+			}
+			if (best.percent > 0) {
+				return `${hl(best.name)} is at ${hl(`${best.percent}%`)}. Slow and steady still wins. Be proud of every peso.`;
+			}
+		}
+
+		if (savedLastCutoff.value > 0) {
+			return `Look at you!! ${hl(last)} saved last cutoff. Your total is ${hl(total)}. Proud of you. Keep it up!!`;
+		}
+
+		return `You've got ${hl(total)} tucked away. That's real progress. Be kind to yourself and keep going!!`;
 	});
 
 	const previewHistory = computed(() =>
@@ -414,8 +488,18 @@
 		showHistoryDrawer.value = false;
 	}
 
-	function openItemDrawer(item: (typeof savingsItems.value)[number]) {
-		selectedItem.value = item;
+	function openItemDrawer(
+		item:
+			| (typeof savingsItems.value)[number]
+			| (typeof savingsGoalItems.value)[number],
+	) {
+		selectedItem.value = {
+			id: item.id,
+			name: item.name,
+			icon: item.icon,
+			iconWrapClass: item.iconWrapClass,
+			totalSaved: item.totalSaved,
+		};
 		showItemDrawer.value = true;
 	}
 
@@ -542,103 +626,161 @@
 
 <template>
 	<div class="page-shell">
-		<header class="page-header">
+		<header class="page-header mt-[-1rem]">
 			<button type="button" class="back-btn" @click="router.push('/me')">←</button>
 			<h1 class="page-title">My Savings</h1>
 			<span class="header-spacer" />
 		</header>
 
-		<GlassContainer class="balance-card">
-			<p class="balance-label">Total Savings</p>
-
-			<div class="balance-amount-row">
-				<p class="balance-amount">
-					<span class="balance-whole">{{
-						hideBalance ? "••••••" : formatAmount(totalSavings)
-					}}</span>
-				</p>
-				<button
-					type="button"
-					class="balance-eye-btn"
-					aria-label="Toggle balance visibility"
-					@click="hideBalance = !hideBalance"
-				>
-					<EyeSlashIcon v-if="hideBalance" class="balance-eye-icon" />
-					<EyeIcon v-else class="balance-eye-icon" />
-				</button>
-			</div>
-
-			<p class="balance-sub">
-				{{ formatAmount(savedLastCutoff) }} total amount saved last cutoff
-			</p>
-		</GlassContainer>
-
-		<div v-if="savingsItems.length" class="savings-items-grid">
-			<div
-				v-for="item in savingsItems"
-				:key="item.id"
-				class="goal-card is-clickable"
-				:class="item.cardWrapClass"
-				role="button"
-				tabindex="0"
-				@click="openItemDrawer(item)"
-				@keydown.enter="openItemDrawer(item)"
-			>
-				<span class="goal-card-logo" :class="item.iconWrapClass">
-					<component
-						:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
-						class="goal-card-logo-icon"
-					/>
-				</span>
-				<div class="goal-card-bottom">
-					<p class="goal-card-type">Total Saved</p>
-					<p class="goal-card-amount">{{ formatAmount(item.totalSaved) }}</p>
-					<p class="goal-card-meta">{{ item.name }}</p>
+		<div class="savings-scroll relative">
+			<div class="tip-card absolute z-[99] top-0">
+				<img :src="pokoImg" alt="" class="tip-mascot" />
+				<div class="tip-bubble max-w-[15rem]">
+					<p class="tip-name">Poko</p>
+					<p class="tip-message" v-html="tipMessage" />
 				</div>
 			</div>
-		</div>
 
-		<Divider marginTop="1rem" marginBottom="1rem" />
+			<GlassContainer class="balance-card mt-[8rem]">
+				<p class="balance-label">Total Savings</p>
 
-		<GlassContainer class="transactions-card" :padding="false">
-			<div class="transactions-header">
-				<p class="section-title">Saving History</p>
-				<button
-					v-if="savingsHistory.length"
-					type="button"
-					class="filter-btn"
-					aria-label="Filter saving history"
-					@click="openHistoryDrawer"
+				<div class="balance-amount-row">
+					<p class="balance-amount">
+						<span class="balance-whole">{{
+							hideBalance ? "••••••" : formatAmount(totalSavings)
+						}}</span>
+					</p>
+					<button
+						type="button"
+						class="balance-eye-btn"
+						aria-label="Toggle balance visibility"
+						@click="hideBalance = !hideBalance"
+					>
+						<EyeSlashIcon v-if="hideBalance" class="balance-eye-icon" />
+						<EyeIcon v-else class="balance-eye-icon" />
+					</button>
+				</div>
+
+				<p class="balance-sub">
+					{{ formatAmount(savedLastCutoff) }} total amount saved last cutoff
+				</p>
+			</GlassContainer>
+
+			<GlassContainer
+				v-if="savingsGoalItems.length"
+				class="goals-card"
+				:padding="false"
+			>
+				<p class="section-title goals-section-title">Savings Goals</p>
+				<ul class="goals-list">
+					<li
+						v-for="item in savingsGoalItems"
+						:key="item.id"
+						class="goal-progress-row is-clickable"
+						role="button"
+						tabindex="0"
+						@click="openItemDrawer(item)"
+						@keydown.enter="openItemDrawer(item)"
+					>
+						<div class="goal-progress-head">
+							<span class="goal-progress-icon" :class="item.iconWrapClass">
+								<component
+									:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
+									class="goal-progress-icon-svg"
+								/>
+							</span>
+							<div class="goal-progress-main">
+								<p class="goal-progress-name">{{ item.name }}</p>
+								<p class="goal-progress-meta">
+									{{ formatAmount(item.totalSaved) }} of
+									{{ formatAmount(item.targetAmount) }}
+								</p>
+							</div>
+						</div>
+						<div class="goal-progress-labels">
+							<span>{{ formatAmount(item.totalSaved) }} Saved</span>
+							<span class="goal-progress-pct">{{ item.percent }}%</span>
+						</div>
+						<div class="goal-progress-track">
+							<div class="goal-progress-fill" :style="{ width: item.percent + '%' }" />
+						</div>
+						<p v-if="item.neededMore > 0" class="goal-progress-needed">
+							{{ formatAmount(item.neededMore) }} more to hit target
+						</p>
+						<p v-else class="goal-progress-needed is-done">Target reached</p>
+					</li>
+				</ul>
+			</GlassContainer>
+
+			<div v-if="savingsItems.length" class="savings-items-grid">
+				<div
+					v-for="item in savingsItems"
+					:key="item.id"
+					class="goal-card is-clickable"
+					:class="item.cardWrapClass"
+					role="button"
+					tabindex="0"
+					@click="openItemDrawer(item)"
+					@keydown.enter="openItemDrawer(item)"
 				>
-					<Bars3Icon class="filter-icon" />
-				</button>
-			</div>
-
-			<ul v-if="previewHistory.length" class="history-list">
-				<li v-for="entry in previewHistory" :key="entry.id" class="history-row">
-					<span class="history-icon-wrap" :class="entry.iconWrapClass">
+					<span class="goal-card-logo" :class="item.iconWrapClass">
 						<component
-							:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
-							class="history-icon"
+							:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
+							class="goal-card-logo-icon"
 						/>
 					</span>
-					<div class="history-main">
-						<p class="history-name">{{ entry.itemName }}</p>
-						<p class="history-cutoff">{{ entry.historySubtitle }}</p>
+					<div class="goal-card-bottom">
+						<p class="goal-card-type">Total Saved</p>
+						<p class="goal-card-amount">{{ formatAmount(item.totalSaved) }}</p>
+						<p class="goal-card-meta">{{ item.name }}</p>
 					</div>
-					<div class="history-amount-col">
-						<span
-							class="history-amount"
-							:class="entry.amount >= 0 ? 'text-progress-green' : 'text-progress-red'"
-						>
-							{{ formatSignedAmount(entry.amount) }}
+				</div>
+			</div>
+
+			<Divider marginTop="1rem" marginBottom="1rem" />
+
+			<GlassContainer class="transactions-card" :padding="false">
+				<div class="transactions-header">
+					<p class="section-title">Saving History</p>
+					<button
+						v-if="savingsHistory.length"
+						type="button"
+						class="filter-btn"
+						aria-label="Filter saving history"
+						@click="openHistoryDrawer"
+					>
+						<Bars3Icon class="filter-icon" />
+					</button>
+				</div>
+
+				<ul v-if="previewHistory.length" class="history-list">
+					<li v-for="entry in previewHistory" :key="entry.id" class="history-row">
+						<span class="history-icon-wrap" :class="entry.iconWrapClass">
+							<component
+								:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
+								class="history-icon"
+							/>
 						</span>
-						<span class="history-date">{{ formatHistoryDate(entry.createdAt) }}</span>
-					</div>
-				</li>
-			</ul>
-			<p v-else class="empty transactions-empty">No savings history yet</p>
-		</GlassContainer>
+						<div class="history-main">
+							<p class="history-name">{{ entry.itemName }}</p>
+							<p class="history-cutoff">{{ entry.historySubtitle }}</p>
+						</div>
+						<div class="history-amount-col">
+							<span
+								class="history-amount"
+								:class="entry.amount >= 0 ? 'text-progress-green' : 'text-progress-red'"
+							>
+								{{ formatSignedAmount(entry.amount) }}
+							</span>
+							<span class="history-date">{{
+								formatHistoryDate(entry.createdAt)
+							}}</span>
+						</div>
+					</li>
+				</ul>
+				<p v-else class="empty transactions-empty">No savings history yet</p>
+			</GlassContainer>
+		</div>
 
 		<Teleport to="body">
 			<div
@@ -860,16 +1002,25 @@
 		align-items: stretch;
 		gap: 1rem;
 		padding-top: 1rem;
-		padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 		max-width: 480px;
 		width: 100%;
-		overflow-y: auto;
 	}
 
 	.page-header {
 		display: flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 0.75rem;
+	}
+
+	.savings-scroll {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		flex-direction: column;
+		gap: 1rem;
+		overflow-y: auto;
+		padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 	}
 
 	.back-btn {
@@ -897,6 +1048,66 @@
 
 	.header-spacer {
 		width: 2rem;
+	}
+
+	.tip-card {
+		display: flex;
+		width: 100%;
+		max-width: 480px;
+		align-items: flex-end;
+		gap: 0.35rem;
+	}
+
+	.tip-mascot {
+		width: 8.5rem;
+		height: auto;
+		flex-shrink: 0;
+		object-fit: contain;
+		align-self: flex-end;
+	}
+
+	.tip-bubble {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		margin-bottom: 0.75rem;
+		padding: 0.75rem 0.9rem;
+		border-radius: 1rem;
+		background: #ffd0b0;
+		border: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		box-shadow: 0 5px 10px color-mix(in srgb, #000 40%, transparent);
+	}
+
+	.tip-bubble::before {
+		content: "";
+		position: absolute;
+		left: -0.4rem;
+		bottom: 3rem;
+		width: 0.75rem;
+		height: 0.75rem;
+		background: #ffd0b0;
+		border-left: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		border-bottom: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		transform: rotate(45deg);
+	}
+
+	.tip-name {
+		margin: 0;
+		font-size: 0.85rem;
+		font-weight: 700;
+		color: #c2410c;
+	}
+
+	.tip-message {
+		margin: 0.25rem 0 0;
+		font-size: 0.8rem;
+		line-height: 1.35;
+		color: #1f2937;
+	}
+
+	.tip-message :deep(.tip-hl) {
+		font-weight: 700;
+		color: #9a3412;
 	}
 
 	.balance-card {
@@ -960,6 +1171,123 @@
 		margin: 0.85rem 0 0;
 		font-size: 0.78rem;
 		color: var(--color-textSecondary);
+	}
+
+	.goals-card {
+		flex-shrink: 0;
+		width: 100%;
+		overflow: hidden;
+		box-shadow: none;
+	}
+
+	.goals-section-title {
+		padding: 1rem 1rem 0.5rem;
+	}
+
+	.goals-list {
+		list-style: none;
+		margin: 0;
+		padding: 0 1rem 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.goal-progress-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		padding: 0.85rem 0;
+		border-bottom: 1px solid
+			color-mix(in srgb, var(--color-inputBorder) 40%, transparent);
+	}
+
+	.goal-progress-row:last-child {
+		border-bottom: none;
+		padding-bottom: 0.25rem;
+	}
+
+	.goal-progress-row.is-clickable {
+		cursor: pointer;
+	}
+
+	.goal-progress-head {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.goal-progress-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 0.75rem;
+		flex-shrink: 0;
+	}
+
+	.goal-progress-icon-svg {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	.goal-progress-main {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.goal-progress-name {
+		margin: 0;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.goal-progress-meta {
+		margin: 0.15rem 0 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
+	}
+
+	.goal-progress-labels {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.78rem;
+		color: var(--color-textSecondary);
+	}
+
+	.goal-progress-pct {
+		font-weight: 700;
+		color: var(--color-textPrimary);
+	}
+
+	.goal-progress-track {
+		height: 0.5rem;
+		border-radius: 9999px;
+		background: var(--color-progress-track);
+		border: 1px solid var(--color-progress-track-border);
+		box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.6);
+		overflow: hidden;
+	}
+
+	.goal-progress-fill {
+		height: 100%;
+		border-radius: 9999px;
+		background: var(--color-progress-green);
+		transition: width 0.2s;
+	}
+
+	.goal-progress-needed {
+		margin: 0;
+		font-size: 0.72rem;
+		color: var(--color-textSecondary);
+	}
+
+	.goal-progress-needed.is-done {
+		color: var(--color-progress-green);
 	}
 
 	.savings-items-grid {

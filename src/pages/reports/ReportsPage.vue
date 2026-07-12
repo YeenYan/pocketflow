@@ -1,6 +1,11 @@
 <script setup lang="ts">
 	import { computed, onMounted, ref } from "vue";
-	import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
+	import {
+		ChevronLeftIcon,
+		ChevronRightIcon,
+		EyeIcon,
+		EyeSlashIcon,
+	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
 	import {
@@ -23,6 +28,7 @@
 	const savingsTransfers = ref<SavingsTransfer[]>([]);
 	const ruleExtraBudgets = ref<RuleExtraBudget[]>([]);
 	const selectedIndex = ref(0);
+	const hideAllotted = ref(true);
 
 	onMounted(async () => {
 		const all = await db.cycleCutoffs.toArray();
@@ -244,15 +250,26 @@
 				<GlassContainer class="overall-budget mb-4">
 					<div class="overall-budget-top">
 						<span class="overall-budget-label">Overall Budget Allotted</span>
-						<span class="overall-budget-amount">{{
-							formatAmount(overallCutoffBudget)
-						}}</span>
+						<div class="overall-budget-amount-row">
+							<span class="overall-budget-amount">{{
+								hideAllotted ? "••••••" : formatAmount(overallCutoffBudget)
+							}}</span>
+							<button
+								type="button"
+								class="balance-eye-btn"
+								aria-label="Toggle allotted budget visibility"
+								@click="hideAllotted = !hideAllotted"
+							>
+								<EyeSlashIcon v-if="hideAllotted" class="balance-eye-icon" />
+								<EyeIcon v-else class="balance-eye-icon" />
+							</button>
+						</div>
 					</div>
-					<p v-if="incomingCarryOver > 0" class="carry-detail">
+					<p v-if="!hideAllotted && incomingCarryOver > 0" class="carry-detail">
 						Carry over from previous cutoff:
 						{{ formatAmount(incomingCarryOver) }}
 					</p>
-					<p v-if="outgoingCarryOver > 0" class="carry-detail">
+					<p v-if="!hideAllotted && outgoingCarryOver > 0" class="carry-detail">
 						Carry over to next cutoff:
 						{{ formatAmount(outgoingCarryOver) }}
 						<span class="carry-status">({{ outgoingCarryOverLabel }})</span>
@@ -480,9 +497,37 @@
 
 	.overall-budget-top {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
+	}
+
+	.overall-budget-amount-row {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.balance-eye-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.35rem;
+		border: none;
+		background: none;
+		color: var(--color-textSecondary);
+		cursor: pointer;
+		border-radius: 9999px;
+		flex-shrink: 0;
+	}
+
+	.balance-eye-btn:hover {
+		background: var(--color-surfaceHover);
+	}
+
+	.balance-eye-icon {
+		width: 1.15rem;
+		height: 1.15rem;
 	}
 
 	.carry-detail {

@@ -1,5 +1,11 @@
 <script setup lang="ts">
-	import { PlusIcon, PencilIcon } from "@heroicons/vue/24/outline";
+	import { ref } from "vue";
+	import {
+		PlusIcon,
+		PencilIcon,
+		EyeIcon,
+		EyeSlashIcon,
+	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../../../components/containers/GlassContainer.vue";
 
 	defineProps<{
@@ -17,6 +23,8 @@
 	const emit = defineEmits<{
 		openModal: [];
 	}>();
+
+	const hideAmount = ref(true);
 </script>
 
 <template>
@@ -41,20 +49,26 @@
 		</p>
 		<div class="amount-row">
 			<p class="mt-2 mb-0 text-[1.8rem] font-bold text-textPrimary">
-				{{ displayAmount }}
+				{{ hideAmount ? "••••••" : displayAmount }}
 			</p>
-			<p v-if="displayAmountDetail" class="amount-detail">
+			<button
+				type="button"
+				class="balance-eye-btn"
+				aria-label="Toggle allotted budget visibility"
+				@click="hideAmount = !hideAmount"
+			>
+				<EyeSlashIcon v-if="hideAmount" class="balance-eye-icon" />
+				<EyeIcon v-else class="balance-eye-icon" />
+			</button>
+			<p v-if="!hideAmount && displayAmountDetail" class="amount-detail">
 				{{ displayAmountDetail }}
 			</p>
 		</div>
-		<!-- <p class="mt-[0.15rem] mb-0 text-[0.85rem] text-textSecondary">
-			Spend budget {{ displaySpendBudget }}
-		</p> -->
 		<div class="flex items-center justify-between mb-[.]">
 			<p class="text-[0.85rem] text-textSecondary">
 				Budget:
 				<span class="text-textPrimary font-bold text-[.95rem]">{{
-					displaySpendBudget
+					hideAmount ? "••••••" : displaySpendBudget
 				}}</span>
 			</p>
 			<div class="flex items-center justify-end gap-2">
@@ -81,7 +95,7 @@
 
 	.amount-row {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		flex-wrap: wrap;
 		gap: 0.35rem 0.5rem;
 	}
@@ -90,5 +104,27 @@
 		margin: 0;
 		font-size: 0.75rem;
 		color: var(--color-textSecondary);
+	}
+
+	.balance-eye-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.35rem;
+		border: none;
+		background: none;
+		color: var(--color-textSecondary);
+		cursor: pointer;
+		border-radius: 9999px;
+		flex-shrink: 0;
+	}
+
+	.balance-eye-btn:hover {
+		background: var(--color-surfaceHover);
+	}
+
+	.balance-eye-icon {
+		width: 1.15rem;
+		height: 1.15rem;
 	}
 </style>

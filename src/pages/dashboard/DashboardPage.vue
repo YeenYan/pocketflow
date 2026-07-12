@@ -8,6 +8,7 @@
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
+	import yarsiImg from "../../assets/img/image_1.webp";
 	import {
 		db,
 		type BudgetEntry,
@@ -16,6 +17,7 @@
 		type OthersBudget,
 		type OthersExpense,
 		type RuleName,
+		type SavingsTransfer,
 		type TabBudget,
 		type TabBudgetExpense,
 	} from "../../db/budgetDb";
@@ -27,6 +29,7 @@
 	const tabBudgetExpenses = ref<TabBudgetExpense[]>([]);
 	const othersBudgets = ref<OthersBudget[]>([]);
 	const othersExpenses = ref<OthersExpense[]>([]);
+	const savingsTransfers = ref<SavingsTransfer[]>([]);
 	const displayName = ref("");
 	const photoUrl = ref("");
 	const showAllRecentItems = ref(false);
@@ -84,6 +87,7 @@
 		tabBudgetExpenses.value = await db.tabBudgetExpenses.toArray();
 		othersBudgets.value = await db.othersBudgets.toArray();
 		othersExpenses.value = await db.othersExpenses.toArray();
+		savingsTransfers.value = await db.savingsTransfers.toArray();
 	}
 
 	onMounted(loadData);
@@ -287,12 +291,16 @@
 	const savingsSaved = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return 0;
+		const transferEntryIds = new Set(
+			savingsTransfers.value.map((transfer) => transfer.budgetEntryId),
+		);
 		return budgetEntries.value
 			.filter(
 				(entry) =>
 					entry.cutoffId === cutoffId &&
 					entry.ruleName === "Savings" &&
-					!entry.parentBudgetEntryId,
+					!entry.parentBudgetEntryId &&
+					!transferEntryIds.has(entry.id),
 			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 	});
@@ -301,7 +309,7 @@
 		if (savingsTarget.value <= 0) return 0;
 		return Math.min(
 			100,
-			Math.round((savingsSaved.value / savingsTarget.value) * 100),
+			Math.max(0, Math.round((savingsSaved.value / savingsTarget.value) * 100)),
 		);
 	});
 
@@ -377,6 +385,9 @@
 	const recentItems = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return [];
+		const transferEntryIds = new Set(
+			savingsTransfers.value.map((transfer) => transfer.budgetEntryId),
+		);
 		const items: Array<{
 			id: string;
 			name: string;
@@ -386,6 +397,7 @@
 
 		for (const entry of budgetEntries.value) {
 			if (entry.cutoffId !== cutoffId) continue;
+			if (transferEntryIds.has(entry.id)) continue;
 			const builder = entry.itemBuilderId
 				? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
 				: itemBuilders.value.find((item) => item.name === entry.name);
@@ -425,10 +437,61 @@
 	);
 
 	const hasMoreRecentItems = computed(() => recentItems.value.length > 5);
+
+	const tipMessage = computed(() => {
+		const hl = (text: string) => `<strong class="tip-hl">${text}</strong>`;
+
+		if (!activeCutoff.value) {
+			return `Hey! Wanna start tracking? Just set up a cutoff in Tracker and I'll keep an eye on things for you.`;
+		}
+
+		const expenses = spendRuleChips.value.find((r) => r.name === "Expenses");
+		const wants = spendRuleChips.value.find((r) => r.name === "Wants");
+		const expensesSpent = expenses?.spent ?? 0;
+		const wantsSpent = wants?.spent ?? 0;
+		const expensesPct = expenses?.percent ?? 0;
+		const wantsPct = wants?.percent ?? 0;
+		const top = expensesSpent >= wantsSpent ? "Expenses" : "Wants";
+		const topPct = expensesSpent >= wantsSpent ? expensesPct : wantsPct;
+		const left = `₱${Math.round(amountLeft.value).toLocaleString("en-PH")}`;
+		const savedPct = savingsPercent.value;
+		const spentPct = `${spentPercent.value}%`;
+
+		if (isOverspent.value) {
+			const over = `₱${Math.round(spentAmount.value - spendBudgetAmount.value).toLocaleString("en-PH")}`;
+			return `Oh noo… you went over by ${hl(over)}. Maybe ease up on the extras for now? You got this. Small cuts still count.`;
+		}
+
+		if (spentPercent.value >= 85) {
+			return `Heads up! You're already at ${hl(spentPct)} of your budget. Only ${hl(left)} left, so maybe save the non-essentials.`;
+		}
+
+		if (savedPct >= 100) {
+			return `Keep it up!! Your savings goal is at ${hl(`${savedPct}%`)}. Still got ${hl(left)} to work with, and most of your spend is going to ${hl(top)}.`;
+		}
+
+		if (savedPct > 0 && savedPct < 50 && amountLeft.value > 0) {
+			return `Hmm, savings is sitting at just ${hl(`${savedPct}%`)}. You've still got ${hl(left)} left. Even a little set aside helps. You got this!`;
+		}
+
+		if (topPct >= 80 && amountLeft.value > 0) {
+			return `Whoa, ${hl(top)} is already at ${hl(`${topPct}%`)}. You've got ${hl(left)} left overall. Stay mindful and keep it up!!`;
+		}
+
+		if (amountLeft.value > 0 && spentPercent.value < 40) {
+			return `Nice pace! Only ${hl(spentPct)} spent so far, with ${hl(left)} still free. Most of it's going to ${hl(top)}. Keep it up!!`;
+		}
+
+		if (amountLeft.value > 0) {
+			return `Looking good! You've got ${hl(left)} left. Most spending is on ${hl(top)} at ${hl(`${topPct}%`)}. Keep it up!!`;
+		}
+
+		return `Oh noo, budget's all used up. Stick to needs only until the next cutoff, okay?`;
+	});
 </script>
 
 <template>
-	<div class="page-shell">
+	<div class="page-shell relative">
 		<div class="greeting">
 			<img v-if="photoUrl" :src="photoUrl" alt="" class="greeting-avatar" />
 			<div v-else class="greeting-avatar greeting-avatar--placeholder">
@@ -442,7 +505,15 @@
 			</div>
 		</div>
 
-		<GlassContainer class="hero">
+		<div class="tip-card absolute z-[99] top-[5.5rem]">
+			<img :src="yarsiImg" alt="" class="tip-mascot" />
+			<div class="tip-bubble max-w-[15rem]">
+				<p class="tip-name">Poko</p>
+				<p class="tip-message" v-html="tipMessage" />
+			</div>
+		</div>
+
+		<GlassContainer class="hero mt-[7rem]">
 			<div
 				v-if="activeCutoff"
 				class="status-pill"
@@ -734,6 +805,66 @@
 		margin: 0.2rem 0 0;
 		font-size: 0.9rem;
 		color: var(--color-textSecondary);
+	}
+
+	.tip-card {
+		display: flex;
+		width: 100%;
+		max-width: 480px;
+		align-items: flex-end;
+		gap: 0.35rem;
+	}
+
+	.tip-mascot {
+		width: 8.5rem;
+		height: auto;
+		flex-shrink: 0;
+		object-fit: contain;
+		align-self: flex-end;
+	}
+
+	.tip-bubble {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		margin-bottom: 0.75rem;
+		padding: 0.75rem 0.9rem;
+		border-radius: 1rem;
+		background: #ffd0b0;
+		border: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		box-shadow: 0 5px 10px color-mix(in srgb, #000 40%, transparent);
+	}
+
+	.tip-bubble::before {
+		content: "";
+		position: absolute;
+		left: -0.4rem;
+		bottom: 3rem;
+		width: 0.75rem;
+		height: 0.75rem;
+		background: #ffd0b0;
+		border-left: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		border-bottom: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		transform: rotate(45deg);
+	}
+
+	.tip-name {
+		margin: 0;
+		font-size: 0.85rem;
+		font-weight: 700;
+		color: #c2410c;
+	}
+
+	.tip-message {
+		margin: 0.25rem 0 0;
+		font-size: 0.8rem;
+		line-height: 1.35;
+		color: #1f2937;
+	}
+
+	.tip-message :deep(.tip-hl) {
+		font-weight: 700;
+		color: #9a3412;
 	}
 
 	.hero {
@@ -1057,7 +1188,9 @@
 	.child-item-track {
 		height: 0.5rem;
 		border-radius: 9999px;
-		background: var(--color-inputBorder);
+		background: var(--color-progress-track);
+		border: 1px solid var(--color-progress-track-border);
+		box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.6);
 		overflow: hidden;
 	}
 

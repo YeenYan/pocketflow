@@ -1,9 +1,11 @@
 <script setup lang="ts">
-	import { ref, nextTick } from "vue";
+	import { ref, nextTick, onMounted } from "vue";
 	import { useRouter } from "vue-router";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import FadeIn from "../../components/containers/FadeIn.vue";
 	import { db, type RuleName } from "../../db/budgetDb";
+	import pokoImg from "../../assets/img/image_3.webp";
+	import pokoHead from "../../assets/img/head_only.webp";
 
 	const router = useRouter();
 	const input = ref("");
@@ -11,6 +13,16 @@
 	const loading = ref(false);
 	const error = ref("");
 	const messagesEl = ref<HTMLElement | null>(null);
+	const photoUrl = ref("");
+	const displayName = ref("");
+
+	onMounted(async () => {
+		const profile = await db.userProfiles.get(1);
+		if (profile) {
+			displayName.value = profile.displayName;
+			photoUrl.value = profile.photoUrl || "";
+		}
+	});
 
 	async function buildBudgetContext() {
 		const profile = await db.userProfiles.get(1);
@@ -93,9 +105,7 @@
 				const entriesSum = budgetEntries
 					.filter(
 						(e) =>
-							e.cutoffId === cutoffId &&
-							e.ruleName === rule &&
-							!e.parentBudgetEntryId,
+							e.cutoffId === cutoffId && e.ruleName === rule && !e.parentBudgetEntryId,
 					)
 					.reduce((sum, e) => sum + e.amount, 0);
 				const spent =
@@ -181,7 +191,9 @@
 		const tabSpent = tabExpenses.reduce((sum, e) => sum + e.amount, 0);
 
 		const othersBudget = othersBudgets.find((b) => b.cutoffId === cutoffId);
-		const othersExpenseList = othersExpenses.filter((e) => e.cutoffId === cutoffId);
+		const othersExpenseList = othersExpenses.filter(
+			(e) => e.cutoffId === cutoffId,
+		);
 		const othersAllocated = othersBudget?.budgetAllocated ?? 0;
 		const othersSpent = othersExpenseList.reduce((sum, e) => sum + e.amount, 0);
 
@@ -219,9 +231,7 @@
 			const entriesSum = budgetEntries
 				.filter(
 					(e) =>
-						e.cutoffId === cutoffId &&
-						e.ruleName === rule &&
-						!e.parentBudgetEntryId,
+						e.cutoffId === cutoffId && e.ruleName === rule && !e.parentBudgetEntryId,
 				)
 				.reduce((sum, e) => sum + e.amount, 0);
 			const spent =
@@ -294,9 +304,7 @@
 		if (recent.length) {
 			lines.push("Recent items:");
 			for (const item of recent.slice(0, 10)) {
-				lines.push(
-					`- ${item.name}: ₱${item.amount.toLocaleString("en-PH")}`,
-				);
+				lines.push(`- ${item.name}: ₱${item.amount.toLocaleString("en-PH")}`);
 			}
 		}
 
@@ -353,20 +361,25 @@
 
 <template>
 	<div class="chat">
-		<FadeIn :delay="0">
-			<GlassContainer as="header" rounded="2xl" class="chat-header">
-				<button type="button" class="back-btn" @click="router.push('/dashboard')">
-					←
-				</button>
-				<h1 class="chat-title">Pocketflow Assistant</h1>
-			</GlassContainer>
-		</FadeIn>
+		<header class="page-header mt-[-1rem]">
+			<button type="button" class="back-btn" @click="router.push('/dashboard')">
+				←
+			</button>
+			<h1 class="page-title">Chat with Poko</h1>
+			<span class="header-spacer" />
+		</header>
 
 		<div ref="messagesEl" class="messages">
 			<FadeIn v-if="messages.length === 0" :delay="80">
-				<div class="welcome">
-					<h2>How can I help with your finances today?</h2>
-					<p>Ask about your budget, spending, savings, or habits.</p>
+				<div class="tip-card">
+					<img :src="pokoImg" alt="" class="tip-mascot" />
+					<div class="tip-bubble">
+						<p class="tip-name">Poko</p>
+						<p class="tip-message">How can I help with your finances today?</p>
+						<p class="tip-sub">
+							Ask about your budget, spending, savings, or habits.
+						</p>
+					</div>
 				</div>
 			</FadeIn>
 
@@ -376,12 +389,24 @@
 				class="message-row"
 				:class="msg.role"
 			>
-				<div class="avatar">{{ msg.role === "user" ? "You" : "PF" }}</div>
+				<img
+					v-if="msg.role === 'assistant'"
+					:src="pokoHead"
+					alt=""
+					class="avatar avatar-img"
+				/>
+				<img
+					v-else-if="photoUrl"
+					:src="photoUrl"
+					alt=""
+					class="avatar avatar-img"
+				/>
+				<div v-else class="avatar">{{ displayName.charAt(0) || "?" }}</div>
 				<div class="bubble">{{ msg.content }}</div>
 			</div>
 
 			<div v-if="loading" class="message-row assistant">
-				<div class="avatar">PF</div>
+				<img :src="pokoHead" alt="" class="avatar avatar-img" />
 				<div class="bubble typing">Thinking...</div>
 			</div>
 		</div>
@@ -393,7 +418,7 @@
 					<textarea
 						v-model="input"
 						class="input"
-						placeholder="Message Pocketflow Assistant..."
+						placeholder="Message Poko..."
 						rows="1"
 						:disabled="loading"
 						@keydown="onKeydown"
@@ -426,12 +451,12 @@
 		padding-top: 1rem;
 	}
 
-	.chat-header {
+	.page-header {
 		display: flex;
+		flex-shrink: 0;
 		align-items: center;
 		gap: 0.75rem;
 		margin-bottom: 0.5rem;
-		flex-shrink: 0;
 	}
 
 	.back-btn {
@@ -448,10 +473,17 @@
 		background: var(--color-surfaceHover);
 	}
 
-	.chat-title {
+	.page-title {
+		flex: 1;
 		font-size: 1rem;
 		font-weight: 600;
 		margin: 0;
+		text-align: center;
+		color: var(--color-textPrimary);
+	}
+
+	.header-spacer {
+		width: 2rem;
 	}
 
 	.messages {
@@ -461,23 +493,68 @@
 		padding: 1rem;
 	}
 
-	.welcome {
-		max-width: 640px;
-		margin: 2rem auto;
-		text-align: center;
-		color: var(--color-textSecondary);
+	.tip-card {
+		display: flex;
+		width: 100%;
+		max-width: 480px;
+		align-items: flex-end;
+		gap: 0.35rem;
+		margin: 0.5rem auto 1.5rem;
 	}
 
-	.welcome h2 {
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: var(--color-textPrimary);
-		margin: 0 0 0.5rem;
+	.tip-mascot {
+		width: 8.5rem;
+		height: auto;
+		flex-shrink: 0;
+		object-fit: contain;
+		align-self: flex-end;
 	}
 
-	.welcome p {
+	.tip-bubble {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+		margin-bottom: 0.75rem;
+		padding: 0.75rem 0.9rem;
+		border-radius: 1rem;
+		background: #ffd0b0;
+		border: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		box-shadow: 0 5px 10px color-mix(in srgb, #000 40%, transparent);
+	}
+
+	.tip-bubble::before {
+		content: "";
+		position: absolute;
+		left: -0.4rem;
+		bottom: 3rem;
+		width: 0.75rem;
+		height: 0.75rem;
+		background: #ffd0b0;
+		border-left: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		border-bottom: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		transform: rotate(45deg);
+	}
+
+	.tip-name {
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: 0.85rem;
+		font-weight: 700;
+		color: #c2410c;
+	}
+
+	.tip-message {
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+		line-height: 1.35;
+		font-weight: 600;
+		color: #1f2937;
+	}
+
+	.tip-sub {
+		margin: 0.35rem 0 0;
+		font-size: 0.75rem;
+		line-height: 1.35;
+		color: #4b5563;
 	}
 
 	.message-row {
@@ -494,22 +571,28 @@
 
 	.avatar {
 		flex-shrink: 0;
-		width: 32px;
-		height: 32px;
-		border-radius: 4px;
+		width: 40px;
+		height: 40px;
+		border-radius: 9999px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 0.65rem;
 		font-weight: 700;
 		color: var(--color-onColor);
+		overflow: hidden;
 	}
 
-	.message-row.user .avatar {
+	.avatar-img {
+		object-fit: cover;
+		background: transparent;
+	}
+
+	.message-row.user .avatar:not(.avatar-img) {
 		background: var(--color-userAvatar);
 	}
 
-	.message-row.assistant .avatar {
+	.message-row.assistant .avatar:not(.avatar-img) {
 		background: var(--color-accentSolid);
 	}
 

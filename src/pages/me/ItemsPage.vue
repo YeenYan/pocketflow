@@ -230,8 +230,7 @@
 			if (oldName !== data.name) {
 				const legacy = await db.budgetEntries
 					.filter(
-						(e) =>
-							e.name === oldName && !e.parentBudgetEntryId && !e.itemBuilderId,
+						(e) => e.name === oldName && !e.parentBudgetEntryId && !e.itemBuilderId,
 					)
 					.toArray();
 				for (const entry of legacy) {
@@ -292,7 +291,10 @@
 		for (const entry of [...byId, ...byName]) {
 			if (seen.has(entry.id)) continue;
 			seen.add(entry.id);
-			await db.budgetEntries.where("parentBudgetEntryId").equals(entry.id).delete();
+			await db.budgetEntries
+				.where("parentBudgetEntryId")
+				.equals(entry.id)
+				.delete();
 			await db.budgetEntries.delete(entry.id);
 		}
 	}
@@ -494,10 +496,10 @@
 						Remove Item
 					</h2>
 					<p class="m-0 text-center text-sm text-textSecondary">
-						<strong class="text-textPrimary">{{ pendingDeleteName }}</strong> is
-						used in the current cutoff. Removing it will also remove it from the
-						current cutoff and may affect your budget calculations. Past cutoffs
-						will not be affected. Are you sure?
+						<strong class="text-textPrimary">{{ pendingDeleteName }}</strong> is used
+						in the current cutoff. Removing it will also remove it from the current
+						cutoff and may affect your budget calculations. Past cutoffs will not be
+						affected. Are you sure?
 					</p>
 					<div class="flex gap-3">
 						<Button block variant="shade" @click="closeDeleteConfirm">Cancel</Button>

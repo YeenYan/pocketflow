@@ -1,97 +1,102 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { SunIcon, MoonIcon, BellIcon, ChatBubbleLeftRightIcon } from '@heroicons/vue/24/outline'
-import GlassContainer from './components/containers/GlassContainer.vue'
-import BottomNav from './components/BottomNav.vue'
-import { useTheme } from './composables/useTheme'
-import { db, sessionUnlocked, setSessionUnlocked } from './db/budgetDb'
+	import { computed, ref, onMounted, onUnmounted } from "vue";
+	import { useRoute, useRouter } from "vue-router";
+	import {
+		SunIcon,
+		MoonIcon,
+		BellIcon,
+		ChatBubbleLeftRightIcon,
+	} from "@heroicons/vue/24/outline";
+	import GlassContainer from "./components/containers/GlassContainer.vue";
+	import BottomNav from "./components/BottomNav.vue";
+	import { useTheme } from "./composables/useTheme";
+	import { db, sessionUnlocked, setSessionUnlocked } from "./db/budgetDb";
 
-const { currentTheme, toggleTheme } = useTheme()
+	const { currentTheme, toggleTheme } = useTheme();
 
-const router = useRouter()
-const route = useRoute()
-const pageTransition = ref('page-forward')
-const layoutStyle = ref<Record<string, string>>({})
+	const router = useRouter();
+	const route = useRoute();
+	const pageTransition = ref("page-forward");
+	const layoutStyle = ref<Record<string, string>>({});
 
-function syncLayoutViewport() {
-	const viewport = window.visualViewport
-	if (!viewport) return
-	layoutStyle.value = {
-		height: `${viewport.height}px`,
-		top: `${viewport.offsetTop}px`,
+	function syncLayoutViewport() {
+		const viewport = window.visualViewport;
+		if (!viewport) return;
+		layoutStyle.value = {
+			height: `${viewport.height}px`,
+			top: `${viewport.offsetTop}px`,
+		};
 	}
-}
 
-async function onVisibilityChange() {
-	if (document.visibilityState === 'hidden') {
-		const profile = await db.userProfiles.get(1)
-		if (profile?.lockEnabled && profile.onboardingCompleted) {
-			setSessionUnlocked(false)
+	async function onVisibilityChange() {
+		if (document.visibilityState === "hidden") {
+			const profile = await db.userProfiles.get(1);
+			if (profile?.lockEnabled && profile.onboardingCompleted) {
+				setSessionUnlocked(false);
+			}
+			return;
 		}
-		return
+
+		if (document.visibilityState !== "visible") return;
+
+		const profile = await db.userProfiles.get(1);
+		if (
+			profile?.onboardingCompleted &&
+			profile.lockEnabled &&
+			!sessionUnlocked &&
+			route.path !== "/lock" &&
+			route.path !== "/onboarding"
+		) {
+			router.push("/lock");
+		}
 	}
 
-	if (document.visibilityState !== 'visible') return
+	onMounted(() => {
+		syncLayoutViewport();
+		window.visualViewport?.addEventListener("resize", syncLayoutViewport);
+		window.visualViewport?.addEventListener("scroll", syncLayoutViewport);
+		document.addEventListener("visibilitychange", onVisibilityChange);
+	});
 
-	const profile = await db.userProfiles.get(1)
-	if (
-		profile?.onboardingCompleted &&
-		profile.lockEnabled &&
-		!sessionUnlocked &&
-		route.path !== '/lock' &&
-		route.path !== '/onboarding'
-	) {
-		router.push('/lock')
+	onUnmounted(() => {
+		window.visualViewport?.removeEventListener("resize", syncLayoutViewport);
+		window.visualViewport?.removeEventListener("scroll", syncLayoutViewport);
+		document.removeEventListener("visibilitychange", onVisibilityChange);
+	});
+
+	const tabPaths = ["/dashboard", "/tracker", "/reports", "/me"];
+	const hideAllChrome = computed(() =>
+		["/onboarding", "/lock"].includes(route.path),
+	);
+	const showNav = computed(() => !hideAllChrome.value && route.path !== "/chat");
+
+	router.beforeEach((to, from) => {
+		if (to.path === "/chat") {
+			pageTransition.value = "page-forward";
+			return;
+		}
+		if (from.path === "/chat") {
+			pageTransition.value = "page-back";
+			return;
+		}
+		const toIdx = tabPaths.indexOf(to.path);
+		const fromIdx = tabPaths.indexOf(from.path);
+		pageTransition.value =
+			toIdx >= 0 && fromIdx >= 0 && toIdx < fromIdx ? "page-back" : "page-forward";
+	});
+
+	async function testNotification() {
+		if (!("Notification" in window)) return;
+
+		const permission = await Notification.requestPermission();
+
+		if (permission === "granted") {
+			new Notification("My Test App", {
+				body: "PWA notification test successful!",
+				icon: "/pwa-192x192.png",
+			});
+		}
 	}
-}
-
-onMounted(() => {
-	syncLayoutViewport()
-	window.visualViewport?.addEventListener('resize', syncLayoutViewport)
-	window.visualViewport?.addEventListener('scroll', syncLayoutViewport)
-	document.addEventListener('visibilitychange', onVisibilityChange)
-})
-
-onUnmounted(() => {
-	window.visualViewport?.removeEventListener('resize', syncLayoutViewport)
-	window.visualViewport?.removeEventListener('scroll', syncLayoutViewport)
-	document.removeEventListener('visibilitychange', onVisibilityChange)
-})
-
-const tabPaths = ['/dashboard', '/tracker', '/reports', '/me']
-const hideAllChrome = computed(() =>
-	['/onboarding', '/lock'].includes(route.path),
-)
-const showNav = computed(() => !hideAllChrome.value && route.path !== '/chat')
-
-router.beforeEach((to, from) => {
-	if (to.path === '/chat') {
-		pageTransition.value = 'page-forward'
-		return
-	}
-	if (from.path === '/chat') {
-		pageTransition.value = 'page-back'
-		return
-	}
-	const toIdx = tabPaths.indexOf(to.path)
-	const fromIdx = tabPaths.indexOf(from.path)
-	pageTransition.value =
-		toIdx >= 0 && fromIdx >= 0 && toIdx < fromIdx ? 'page-back' : 'page-forward'
-})
-
-async function testNotification() {
-	if (!('Notification' in window)) return
-
-	const permission = await Notification.requestPermission()
-
-	if (permission === 'granted') {
-		new Notification('My Test App', {
-			body: 'PWA notification test successful!',
-			icon: '/pwa-192x192.png',
-		})
-	}
-}
 </script>
 
 <template>
@@ -129,7 +134,9 @@ async function testNotification() {
 				rounded="full"
 				:padding="false"
 				class="p-2 text-textSecondary hover:bg-surfaceHover"
-				:aria-label="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+				:aria-label="
+					currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+				"
 				@click="toggleTheme"
 			>
 				<SunIcon v-if="currentTheme === 'dark'" class="h-5 w-5" />
@@ -137,11 +144,14 @@ async function testNotification() {
 			</GlassContainer>
 		</header>
 		<main
-			class="relative z-10 flex min-h-0 flex-1 flex-col px-4"
+			class="relative z-10 flex min-h-0 flex-1 flex-col"
 			:class="[
+				route.path === '/lock' ? 'px-0' : 'px-4',
+				route.path === '/dashboard' ||
 				route.path === '/tracker' ||
 				route.path === '/reports' ||
-				route.path === '/me/items'
+				route.path === '/me/items' ||
+				route.path === '/me/savings'
 					? 'overflow-hidden pb-0'
 					: [
 							showNav

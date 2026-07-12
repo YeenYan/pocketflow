@@ -573,7 +573,8 @@
 					(entry) =>
 						entry.cutoffId === cutoffId &&
 						entry.ruleName === name &&
-						!entry.parentBudgetEntryId,
+						!entry.parentBudgetEntryId &&
+						!savingsTransferEntryIds.value.has(entry.id),
 				)
 				.reduce((sum, entry) => sum + entry.amount, 0);
 			const spent =
@@ -618,8 +619,7 @@
 			.toArray();
 		const expensesEntriesSum = entries
 			.filter(
-				(entry) =>
-					entry.ruleName === "Expenses" && !entry.parentBudgetEntryId,
+				(entry) => entry.ruleName === "Expenses" && !entry.parentBudgetEntryId,
 			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 		const wantsEntriesSum = entries
@@ -631,7 +631,10 @@
 		const tabExpenses = await db.tabBudgetExpenses
 			.where({ cutoffId, ruleName: "Expenses" })
 			.toArray();
-		const tabSpent = tabExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+		const tabSpent = tabExpenses.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
 		const tabReserved = Math.max(tabBudget?.budgetAllocated ?? 0, tabSpent);
 		const othersBudget = await db.othersBudgets
 			.where("cutoffId")
@@ -641,8 +644,14 @@
 			.where("cutoffId")
 			.equals(cutoffId)
 			.toArray();
-		const othersSpent = othersExp.reduce((sum, expense) => sum + expense.amount, 0);
-		const othersReserved = Math.max(othersBudget?.budgetAllocated ?? 0, othersSpent);
+		const othersSpent = othersExp.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		const othersReserved = Math.max(
+			othersBudget?.budgetAllocated ?? 0,
+			othersSpent,
+		);
 		const spent =
 			expensesEntriesSum + wantsEntriesSum + tabReserved + othersReserved;
 		return Math.max(0, spendAllotted - spent);
@@ -763,8 +772,7 @@
 		return savingsTransfers.value
 			.filter(
 				(transfer) =>
-					transfer.cutoffId === cutoffId &&
-					transfer.targetRule === activeTab.value,
+					transfer.cutoffId === cutoffId && transfer.targetRule === activeTab.value,
 			)
 			.reduce((sum, transfer) => sum + transfer.amount, 0);
 	});
@@ -813,6 +821,11 @@
 		return `Total ₱${activeRuleAmount.value.toLocaleString("en-PH")}`;
 	});
 
+	const savingsTransferEntryIds = computed(
+		() =>
+			new Set(savingsTransfers.value.map((transfer) => transfer.budgetEntryId)),
+	);
+
 	const activeRuleEntries = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return [];
@@ -821,7 +834,8 @@
 				(entry) =>
 					entry.cutoffId === cutoffId &&
 					entry.ruleName === activeTab.value &&
-					!entry.parentBudgetEntryId,
+					!entry.parentBudgetEntryId &&
+					!savingsTransferEntryIds.value.has(entry.id),
 			)
 			.map((entry) => {
 				const builder = entry.itemBuilderId
@@ -1044,9 +1058,7 @@
 
 	const unexpectedExcessPercent = computed(() => {
 		if (activeRuleAmount.value <= 0) return 0;
-		return Math.round(
-			(activeRuleUnexpectedTotal.value / activeRuleAmount.value) * 100,
-		);
+		return Math.round((ruleExcessAmount.value / activeRuleAmount.value) * 100);
 	});
 
 	const hasRuleUnexpectedBadge = computed(
@@ -1100,7 +1112,8 @@
 		const amount = Number(extraBudgetAmount.value);
 		if (savingExtraBudget.value || amount <= 0) return false;
 		if (!extraBudgetLabel.value.trim()) return false;
-		if (activeTab.value === "Savings" && !extraBudgetSavingsItemId.value) return false;
+		if (activeTab.value === "Savings" && !extraBudgetSavingsItemId.value)
+			return false;
 		return true;
 	});
 
@@ -1216,10 +1229,10 @@
 
 	function mainItemBudgetExcess(newAmount: number, oldAmount = 0) {
 		if (activeTab.value === "Savings") return 0;
-		// Use allocated only — Budget/Others overspend is tracked on those items.
+		// Match Expenses budget-left (reserved spent includes Budget/Others overspend).
 		const reserved =
 			activeTab.value === "Expenses"
-				? tabBudgetAllocated.value + othersAllocated.value
+				? tabBudgetReserved.value + othersReserved.value
 				: 0;
 		const currentSpent = activeRuleEntries.value.reduce(
 			(sum, entry) => sum + entry.amount,
@@ -1292,11 +1305,8 @@
 			.toArray();
 	}
 
-	// Keep the mainItems unexpected records in sync with the current over-budget
-	// state so the excess is always recorded, whether the overrun came from an
-	// item change or from lowering the rule's allocation. Budget/Others records
-	// are scoped to their own sections and cleared when their source is removed.
-	// The guard serializes overlapping watcher runs so they can't double-insert.
+	// Keep unexpected rows only while their source item still exists.
+	// Excess amounts are recorded at save time and are not recalculated here.
 	async function reconcileUnexpectedExpenses() {
 		if (reconciling) {
 			reconcileAgain = true;
@@ -1307,84 +1317,36 @@
 			const cutoff = activeCutoff.value;
 			if (!cutoff) return;
 			let changed = false;
-			for (const name of RULE_ORDER) {
-				if (name === "Savings") {
-					const leftover = (
-						await db.unexpectedExpenses.where("cutoffId").equals(cutoff.id).toArray()
-					).filter(
-						(item) =>
-							item.ruleName === "Savings" && item.sourceSection === "mainItems",
-					);
-					for (const record of leftover) {
-						await db.unexpectedExpenses.delete(record.id);
-						changed = true;
-					}
+			const rows = await db.unexpectedExpenses
+				.where("cutoffId")
+				.equals(cutoff.id)
+				.toArray();
+			const mainIds = new Set(
+				budgetEntries.value
+					.filter(
+						(entry) => entry.cutoffId === cutoff.id && !entry.parentBudgetEntryId,
+					)
+					.map((entry) => entry.id),
+			);
+			const budgetIds = new Set(tabBudgetExpenses.value.map((entry) => entry.id));
+			const otherIds = new Set(othersExpenses.value.map((entry) => entry.id));
+
+			for (const record of rows) {
+				if (record.ruleName === "Savings" && record.sourceSection === "mainItems") {
+					await db.unexpectedExpenses.delete(record.id);
+					changed = true;
 					continue;
 				}
-				const rule = rules.value.find((r) => r.name === name);
-				if (rule?.id == null) continue;
-				const allotted = cutoff.allocations?.[name]?.amount ?? 0;
-				const mainEntries = budgetEntries.value
-					.filter(
-						(entry) =>
-							entry.cutoffId === cutoff.id &&
-							entry.ruleName === name &&
-							!entry.parentBudgetEntryId,
-					)
-					.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-				// Excess only starts once spending passes the allotted budget. For
-				// Expenses, Budget/Others allocations fill the budget first (not their
-				// overspend — that excess is recorded on those section items).
-				let running =
-					name === "Expenses"
-						? tabBudgetAllocated.value + othersAllocated.value
-						: 0;
-				const desiredExcess = new Map<string, number>();
-				for (const entry of mainEntries) {
-					const before = running;
-					running += entry.amount;
-					const itemExcess =
-						Math.max(0, running - allotted) - Math.max(0, before - allotted);
-					if (itemExcess > 0) desiredExcess.set(entry.id, itemExcess);
+				let alive = false;
+				if (record.sourceSection === "mainItems") {
+					alive = mainIds.has(record.sourceId);
+				} else if (record.sourceSection === "budgetItems") {
+					alive = budgetIds.has(record.sourceId);
+				} else if (record.sourceSection === "otherItems") {
+					alive = otherIds.has(record.sourceId);
 				}
-
-				const existing = (
-					await db.unexpectedExpenses.where("cutoffId").equals(cutoff.id).toArray()
-				).filter(
-					(item) => item.ruleName === name && item.sourceSection === "mainItems",
-				);
-				const kept = new Set<string>();
-				for (const record of existing) {
-					const excess = desiredExcess.get(record.sourceId);
-					if (excess == null || kept.has(record.sourceId)) {
-						await db.unexpectedExpenses.delete(record.id);
-						changed = true;
-						continue;
-					}
-					kept.add(record.sourceId);
-					if (record.excessAmount !== excess) {
-						await db.unexpectedExpenses.update(record.id, {
-							excessAmount: excess,
-						});
-						changed = true;
-					}
-				}
-				for (const [sourceId, excess] of desiredExcess) {
-					if (kept.has(sourceId)) continue;
-					const entry = mainEntries.find((e) => e.id === sourceId)!;
-					await db.unexpectedExpenses.add({
-						id: createId(),
-						cutoffId: cutoff.id,
-						monthKey: cutoff.monthKey,
-						itemName: entry.name,
-						excessAmount: excess,
-						ruleId: rule.id,
-						ruleName: name,
-						date: todayDate(),
-						sourceSection: "mainItems",
-						sourceId,
-					});
+				if (!alive) {
+					await db.unexpectedExpenses.delete(record.id);
 					changed = true;
 				}
 			}
@@ -1688,6 +1650,33 @@
 			await loadCutoffs();
 			await loadBudgetEntries();
 			await loadRuleExtraBudgets();
+
+			if (ruleName === "Wants") {
+				const allotted =
+					cutoffs.value.find((c) => c.id === cutoff.id)?.allocations?.Wants
+						?.amount ?? 0;
+				const spent = budgetEntries.value
+					.filter(
+						(entry) =>
+							entry.cutoffId === cutoff.id &&
+							entry.ruleName === "Wants" &&
+							!entry.parentBudgetEntryId,
+					)
+					.reduce((sum, entry) => sum + entry.amount, 0);
+				if (spent <= allotted) {
+					const rows = await db.unexpectedExpenses
+						.where("cutoffId")
+						.equals(cutoff.id)
+						.toArray();
+					for (const row of rows) {
+						if (row.ruleName === "Wants") {
+							await db.unexpectedExpenses.delete(row.id);
+						}
+					}
+					await loadUnexpectedExpenses();
+				}
+			}
+
 			showExtraBudgetConfirm.value = false;
 			showExtraBudgetModal.value = false;
 		} catch {
@@ -1758,6 +1747,15 @@
 				itemBuilderId: builder.id,
 				createdAt: new Date().toISOString(),
 			});
+			if (excess > 0) {
+				await addUnexpectedExpense(
+					builder.name,
+					excess,
+					"mainItems",
+					entryId,
+					activeTab.value,
+				);
+			}
 			await loadBudgetEntries();
 			savingItem.value = false;
 			closeItemModal();
@@ -1804,6 +1802,15 @@
 		const doSave = async () => {
 			savingEditItem.value = true;
 			await db.budgetEntries.update(editItemId.value, { amount });
+			if (excess > 0) {
+				await addUnexpectedExpense(
+					editItemName.value,
+					excess,
+					"mainItems",
+					editItemId.value,
+					activeTab.value,
+				);
+			}
 			await reloadTracker();
 			savingEditItem.value = false;
 			closeEditItemModal();
@@ -2768,11 +2775,7 @@
 						label="Label"
 						placeholder="Extra Budget"
 					/>
-					<AmountField
-						v-model="extraBudgetAmount"
-						label="Amount"
-						placeholder="0"
-					/>
+					<AmountField v-model="extraBudgetAmount" label="Amount" placeholder="0" />
 					<SelectField
 						v-if="activeTab === 'Savings'"
 						v-model="extraBudgetSavingsItemId"
@@ -2810,8 +2813,8 @@
 						Confirm Extra Budget
 					</h2>
 					<p class="m-0 text-center text-sm text-textSecondary">
-						Add ₱{{ Number(extraBudgetAmount).toLocaleString("en-PH") }} extra
-						budget to {{ activeTab }} as "{{ extraBudgetLabel.trim() }}"?
+						Add ₱{{ Number(extraBudgetAmount).toLocaleString("en-PH") }} extra budget
+						to {{ activeTab }} as "{{ extraBudgetLabel.trim() }}"?
 					</p>
 					<div class="flex gap-3">
 						<Button block variant="shade" @click="closeExtraBudgetConfirm">

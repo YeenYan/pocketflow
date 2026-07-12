@@ -8,32 +8,32 @@
 }
 
 @theme {
-	--color-primary: var(--color-emerald-600);
+	--color-primary: #8b5a3c;
 	--color-bg: var(--color-slate-50);
 	--color-bgBody: var(--color-slate-50);
 	--color-surface: #ffffff;
-	--color-textPrimary: var(--color-slate-900);
-	--color-textSecondary: var(--color-slate-600);
-	--color-border: var(--color-slate-200);
+	--color-textPrimary: var(--color-stone-900);
+	--color-textSecondary: #7a6558;
+	--color-border: rgb(180 130 95 / 0.35);
 
 	--color-success: var(--color-green-700);
 	--color-warning: var(--color-amber-500);
 	--color-danger: var(--color-red-600);
 	--color-info: var(--color-sky-600);
-	--color-accent: var(--color-emerald-500);
-	--color-muted: var(--color-slate-500);
+	--color-accent: #c4895c;
+	--color-muted: #8a7568;
 
 	--color-surfaceHover: var(--color-slate-100);
 	--color-surfaceActive: var(--color-slate-200);
-	--color-accentBg: var(--color-emerald-100);
-	--color-accentText: var(--color-emerald-700);
+	--color-accentBg: rgb(212 140 106 / 0.15);
+	--color-accentText: #8b5a3c;
 	--color-inputBg: rgb(255 255 255 / 0.55);
-	--color-inputBorder: rgb(148 163 184 / 0.4);
-	--color-inputText: var(--color-slate-800);
+	--color-inputBorder: rgb(180 130 95 / 0.4);
+	--color-inputText: var(--color-stone-800);
 
 	--color-overlay: oklch(0.13 0.03 256 / 0.5);
 	--color-onColor: #ffffff;
-	--color-disabled: var(--color-slate-400);
+	--color-disabled: #a89080;
 
 	--color-successBg: var(--color-green-100);
 	--color-successText: var(--color-green-800);
@@ -43,13 +43,13 @@
 	--color-warningText: var(--color-amber-900);
 	--color-infoBg: var(--color-sky-100);
 	--color-infoText: var(--color-sky-900);
-	--color-primaryDark: #047857;
+	--color-primaryDark: #6b3d28;
 
-	--color-accentSolid: var(--color-emerald-500);
+	--color-accentSolid: #c4895c;
 	--color-successSolid: var(--color-green-600);
 	--color-dangerSolid: var(--color-red-700);
 	--color-warningSolid: var(--color-amber-500);
-	--color-mutedSolid: var(--color-slate-500);
+	--color-mutedSolid: #8a7568;
 	--color-userAvatar: var(--color-violet-600);
 
 	--color-progress-green: var(--color-green-500);
@@ -58,45 +58,48 @@
 	--color-progress-red: var(--color-red-500);
 
 	--color-glass-bg: rgb(255 255 255 / 0.88);
-	--color-glass-border: rgb(148 163 184 / 0.35);
+	--color-glass-border: rgb(180 130 95 / 0.32);
+	--color-progress-track: linear-gradient(180deg, #2a221c 0%, #1a1410 100%);
+	--color-progress-track-border: #4a3f35;
 	--shadow-glass: 0 8px 28px rgb(15 23 42 / 0.1);
 	--blur-glass: 20px;
 	--color-blob-a: rgb(96 165 250 / 0.28);
 	--color-blob-b: rgb(56 189 248 / 0.2);
 }
 
-/* Light-mode fill for solid black controls (tabs, primary actions, etc.) */
+/* Fill for primary controls (tabs, primary actions, etc.) */
 :root {
-	--gradient-fill: linear-gradient(to top right, #1e3a8a 0%, #93c5fd 100%);
+	--gradient-fill: linear-gradient(to top right, #4a2e1c 0%, #d48c6a 100%);
 }
 
 .dark {
-	--color-primary: var(--color-emerald-400);
-	--color-bg: var(--color-slate-950);
-	--color-bgBody: var(--color-slate-950);
-	--color-surface: var(--color-slate-900);
-	--color-textPrimary: var(--color-slate-50);
-	--color-textSecondary: var(--color-slate-400);
-	--color-border: var(--color-slate-700);
+	--gradient-fill: linear-gradient(to top right, #3d2418 0%, #c4895c 100%);
+	--color-primary: #d4a574;
+	--color-bg: #040302;
+	--color-bgBody: #010000;
+	--color-surface: #161210;
+	--color-textPrimary: #f5efe8;
+	--color-textSecondary: #a89088;
+	--color-border: rgb(212 140 106 / 0.28);
 
 	--color-success: var(--color-green-500);
 	--color-warning: var(--color-amber-400);
 	--color-danger: var(--color-red-500);
 	--color-info: var(--color-sky-400);
-	--color-accent: var(--color-emerald-400);
-	--color-muted: var(--color-slate-500);
+	--color-accent: #d48c6a;
+	--color-muted: #8a786c;
 
-	--color-surfaceHover: var(--color-slate-800);
-	--color-surfaceActive: var(--color-slate-700);
-	--color-accentBg: var(--color-emerald-950);
-	--color-accentText: var(--color-emerald-300);
-	--color-inputBg: rgb(255 255 255 / 0.08);
-	--color-inputBorder: rgb(255 255 255 / 0.16);
-	--color-inputText: var(--color-slate-200);
+	--color-surfaceHover: #221c18;
+	--color-surfaceActive: #2c241e;
+	--color-accentBg: rgb(212 140 106 / 0.12);
+	--color-accentText: #ffd0b0;
+	--color-inputBg: rgb(255 208 176 / 0.06);
+	--color-inputBorder: rgb(212 140 106 / 0.28);
+	--color-inputText: #e8ddd2;
 
-	--color-overlay: oklch(0.05 0.02 256 / 0.7);
+	--color-overlay: oklch(0.05 0.02 50 / 0.7);
 	--color-onColor: #ffffff;
-	--color-disabled: var(--color-slate-600);
+	--color-disabled: #6b5c52;
 
 	--color-successBg: var(--color-green-950);
 	--color-successText: var(--color-green-300);
@@ -106,13 +109,13 @@
 	--color-warningText: var(--color-amber-300);
 	--color-infoBg: var(--color-sky-950);
 	--color-infoText: var(--color-sky-300);
-	--color-primaryDark: #059669;
+	--color-primaryDark: #c4895c;
 
-	--color-accentSolid: var(--color-emerald-400);
+	--color-accentSolid: #d48c6a;
 	--color-successSolid: var(--color-green-500);
 	--color-dangerSolid: var(--color-red-600);
 	--color-warningSolid: var(--color-amber-400);
-	--color-mutedSolid: var(--color-slate-400);
+	--color-mutedSolid: #a89088;
 	--color-userAvatar: var(--color-violet-500);
 
 	--color-progress-green: var(--color-green-400);
@@ -121,21 +124,38 @@
 	--color-progress-red: var(--color-red-400);
 
 	--color-glass-bg: rgb(255 255 255 / 0.08);
-	--color-glass-border: rgb(255 255 255 / 0.12);
+	--color-glass-border: rgb(255 208 176 / 0.16);
+	--color-progress-track: linear-gradient(180deg, #14100d 0%, #080605 100%);
+	--color-progress-track-border: #4a3f35;
 	--shadow-glass: 0 8px 32px rgb(0 0 0 / 0.35);
 	--blur-glass: 24px;
-	--color-blob-a: rgb(37 99 235 / 0.4);
-	--color-blob-b: rgb(14 165 233 / 0.32);
+	--color-blob-a: rgb(120 72 42 / 0.1);
+	--color-blob-b: rgb(180 120 80 / 0.05);
 
 	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
 	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
 	--shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
 }
 
-.dark body {
-	background: linear-gradient(
-		180deg,
-		var(--color-bg) 0%,
-		var(--color-bgBody) 100%
-	);
+.dark body,
+html.dark {
+	background:
+		radial-gradient(
+			ellipse 100% 70% at 75% 10%,
+			rgb(110 65 38 / 0.14),
+			transparent 52%
+		),
+		radial-gradient(
+			ellipse 80% 55% at 10% 75%,
+			rgb(55 32 20 / 0.22),
+			transparent 50%
+		),
+		linear-gradient(
+			165deg,
+			#080605 0%,
+			#030201 30%,
+			#0a0806 55%,
+			#020101 80%,
+			#000000 100%
+		);
 }

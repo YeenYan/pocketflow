@@ -52,6 +52,8 @@ export interface ItemBuilder {
 	hasChildItems: boolean;
 	icon?: string;
 	color?: string;
+	hasTarget?: boolean;
+	targetAmount?: number;
 	createdAt: string;
 }
 

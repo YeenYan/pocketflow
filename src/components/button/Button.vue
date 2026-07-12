@@ -46,8 +46,8 @@
 	}
 
 	.btn.shade {
-		background: rgb(148 163 184 / 0.2);
-		border-color: rgb(148 163 184 / 0.35);
+		background: rgb(180 130 95 / 0.15);
+		border-color: rgb(180 130 95 / 0.35);
 		color: var(--color-textPrimary);
 		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
 		backdrop-filter: blur(12px);
@@ -55,23 +55,23 @@
 	}
 
 	:global(.dark) .btn.shade {
-		background: rgb(148 163 184 / 0.12);
-		border-color: rgb(255 255 255 / 0.14);
-		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+		background: rgb(212 140 106 / 0.1);
+		border-color: rgb(255 208 176 / 0.18);
+		box-shadow: inset 0 1px 0 rgb(255 208 176 / 0.12);
 		color: var(--color-textPrimary);
 	}
 
 	.btn.primary {
 		background-image: var(--gradient-fill);
 		color: var(--color-onColor);
-		border-color: rgb(147 197 253 / 0.45);
-		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+		border-color: rgb(212 140 106 / 0.45);
+		box-shadow: inset 0 1px 0 rgb(255 208 176 / 0.3);
 	}
 
 	:global(.dark) .btn.primary {
 		background-image: var(--gradient-fill);
-		border-color: rgb(147 197 253 / 0.35);
-		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
+		border-color: rgb(212 140 106 / 0.4);
+		box-shadow: inset 0 1px 0 rgb(255 208 176 / 0.22);
 	}
 
 	.btn.secondary {

@@ -268,7 +268,7 @@
 
 <template>
 	<div class="page-shell">
-		<header class="page-header">
+		<header class="page-header mt-[-1rem]">
 			<button type="button" class="back-btn" @click="router.push('/me')">←</button>
 			<h1 class="page-title">Account</h1>
 			<span class="header-spacer" />
@@ -316,6 +316,8 @@
 				<span class="row-label">Delete all records</span>
 			</button>
 		</GlassContainer>
+
+		<p class="app-version">App version: 1.0.0</p>
 
 		<Teleport to="body">
 			<div v-if="activeModal" class="modal-overlay" @click.self="closeModal">
@@ -386,8 +388,8 @@
 					<h2 class="modal-title">Delete All Records</h2>
 					<p class="modal-text">
 						This permanently deletes all your entered records — cutoffs, budget
-						amounts, expenses, and bills. Your account and saved items are kept.
-						This cannot be undone.
+						amounts, expenses, and bills. Your account and saved items are kept. This
+						cannot be undone.
 					</p>
 
 					<button
@@ -502,6 +504,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0;
+	}
+
+	.app-version {
+		margin: auto 0 1rem;
+		text-align: center;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
 	}
 
 	.card-label {

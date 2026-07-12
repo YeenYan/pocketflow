@@ -7,6 +7,7 @@
 	import { db, setSessionUnlocked } from "../../db/budgetDb";
 	import { verifyPin } from "../../utils/pinHash";
 	import { unlockWithBiometric } from "../../utils/biometric";
+	import poko from "../../assets/img/image_3.webp";
 
 	const router = useRouter();
 
@@ -22,6 +23,14 @@
 	const showPin = ref(false);
 
 	const pin = computed(() => pinDigits.value.join(""));
+
+	const welcomeTip = computed(() => {
+		const name = displayName.value.trim();
+		if (name) {
+			return `Yay, ${name}! So glad you're back!! Welcome back. You can unlock with Face ID or enter your PIN.`;
+		}
+		return `Yay, you're back!! Welcome back. You can unlock with Face ID or enter your PIN.`;
+	});
 
 	onMounted(async () => {
 		const profile = await db.userProfiles.get(1);
@@ -100,8 +109,17 @@
 </script>
 
 <template>
-	<div class="page-shell">
-		<GlassContainer class="page">
+	<div class="page-shell relative">
+		<div class="absolute bottom-0 right-0 poko-wrap">
+			<div class="lock-bubble">
+				<p class="lock-bubble-name">Poko</p>
+				<p class="lock-bubble-text">{{ welcomeTip }}</p>
+			</div>
+			<img :src="poko" alt="" class="max-w-[12rem]" />
+		</div>
+
+		<!-- <GlassContainer class="page h-[60dvh]"> </GlassContainer> -->
+		<div class="w-[90%] flex flex-col items-center h-full pt-[8rem]">
 			<div class="profile">
 				<img v-if="photoUrl" :src="photoUrl" alt="" class="avatar" />
 				<div v-else class="avatar placeholder">
@@ -146,7 +164,7 @@
 
 				<Button
 					:variant="useBiometric ? 'shade' : 'primary'"
-					class="w-full"
+					class="w-full max-w-[15rem]"
 					:disabled="pin.length !== 5"
 					@click="unlockWithPin"
 				>
@@ -163,7 +181,7 @@
 			</Button>
 
 			<p v-if="pinError" class="error">{{ pinError }}</p>
-		</GlassContainer>
+		</div>
 	</div>
 </template>
 
@@ -283,5 +301,53 @@
 		color: #f87171;
 		font-size: 0.875rem;
 		text-align: center;
+	}
+
+	.poko-wrap {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.35rem;
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.lock-bubble {
+		position: relative;
+		max-width: 12.5rem;
+		margin-right: 7.75rem;
+		padding: 0.65rem 0.8rem;
+		border-radius: 1rem;
+		background: #ffd0b0;
+		border: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		box-shadow: 0 1px 2px color-mix(in srgb, #000 8%, transparent);
+		text-align: left;
+	}
+
+	.lock-bubble::after {
+		content: "";
+		position: absolute;
+		right: 1.75rem;
+		bottom: -0.35rem;
+		width: 0.7rem;
+		height: 0.7rem;
+		background: #ffd0b0;
+		border-right: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		border-bottom: 1px solid color-mix(in srgb, #ffd0b0 70%, #000 8%);
+		transform: rotate(45deg);
+	}
+
+	.lock-bubble-name {
+		margin: 0;
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: #c2410c;
+	}
+
+	.lock-bubble-text {
+		margin: 0.2rem 0 0;
+		font-size: 0.75rem;
+		line-height: 1.35;
+		color: #1f2937;
 	}
 </style>

@@ -9,6 +9,7 @@
 	import Button from "../button/Button.vue";
 	import GlassContainer from "../containers/GlassContainer.vue";
 	import InputField from "../inputs/InputField.vue";
+	import AmountField from "../inputs/AmountField.vue";
 	import ToggleSwitch from "../inputs/ToggleSwitch.vue";
 	import CircleCheckbox from "../inputs/CircleCheckbox.vue";
 	import type { ItemBuilder, RuleName } from "../../db/budgetDb";
@@ -20,6 +21,8 @@
 		hasChildItems: boolean;
 		icon: string;
 		color: string;
+		hasTarget: boolean;
+		targetAmount: number;
 	};
 
 	const ICON_OPTIONS = Object.keys(OutlineIcons).filter((key) =>
@@ -85,6 +88,8 @@
 	const formCatWants = ref(false);
 	const formIsActive = ref(true);
 	const formHasChildItems = ref(false);
+	const formHasTarget = ref(false);
+	const formTargetAmount = ref("");
 	const formIcon = ref("HomeIcon");
 	const formColor = ref(DEFAULT_ITEM_COLOR);
 	const formError = ref("");
@@ -93,9 +98,17 @@
 
 	const isEditing = computed(() => !!props.item);
 
+	const isSavingsOnly = computed(
+		() =>
+			formCatSavings.value && !formCatExpenses.value && !formCatWants.value,
+	);
+
 	const formUnchanged = computed(() => {
 		const item = props.item;
 		if (!item) return false;
+		const targetAmount = formHasTarget.value
+			? Number(formTargetAmount.value)
+			: 0;
 		return (
 			formName.value.trim() === item.name &&
 			formCatExpenses.value === item.categories.includes("Expenses") &&
@@ -103,6 +116,8 @@
 			formCatWants.value === item.categories.includes("Wants") &&
 			formIsActive.value === item.isActive &&
 			formHasChildItems.value === item.hasChildItems &&
+			formHasTarget.value === !!item.hasTarget &&
+			targetAmount === (item.targetAmount ?? 0) &&
 			formIcon.value === (item.icon ?? "HomeIcon") &&
 			formColor.value === (item.color ?? DEFAULT_ITEM_COLOR)
 		);
@@ -121,6 +136,8 @@
 		formCatWants.value = props.catWants;
 		formIsActive.value = true;
 		formHasChildItems.value = false;
+		formHasTarget.value = false;
+		formTargetAmount.value = "";
 		formIcon.value = "HomeIcon";
 		formColor.value = DEFAULT_ITEM_COLOR;
 		formError.value = "";
@@ -133,6 +150,11 @@
 		formCatWants.value = item.categories.includes("Wants");
 		formIsActive.value = item.isActive;
 		formHasChildItems.value = item.hasChildItems;
+		formHasTarget.value = !!item.hasTarget;
+		formTargetAmount.value =
+			item.hasTarget && item.targetAmount
+				? String(item.targetAmount)
+				: "";
 		formIcon.value = item.icon ?? "HomeIcon";
 		formColor.value = item.color ?? DEFAULT_ITEM_COLOR;
 		formError.value = "";
@@ -147,6 +169,13 @@
 		}
 		if (props.item) loadItem(props.item);
 		else resetForm();
+	});
+
+	watch(isSavingsOnly, (savingsOnly) => {
+		if (!savingsOnly) {
+			formHasTarget.value = false;
+			formTargetAmount.value = "";
+		}
 	});
 
 	function close() {
@@ -169,6 +198,21 @@
 			return;
 		}
 
+		const hasTarget =
+			isSavingsOnly.value && formHasTarget.value;
+		const targetAmount = hasTarget
+			? Number(formTargetAmount.value)
+			: 0;
+		if (
+			hasTarget &&
+			(!formTargetAmount.value ||
+				Number.isNaN(targetAmount) ||
+				targetAmount <= 0)
+		) {
+			formError.value = "Enter a valid target amount";
+			return;
+		}
+
 		emit("save", {
 			name,
 			categories,
@@ -176,6 +220,8 @@
 			hasChildItems: formHasChildItems.value,
 			icon: formIcon.value,
 			color: formColor.value,
+			hasTarget,
+			targetAmount: hasTarget ? targetAmount : 0,
 		});
 	}
 </script>
@@ -229,6 +275,18 @@
 						<span>Have child items</span>
 						<ToggleSwitch v-model="formHasChildItems" />
 					</div>
+					<template v-if="isSavingsOnly">
+						<div class="toggle-row">
+							<span>Have target / Goal</span>
+							<ToggleSwitch v-model="formHasTarget" />
+						</div>
+						<AmountField
+							v-if="formHasTarget"
+							v-model="formTargetAmount"
+							label="Target Amount"
+							placeholder="0.00"
+						/>
+					</template>
 				</template>
 
 				<template v-if="!iconExpanded">
