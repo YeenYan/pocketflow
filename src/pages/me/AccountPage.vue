@@ -9,6 +9,8 @@
 		ArrowRightOnRectangleIcon,
 		TrashIcon,
 		ViewfinderCircleIcon,
+		ArrowDownTrayIcon,
+		ArrowUpTrayIcon,
 	} from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
@@ -21,6 +23,22 @@
 		registerBiometric,
 		unlockWithBiometric,
 	} from "../../utils/biometric";
+
+	const BACKUP_TABLES = [
+		"rules",
+		"cycleCutoffs",
+		"itemBuilders",
+		"budgetEntries",
+		"othersBudgets",
+		"othersExpenses",
+		"tabBudgets",
+		"tabBudgetExpenses",
+		"unexpectedExpenses",
+		"incomingBillItems",
+		"incomingBillBudgets",
+		"savingsTransfers",
+		"ruleExtraBudgets",
+	] as const;
 
 	const router = useRouter();
 
@@ -40,6 +58,14 @@
 	const deleteError = ref("");
 	const showDeletePin = ref(false);
 	const deleting = ref(false);
+
+	const backupBusy = ref(false);
+	const backupMessage = ref("");
+	const backupError = ref("");
+	const importFileInputRef = ref<HTMLInputElement | null>(null);
+	const showImportModal = ref(false);
+	const pendingImportFile = ref<File | null>(null);
+	const importing = ref(false);
 
 	const deletePin = computed(() => deletePinDigits.value.join(""));
 
@@ -260,6 +286,113 @@
 		closeDeleteModal();
 	}
 
+	async function exportBackup() {
+		if (backupBusy.value) return;
+		backupBusy.value = true;
+		backupError.value = "";
+		backupMessage.value = "";
+		try {
+			const tables: Record<string, unknown[]> = {};
+			for (const name of BACKUP_TABLES) {
+				tables[name] = await db.table(name).toArray();
+			}
+			const payload = {
+				app: "pocketflow",
+				version: 1,
+				exportedAt: new Date().toISOString(),
+				tables,
+			};
+			const filename = `pocketflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+			const blob = new Blob([JSON.stringify(payload)], {
+				type: "application/json",
+			});
+			const file = new File([blob], filename, { type: "application/json" });
+
+			const canShare =
+				typeof navigator.canShare === "function" &&
+				navigator.canShare({ files: [file] });
+			if (canShare) {
+				await navigator.share({
+					files: [file],
+					title: "PocketFlow Backup",
+					text: "PocketFlow data backup",
+				});
+			} else {
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement("a");
+				link.href = url;
+				link.download = filename;
+				link.click();
+				URL.revokeObjectURL(url);
+			}
+			backupMessage.value = "Backup saved";
+		} catch (err) {
+			if ((err as Error)?.name === "AbortError") {
+				backupMessage.value = "";
+			} else {
+				backupError.value = "Could not save backup. Try again.";
+			}
+		} finally {
+			backupBusy.value = false;
+		}
+	}
+
+	function openImportPicker() {
+		backupError.value = "";
+		backupMessage.value = "";
+		importFileInputRef.value?.click();
+	}
+
+	function onImportFileChange(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0] ?? null;
+		input.value = "";
+		if (!file) return;
+		pendingImportFile.value = file;
+		showImportModal.value = true;
+	}
+
+	function closeImportModal() {
+		showImportModal.value = false;
+		pendingImportFile.value = null;
+		importing.value = false;
+	}
+
+	async function confirmImport() {
+		const file = pendingImportFile.value;
+		if (!file || importing.value) return;
+		importing.value = true;
+		backupError.value = "";
+		backupMessage.value = "";
+		try {
+			const parsed = JSON.parse(await file.text()) as {
+				app?: string;
+				tables?: Record<string, unknown[]>;
+			};
+			if (parsed.app !== "pocketflow" || !parsed.tables) {
+				backupError.value = "Invalid PocketFlow backup file.";
+				closeImportModal();
+				return;
+			}
+
+			await db.transaction("rw", [...BACKUP_TABLES], async () => {
+				for (const name of BACKUP_TABLES) {
+					await db.table(name).clear();
+					const rows = parsed.tables?.[name];
+					if (Array.isArray(rows) && rows.length) {
+						await db.table(name).bulkPut(rows);
+					}
+				}
+			});
+
+			backupMessage.value = "Backup imported";
+			closeImportModal();
+		} catch {
+			backupError.value = "Could not import backup. Check the file and try again.";
+			closeImportModal();
+		}
+	}
+
 	function logout() {
 		setSessionUnlocked(false);
 		router.push("/lock");
@@ -301,6 +434,38 @@
 				<ToggleSwitch v-model="useBiometric" @change="onBiometricChange" />
 			</div>
 			<p v-if="biometricError" class="error row-error">{{ biometricError }}</p>
+
+			<button
+				type="button"
+				class="account-row"
+				:disabled="backupBusy"
+				@click="exportBackup"
+			>
+				<span class="icon-box icon-box-backup">
+					<ArrowDownTrayIcon class="row-icon" />
+				</span>
+				<span class="row-label">{{
+					backupBusy ? "Backing up..." : "Backup data"
+				}}</span>
+				<ChevronRightIcon class="row-chevron" />
+			</button>
+
+			<button type="button" class="account-row" @click="openImportPicker">
+				<span class="icon-box icon-box-import">
+					<ArrowUpTrayIcon class="row-icon" />
+				</span>
+				<span class="row-label">Import backup</span>
+				<ChevronRightIcon class="row-chevron" />
+			</button>
+			<input
+				ref="importFileInputRef"
+				type="file"
+				class="hidden-file"
+				accept="application/json,.json"
+				@change="onImportFileChange"
+			/>
+			<p v-if="backupMessage" class="backup-status">{{ backupMessage }}</p>
+			<p v-if="backupError" class="error row-error">{{ backupError }}</p>
 
 			<button type="button" class="account-row logout" @click="logout">
 				<span class="icon-box icon-box-logout">
@@ -451,6 +616,26 @@
 					</div>
 				</GlassContainer>
 			</div>
+
+			<div
+				v-if="showImportModal"
+				class="modal-overlay"
+				@click.self="closeImportModal"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Import Backup</h2>
+					<p class="modal-text">
+						This replaces all budget data with the backup. Your account profile stays
+						the same.
+					</p>
+					<div class="modal-actions">
+						<Button block variant="shade" @click="closeImportModal">Cancel</Button>
+						<Button block :disabled="importing" @click="confirmImport">
+							{{ importing ? "Importing..." : "Import" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
 		</Teleport>
 	</div>
 </template>
@@ -579,12 +764,43 @@
 		color: #34c759;
 	}
 
+	.icon-box-backup {
+		background: rgba(212, 140, 106, 0.15);
+	}
+
+	.icon-box-backup .row-icon {
+		color: #d48c6a;
+	}
+
+	.icon-box-import {
+		background: rgba(96, 165, 250, 0.15);
+	}
+
+	.icon-box-import .row-icon {
+		color: #60a5fa;
+	}
+
 	.icon-box-logout {
 		background: rgba(248, 113, 113, 0.15);
 	}
 
 	.icon-box-logout .row-icon {
 		color: #f87171;
+	}
+
+	.hidden-file {
+		display: none;
+	}
+
+	.backup-status {
+		margin: 0.35rem 0 0;
+		font-size: 0.8rem;
+		color: var(--color-textSecondary);
+	}
+
+	.account-row:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.row-icon {
