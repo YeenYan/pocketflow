@@ -344,8 +344,7 @@
 			.toArray();
 		const expensesEntriesSum = entries
 			.filter(
-				(entry) =>
-					entry.ruleName === "Expenses" && !entry.parentBudgetEntryId,
+				(entry) => entry.ruleName === "Expenses" && !entry.parentBudgetEntryId,
 			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 		const wantsEntriesSum = entries
@@ -357,7 +356,10 @@
 		const tabExpenses = await db.tabBudgetExpenses
 			.where({ cutoffId, ruleName: "Expenses" })
 			.toArray();
-		const tabSpent = tabExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+		const tabSpent = tabExpenses.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
 		const tabReserved = Math.max(tabBudget?.budgetAllocated ?? 0, tabSpent);
 		const othersBudget = await db.othersBudgets
 			.where("cutoffId")
@@ -367,8 +369,14 @@
 			.where("cutoffId")
 			.equals(cutoffId)
 			.toArray();
-		const othersSpent = othersExp.reduce((sum, expense) => sum + expense.amount, 0);
-		const othersReserved = Math.max(othersBudget?.budgetAllocated ?? 0, othersSpent);
+		const othersSpent = othersExp.reduce(
+			(sum, expense) => sum + expense.amount,
+			0,
+		);
+		const othersReserved = Math.max(
+			othersBudget?.budgetAllocated ?? 0,
+			othersSpent,
+		);
 		const spent =
 			expensesEntriesSum + wantsEntriesSum + tabReserved + othersReserved;
 		return Math.max(0, spendAllotted - spent);
@@ -969,6 +977,19 @@
 				@item-row-click="openItemEdit"
 			/>
 
+			<OtherItemsSection
+				title="Saving's Items"
+				:expenses="savingsItems"
+				:swipe-offset="savingsSwipeOffset"
+				hide-add-button
+				hide-date
+				@delete-expense="deleteItem"
+				@swipe-start="onSavingsSwipeStart"
+				@swipe-move="onSavingsSwipeMove"
+				@swipe-end="onSavingsSwipeEnd"
+				@item-row-click="openItemEdit"
+			/>
+
 			<GlassContainer
 				class="mb-1"
 				:class="{ 'cursor-pointer': cutoffBudget }"
@@ -1009,19 +1030,6 @@
 					No amount yet
 				</p>
 			</GlassContainer>
-
-			<OtherItemsSection
-				title="Saving's Items"
-				:expenses="savingsItems"
-				:swipe-offset="savingsSwipeOffset"
-				hide-add-button
-				hide-date
-				@delete-expense="deleteItem"
-				@swipe-start="onSavingsSwipeStart"
-				@swipe-move="onSavingsSwipeMove"
-				@swipe-end="onSavingsSwipeEnd"
-				@item-row-click="openItemEdit"
-			/>
 
 			<GlassContainer
 				class="mb-1"
