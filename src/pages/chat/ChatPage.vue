@@ -47,6 +47,35 @@
 		);
 		if (!sortedCutoffs.length) {
 			lines.push("No cutoffs found.");
+			if (incomingBillItems.length || incomingBillBudgets.length) {
+				const categoryLabels: Record<string, string> = {
+					"expense-main": "Expense Main Items",
+					savings: "Saving's Items",
+					cutoff: "Cutoff Budget",
+					"other-expenses": "Other Expenses Budget",
+					wants: "Wants Budget",
+				};
+				lines.push("");
+				lines.push(
+					"Incoming bills (planned for next cutoff, not yet spent or allotted):",
+				);
+				for (const item of incomingBillItems) {
+					const label = categoryLabels[item.category] ?? item.category;
+					lines.push(
+						`- ${item.name} (${label}): ₱${item.amount.toLocaleString("en-PH")}`,
+					);
+				}
+				for (const budget of incomingBillBudgets) {
+					const label = categoryLabels[budget.category] ?? budget.category;
+					lines.push(`- ${label}: ₱${budget.amount.toLocaleString("en-PH")}`);
+				}
+				const incomingTotal =
+					incomingBillItems.reduce((sum, i) => sum + i.amount, 0) +
+					incomingBillBudgets.reduce((sum, b) => sum + b.amount, 0);
+				lines.push(
+					`Incoming bills total: ₱${incomingTotal.toLocaleString("en-PH")}`,
+				);
+			}
 			return lines.join("\n");
 		}
 
