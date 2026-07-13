@@ -51,6 +51,9 @@
 	import UnexpectedDrawer from "./partials/modals/UnexpectedDrawer.vue";
 	import ExceedModal from "./partials/modals/ExceedModal.vue";
 	import FinalizeModal from "./partials/modals/FinalizeModal.vue";
+	import { useTheme } from "../../composables/useTheme";
+
+	const { currentTheme } = useTheme();
 
 	const ITEM_COLOR_OPTIONS = [
 		{
@@ -175,6 +178,78 @@
 			swatch: "bg-rose-500",
 			wrap: "bg-rose-500/15 dark:bg-rose-500/25 text-rose-700 dark:text-rose-300",
 		},
+		{
+			value: "slate-700",
+			swatch: "bg-slate-700",
+			wrap:
+				"bg-slate-700/15 dark:bg-slate-700/25 text-slate-800 dark:text-slate-200",
+		},
+		{
+			value: "gray-700",
+			swatch: "bg-gray-700",
+			wrap: "bg-gray-700/15 dark:bg-gray-700/25 text-gray-800 dark:text-gray-200",
+		},
+		{
+			value: "red-700",
+			swatch: "bg-red-700",
+			wrap: "bg-red-700/15 dark:bg-red-700/25 text-red-800 dark:text-red-300",
+		},
+		{
+			value: "orange-700",
+			swatch: "bg-orange-700",
+			wrap:
+				"bg-orange-700/15 dark:bg-orange-700/25 text-orange-800 dark:text-orange-300",
+		},
+		{
+			value: "amber-700",
+			swatch: "bg-amber-700",
+			wrap:
+				"bg-amber-700/15 dark:bg-amber-700/25 text-amber-800 dark:text-amber-300",
+		},
+		{
+			value: "yellow-700",
+			swatch: "bg-yellow-700",
+			wrap:
+				"bg-yellow-700/15 dark:bg-yellow-700/25 text-yellow-800 dark:text-yellow-300",
+		},
+		{
+			value: "green-700",
+			swatch: "bg-green-700",
+			wrap:
+				"bg-green-700/15 dark:bg-green-700/25 text-green-800 dark:text-green-300",
+		},
+		{
+			value: "teal-700",
+			swatch: "bg-teal-700",
+			wrap: "bg-teal-700/15 dark:bg-teal-700/25 text-teal-800 dark:text-teal-300",
+		},
+		{
+			value: "blue-700",
+			swatch: "bg-blue-700",
+			wrap: "bg-blue-700/15 dark:bg-blue-700/25 text-blue-800 dark:text-blue-300",
+		},
+		{
+			value: "indigo-700",
+			swatch: "bg-indigo-700",
+			wrap:
+				"bg-indigo-700/15 dark:bg-indigo-700/25 text-indigo-800 dark:text-indigo-300",
+		},
+		{
+			value: "purple-700",
+			swatch: "bg-purple-700",
+			wrap:
+				"bg-purple-700/15 dark:bg-purple-700/25 text-purple-800 dark:text-purple-300",
+		},
+		{
+			value: "pink-700",
+			swatch: "bg-pink-700",
+			wrap: "bg-pink-700/15 dark:bg-pink-700/25 text-pink-800 dark:text-pink-300",
+		},
+		{
+			value: "rose-700",
+			swatch: "bg-rose-700",
+			wrap: "bg-rose-700/15 dark:bg-rose-700/25 text-rose-800 dark:text-rose-300",
+		},
 	];
 
 	const DEFAULT_ITEM_COLOR = "emerald-500";
@@ -250,6 +325,11 @@
 		Expenses: "#6e4a4a",
 		Savings: "#3d5c57",
 		Wants: "#4f4a66",
+	};
+	const RULE_COLORS_MUTED_LIGHT: Record<RuleName, string> = {
+		Expenses: "#d1d5db",
+		Savings: "#d1d5db",
+		Wants: "#d1d5db",
 	};
 
 	function progressFillColor(percent: number) {
@@ -1128,7 +1208,11 @@
 					(name) => activeCutoff.value?.allocations?.[name]?.percent ?? 0,
 				),
 				backgroundColor: RULE_ORDER.map((name) =>
-					name === activeTab.value ? RULE_COLORS[name] : RULE_COLORS_MUTED[name],
+					name === activeTab.value
+						? RULE_COLORS[name]
+						: currentTheme.value === "dark"
+							? RULE_COLORS_MUTED[name]
+							: RULE_COLORS_MUTED_LIGHT[name],
 				),
 				offset: RULE_ORDER.map((name) => (name === activeTab.value ? 5 : 0)),
 				activeIndex: RULE_ORDER.indexOf(activeTab.value),
@@ -2494,14 +2578,6 @@
 	<div
 		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
-		<PeriodNavSection
-			:period-label="periodLabel"
-			:can-go-prev="canGoPrev"
-			:can-go-next="canGoNext"
-			@prev="goPrev"
-			@next="goNext"
-		/>
-
 		<div class="tracker-scroll min-h-0 flex-1">
 			<div class="tracker-fixed shrink-0">
 				<CutoffBudgetSection

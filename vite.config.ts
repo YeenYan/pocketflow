@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => ({
         // Precache built assets in production only (dev-dist has no app files in dev)
         globPatterns:
           mode === 'production'
-            ? ['**/*.{js,css,html,ico,png,svg,woff2}']
+            ? ['**/*.{js,css,html,ico,png,svg,webp,woff2}']
             : [],
 
         // SPA fallback: serve index.html when navigating offline

@@ -72,6 +72,10 @@ function onChange() {
 		background-color: #34c759;
 	}
 
+	:global(:root:not(.dark)) .checkbox:checked + .switch {
+		background-color: var(--color-primary);
+	}
+
 	.checkbox:checked + .switch .slider {
 		left: calc(50% - 27px / 2 + 10px);
 		top: calc(50% - 27px / 2);

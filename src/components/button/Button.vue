@@ -46,10 +46,10 @@
 	}
 
 	.btn.shade {
-		background: rgb(180 130 95 / 0.15);
-		border-color: rgb(180 130 95 / 0.35);
+		background: rgb(101 0 0 / 0.08);
+		border-color: rgb(101 0 0 / 0.14);
 		color: var(--color-textPrimary);
-		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 	}
@@ -64,8 +64,10 @@
 	.btn.primary {
 		background-image: var(--gradient-fill);
 		color: var(--color-onColor);
-		border-color: rgb(212 140 106 / 0.45);
-		box-shadow: inset 0 1px 0 rgb(255 208 176 / 0.3);
+		border-color: rgb(101 0 0 / 0.35);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.18),
+			0 4px 14px rgb(101 0 0 / 0.22);
 	}
 
 	:global(.dark) .btn.primary {

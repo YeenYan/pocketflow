@@ -157,7 +157,7 @@
 
 					<Button
 						:variant="useBiometric ? 'shade' : 'primary'"
-						class="w-full max-w-[15rem]"
+						class="w-full max-w-[15rem] mt-[1.5rem]"
 						:disabled="pin.length !== 5"
 						@click="unlockWithPin"
 					>
@@ -167,7 +167,7 @@
 
 				<Button
 					v-if="hasPin && useBiometric && !showPin"
-					class="w-full"
+					class="w-full mt-[1.5rem]"
 					@click="showPin = true"
 				>
 					Use PIN instead

@@ -6,6 +6,7 @@
 		EyeIcon,
 		EyeSlashIcon,
 		Bars3Icon,
+		ArrowLeftIcon,
 	} from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
@@ -30,123 +31,123 @@
 			value: "slate-500",
 			wrap:
 				"bg-slate-500/15 dark:bg-slate-500/25 text-slate-700 dark:text-slate-200",
-			cardWrap: "bg-slate-500/8 dark:bg-slate-500/12",
+			cardWrap: "bg-slate-500/20 dark:bg-slate-500/12",
 		},
 		{
 			value: "gray-500",
 			wrap: "bg-gray-500/15 dark:bg-gray-500/25 text-gray-700 dark:text-gray-200",
-			cardWrap: "bg-gray-500/8 dark:bg-gray-500/12",
+			cardWrap: "bg-gray-500/20 dark:bg-gray-500/12",
 		},
 		{
 			value: "zinc-500",
 			wrap: "bg-zinc-500/15 dark:bg-zinc-500/25 text-zinc-700 dark:text-zinc-200",
-			cardWrap: "bg-zinc-500/8 dark:bg-zinc-500/12",
+			cardWrap: "bg-zinc-500/20 dark:bg-zinc-500/12",
 		},
 		{
 			value: "neutral-500",
 			wrap:
 				"bg-neutral-500/15 dark:bg-neutral-500/25 text-neutral-700 dark:text-neutral-200",
-			cardWrap: "bg-neutral-500/8 dark:bg-neutral-500/12",
+			cardWrap: "bg-neutral-500/20 dark:bg-neutral-500/12",
 		},
 		{
 			value: "stone-500",
 			wrap:
 				"bg-stone-500/15 dark:bg-stone-500/25 text-stone-700 dark:text-stone-200",
-			cardWrap: "bg-stone-500/8 dark:bg-stone-500/12",
+			cardWrap: "bg-stone-500/20 dark:bg-stone-500/12",
 		},
 		{
 			value: "red-500",
 			wrap: "bg-red-500/15 dark:bg-red-500/25 text-red-700 dark:text-red-300",
-			cardWrap: "bg-red-500/8 dark:bg-red-500/12",
+			cardWrap: "bg-red-500/20 dark:bg-red-500/12",
 		},
 		{
 			value: "orange-500",
 			wrap:
 				"bg-orange-500/15 dark:bg-orange-500/25 text-orange-700 dark:text-orange-300",
-			cardWrap: "bg-orange-500/8 dark:bg-orange-500/12",
+			cardWrap: "bg-orange-500/20 dark:bg-orange-500/12",
 		},
 		{
 			value: "amber-500",
 			wrap:
 				"bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300",
-			cardWrap: "bg-amber-500/8 dark:bg-amber-500/12",
+			cardWrap: "bg-amber-500/20 dark:bg-amber-500/12",
 		},
 		{
 			value: "yellow-500",
 			wrap:
 				"bg-yellow-500/15 dark:bg-yellow-500/25 text-yellow-700 dark:text-yellow-300",
-			cardWrap: "bg-yellow-500/8 dark:bg-yellow-500/12",
+			cardWrap: "bg-yellow-500/20 dark:bg-yellow-500/12",
 		},
 		{
 			value: "lime-500",
 			wrap: "bg-lime-500/15 dark:bg-lime-500/25 text-lime-700 dark:text-lime-300",
-			cardWrap: "bg-lime-500/8 dark:bg-lime-500/12",
+			cardWrap: "bg-lime-500/20 dark:bg-lime-500/12",
 		},
 		{
 			value: "green-500",
 			wrap:
 				"bg-green-500/15 dark:bg-green-500/25 text-green-700 dark:text-green-300",
-			cardWrap: "bg-green-500/8 dark:bg-green-500/12",
+			cardWrap: "bg-green-500/20 dark:bg-green-500/12",
 		},
 		{
 			value: "emerald-500",
 			wrap:
 				"bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300",
-			cardWrap: "bg-emerald-500/8 dark:bg-emerald-500/12",
+			cardWrap: "bg-emerald-500/20 dark:bg-emerald-500/12",
 		},
 		{
 			value: "teal-500",
 			wrap: "bg-teal-500/15 dark:bg-teal-500/25 text-teal-700 dark:text-teal-300",
-			cardWrap: "bg-teal-500/8 dark:bg-teal-500/12",
+			cardWrap: "bg-teal-500/20 dark:bg-teal-500/12",
 		},
 		{
 			value: "cyan-500",
 			wrap: "bg-cyan-500/15 dark:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300",
-			cardWrap: "bg-cyan-500/8 dark:bg-cyan-500/12",
+			cardWrap: "bg-cyan-500/20 dark:bg-cyan-500/12",
 		},
 		{
 			value: "sky-500",
 			wrap: "bg-sky-500/15 dark:bg-sky-500/25 text-sky-700 dark:text-sky-300",
-			cardWrap: "bg-sky-500/8 dark:bg-sky-500/12",
+			cardWrap: "bg-sky-500/20 dark:bg-sky-500/12",
 		},
 		{
 			value: "blue-500",
 			wrap: "bg-blue-500/15 dark:bg-blue-500/25 text-blue-700 dark:text-blue-300",
-			cardWrap: "bg-blue-500/8 dark:bg-blue-500/12",
+			cardWrap: "bg-blue-500/20 dark:bg-blue-500/12",
 		},
 		{
 			value: "indigo-500",
 			wrap:
 				"bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300",
-			cardWrap: "bg-indigo-500/8 dark:bg-indigo-500/12",
+			cardWrap: "bg-indigo-500/20 dark:bg-indigo-500/12",
 		},
 		{
 			value: "violet-500",
 			wrap:
 				"bg-violet-500/15 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300",
-			cardWrap: "bg-violet-500/8 dark:bg-violet-500/12",
+			cardWrap: "bg-violet-500/20 dark:bg-violet-500/12",
 		},
 		{
 			value: "purple-500",
 			wrap:
 				"bg-purple-500/15 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300",
-			cardWrap: "bg-purple-500/8 dark:bg-purple-500/12",
+			cardWrap: "bg-purple-500/20 dark:bg-purple-500/12",
 		},
 		{
 			value: "fuchsia-500",
 			wrap:
 				"bg-fuchsia-500/15 dark:bg-fuchsia-500/25 text-fuchsia-700 dark:text-fuchsia-300",
-			cardWrap: "bg-fuchsia-500/8 dark:bg-fuchsia-500/12",
+			cardWrap: "bg-fuchsia-500/20 dark:bg-fuchsia-500/12",
 		},
 		{
 			value: "pink-500",
 			wrap: "bg-pink-500/15 dark:bg-pink-500/25 text-pink-700 dark:text-pink-300",
-			cardWrap: "bg-pink-500/8 dark:bg-pink-500/12",
+			cardWrap: "bg-pink-500/20 dark:bg-pink-500/12",
 		},
 		{
 			value: "rose-500",
 			wrap: "bg-rose-500/15 dark:bg-rose-500/25 text-rose-700 dark:text-rose-300",
-			cardWrap: "bg-rose-500/8 dark:bg-rose-500/12",
+			cardWrap: "bg-rose-500/20 dark:bg-rose-500/12",
 		},
 	];
 
@@ -627,7 +628,14 @@
 <template>
 	<div class="page-shell">
 		<header class="page-header mt-[-1rem]">
-			<button type="button" class="back-btn" @click="router.push('/me')">←</button>
+			<button
+				type="button"
+				class="back-btn"
+				aria-label="Back"
+				@click="router.push('/me')"
+			>
+				<ArrowLeftIcon class="h-5 w-5" />
+			</button>
 			<h1 class="page-title">My Savings</h1>
 			<span class="header-spacer" />
 		</header>
@@ -665,6 +673,33 @@
 					{{ formatAmount(savedLastCutoff) }} total amount saved last cutoff
 				</p>
 			</GlassContainer>
+
+			<div v-if="savingsItems.length" class="savings-items-grid">
+				<div
+					v-for="item in savingsItems"
+					:key="item.id"
+					class="goal-card is-clickable"
+					:class="item.cardWrapClass"
+					role="button"
+					tabindex="0"
+					@click="openItemDrawer(item)"
+					@keydown.enter="openItemDrawer(item)"
+				>
+					<span class="goal-card-logo" :class="item.iconWrapClass">
+						<component
+							:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
+							class="goal-card-logo-icon"
+						/>
+					</span>
+					<div class="goal-card-bottom">
+						<p class="goal-card-type">Total Saved</p>
+						<p class="goal-card-amount">{{ formatAmount(item.totalSaved) }}</p>
+						<p class="goal-card-meta">{{ item.name }}</p>
+					</div>
+				</div>
+			</div>
+
+			<Divider marginTop="1rem" marginBottom="1rem" />
 
 			<GlassContainer
 				v-if="savingsGoalItems.length"
@@ -711,31 +746,6 @@
 					</li>
 				</ul>
 			</GlassContainer>
-
-			<div v-if="savingsItems.length" class="savings-items-grid">
-				<div
-					v-for="item in savingsItems"
-					:key="item.id"
-					class="goal-card is-clickable"
-					:class="item.cardWrapClass"
-					role="button"
-					tabindex="0"
-					@click="openItemDrawer(item)"
-					@keydown.enter="openItemDrawer(item)"
-				>
-					<span class="goal-card-logo" :class="item.iconWrapClass">
-						<component
-							:is="OutlineIcons[item.icon as keyof typeof OutlineIcons]"
-							class="goal-card-logo-icon"
-						/>
-					</span>
-					<div class="goal-card-bottom">
-						<p class="goal-card-type">Total Saved</p>
-						<p class="goal-card-amount">{{ formatAmount(item.totalSaved) }}</p>
-						<p class="goal-card-meta">{{ item.name }}</p>
-					</div>
-				</div>
-			</div>
 
 			<Divider marginTop="1rem" marginBottom="1rem" />
 
@@ -1024,13 +1034,16 @@
 	}
 
 	.back-btn {
-		background: none;
-		border: none;
-		cursor: pointer;
-		padding: 0.25rem 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.7rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: transparent;
 		color: var(--color-textPrimary);
-		border-radius: 6px;
-		font-size: 1.25rem;
+		cursor: pointer;
+		flex-shrink: 0;
 	}
 
 	.back-btn:hover {

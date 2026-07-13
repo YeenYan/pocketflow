@@ -220,27 +220,35 @@
 		class="mx-auto flex min-h-0 w-full max-w-[480px] flex-1 flex-col overflow-hidden items-stretch pt-0"
 	>
 		<div class="reports-fixed shrink-0">
-			<GlassContainer class="nav">
-				<button
+			<div class="nav mb-3">
+				<GlassContainer
+					as="button"
 					type="button"
+					rounded="full"
+					:padding="false"
 					class="nav-btn"
-					:disabled="!canPrev"
+					:class="{ disabled: !canPrev }"
 					aria-label="Previous cutoff"
+					:disabled="!canPrev"
 					@click="goPrev"
 				>
 					<ChevronLeftIcon class="h-5 w-5" />
-				</button>
+				</GlassContainer>
 				<span class="nav-label">{{ periodLabel }}</span>
-				<button
+				<GlassContainer
+					as="button"
 					type="button"
+					rounded="full"
+					:padding="false"
 					class="nav-btn"
-					:disabled="!canNext"
+					:class="{ disabled: !canNext }"
 					aria-label="Next cutoff"
+					:disabled="!canNext"
 					@click="goNext"
 				>
 					<ChevronRightIcon class="h-5 w-5" />
-				</button>
-			</GlassContainer>
+				</GlassContainer>
+			</div>
 		</div>
 
 		<div class="reports-scroll min-h-0 flex-1">
@@ -453,20 +461,15 @@
 	}
 
 	.nav-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.4rem;
-		border: none;
-		border-radius: 9999px;
-		background: var(--color-inputBorder);
+		padding: 0.5rem;
 		color: var(--color-textPrimary);
 		cursor: pointer;
 	}
 
-	.nav-btn:disabled {
-		opacity: 0.4;
+	.nav-btn.disabled {
+		opacity: 0.3;
 		cursor: not-allowed;
+		pointer-events: none;
 	}
 
 	.nav-label {

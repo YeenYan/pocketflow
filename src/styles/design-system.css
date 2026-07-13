@@ -2,38 +2,38 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-	--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.08);
-	--shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.12);
+	--shadow-sm: 0 2px 8px rgb(101 0 0 / 0.04);
+	--shadow-md: 0 6px 20px rgb(101 0 0 / 0.07);
+	--shadow-lg: 0 12px 32px rgb(101 0 0 / 0.1);
 }
 
 @theme {
-	--color-primary: #8b5a3c;
-	--color-bg: var(--color-slate-50);
-	--color-bgBody: var(--color-slate-50);
+	--color-primary: #d58455;
+	--color-bg: #ffffff;
+	--color-bgBody: #f5f0eb;
 	--color-surface: #ffffff;
-	--color-textPrimary: var(--color-stone-900);
-	--color-textSecondary: #7a6558;
-	--color-border: rgb(180 130 95 / 0.35);
+	--color-textPrimary: #2c2420;
+	--color-textSecondary: #5a4f47;
+	--color-border: rgb(213 132 85 / 0.22);
 
 	--color-success: var(--color-green-700);
 	--color-warning: var(--color-amber-500);
 	--color-danger: var(--color-red-600);
 	--color-info: var(--color-sky-600);
-	--color-accent: #c4895c;
-	--color-muted: #8a7568;
+	--color-accent: #d58455;
+	--color-muted: #8a7e76;
 
-	--color-surfaceHover: var(--color-slate-100);
-	--color-surfaceActive: var(--color-slate-200);
-	--color-accentBg: rgb(212 140 106 / 0.15);
-	--color-accentText: #8b5a3c;
-	--color-inputBg: rgb(255 255 255 / 0.55);
-	--color-inputBorder: rgb(180 130 95 / 0.4);
-	--color-inputText: var(--color-stone-800);
+	--color-surfaceHover: #f7f0e8;
+	--color-surfaceActive: #efe3d5;
+	--color-accentBg: rgb(213 132 85 / 0.12);
+	--color-accentText: #b8683d;
+	--color-inputBg: rgb(255 252 249 / 0.75);
+	--color-inputBorder: rgb(213 132 85 / 0.32);
+	--color-inputText: #2c2420;
 
 	--color-overlay: oklch(0.13 0.03 256 / 0.5);
 	--color-onColor: #ffffff;
-	--color-disabled: #a89080;
+	--color-disabled: #b0a59c;
 
 	--color-successBg: var(--color-green-100);
 	--color-successText: var(--color-green-800);
@@ -43,13 +43,13 @@
 	--color-warningText: var(--color-amber-900);
 	--color-infoBg: var(--color-sky-100);
 	--color-infoText: var(--color-sky-900);
-	--color-primaryDark: #6b3d28;
+	--color-primaryDark: #b8683d;
 
-	--color-accentSolid: #c4895c;
+	--color-accentSolid: #d58455;
 	--color-successSolid: var(--color-green-600);
 	--color-dangerSolid: var(--color-red-700);
 	--color-warningSolid: var(--color-amber-500);
-	--color-mutedSolid: #8a7568;
+	--color-mutedSolid: #8a7e76;
 	--color-userAvatar: var(--color-violet-600);
 
 	--color-progress-green: var(--color-green-500);
@@ -57,19 +57,49 @@
 	--color-progress-orange: var(--color-orange-500);
 	--color-progress-red: var(--color-red-500);
 
-	--color-glass-bg: rgb(255 255 255 / 0.88);
-	--color-glass-border: rgb(180 130 95 / 0.32);
-	--color-progress-track: linear-gradient(180deg, #2a221c 0%, #1a1410 100%);
-	--color-progress-track-border: #4a3f35;
-	--shadow-glass: 0 8px 28px rgb(15 23 42 / 0.1);
-	--blur-glass: 20px;
-	--color-blob-a: rgb(96 165 250 / 0.28);
-	--color-blob-b: rgb(56 189 248 / 0.2);
+	--color-glass-bg: rgb(255 255 255 / 0.32);
+	--color-glass-border: rgb(0 0 0 / 0.06);
+	--color-progress-track: linear-gradient(180deg, #e5e7eb 0%, #d1d5db 100%);
+	--color-progress-track-border: #d1d5db;
+	--shadow-glass:
+		0 10px 34px rgb(0 0 0 / 0.06),
+		inset 0 1px 0 rgb(255 255 255 / 0.95),
+		inset 0 -1px 0 rgb(120 120 120 / 0.22);
+	--blur-glass: 24px;
+	--color-blob-a: rgb(147 197 253 / 0.45);
+	--color-blob-b: rgb(253 186 180 / 0.4);
 }
 
-/* Fill for primary controls (tabs, primary actions, etc.) */
+/* Fill for primary controls (tabs, primary actions, etc.) — Poko warm caramel */
 :root {
-	--gradient-fill: linear-gradient(to top right, #4a2e1c 0%, #d48c6a 100%);
+	--gradient-fill: linear-gradient(to top right, #b8683d 0%, #d58455 55%, #e5a17a 100%);
+}
+
+:root:not(.dark) body,
+html:not(.dark) {
+	background:
+		radial-gradient(
+			ellipse 90% 65% at 15% 12%,
+			rgb(186 230 253 / 0.55),
+			transparent 55%
+		),
+		radial-gradient(
+			ellipse 85% 60% at 88% 78%,
+			rgb(254 202 202 / 0.45),
+			transparent 52%
+		),
+		radial-gradient(
+			ellipse 70% 50% at 70% 18%,
+			rgb(255 237 213 / 0.4),
+			transparent 50%
+		),
+		linear-gradient(
+			180deg,
+			#ffffff 0%,
+			#ffffff 30%,
+			#faf8f6 65%,
+			#f5f0eb 100%
+		);
 }
 
 .dark {

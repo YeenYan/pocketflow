@@ -1,6 +1,7 @@
 <script setup lang="ts">
 	import { ref, nextTick, onMounted } from "vue";
 	import { useRouter } from "vue-router";
+	import { ArrowLeftIcon } from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import FadeIn from "../../components/containers/FadeIn.vue";
 	import { db, type RuleName } from "../../db/budgetDb";
@@ -33,6 +34,8 @@
 		const tabBudgetExpenses = await db.tabBudgetExpenses.toArray();
 		const othersBudgets = await db.othersBudgets.toArray();
 		const othersExpenses = await db.othersExpenses.toArray();
+		const incomingBillItems = await db.incomingBillItems.toArray();
+		const incomingBillBudgets = await db.incomingBillBudgets.toArray();
 
 		const lines: string[] = [];
 		if (profile?.displayName) {
@@ -308,6 +311,36 @@
 			}
 		}
 
+		if (incomingBillItems.length || incomingBillBudgets.length) {
+			const categoryLabels: Record<string, string> = {
+				"expense-main": "Expense Main Items",
+				savings: "Saving's Items",
+				cutoff: "Cutoff Budget",
+				"other-expenses": "Other Expenses Budget",
+				wants: "Wants Budget",
+			};
+			lines.push("");
+			lines.push(
+				"Incoming bills (planned for next cutoff, not yet spent or allotted):",
+			);
+			for (const item of incomingBillItems) {
+				const label = categoryLabels[item.category] ?? item.category;
+				lines.push(
+					`- ${item.name} (${label}): ₱${item.amount.toLocaleString("en-PH")}`,
+				);
+			}
+			for (const budget of incomingBillBudgets) {
+				const label = categoryLabels[budget.category] ?? budget.category;
+				lines.push(`- ${label}: ₱${budget.amount.toLocaleString("en-PH")}`);
+			}
+			const incomingTotal =
+				incomingBillItems.reduce((sum, i) => sum + i.amount, 0) +
+				incomingBillBudgets.reduce((sum, b) => sum + b.amount, 0);
+			lines.push(
+				`Incoming bills total: ₱${incomingTotal.toLocaleString("en-PH")}`,
+			);
+		}
+
 		return lines.join("\n");
 	}
 
@@ -362,8 +395,13 @@
 <template>
 	<div class="chat">
 		<header class="page-header mt-[-1rem]">
-			<button type="button" class="back-btn" @click="router.push('/dashboard')">
-				←
+			<button
+				type="button"
+				class="back-btn"
+				aria-label="Back"
+				@click="router.push('/dashboard')"
+			>
+				<ArrowLeftIcon class="h-5 w-5" />
 			</button>
 			<h1 class="page-title">Chat with Poko</h1>
 			<span class="header-spacer" />
@@ -460,13 +498,16 @@
 	}
 
 	.back-btn {
-		background: none;
-		border: none;
-		font-size: 1.25rem;
-		cursor: pointer;
-		padding: 0.25rem 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.7rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: transparent;
 		color: var(--color-textPrimary);
-		border-radius: 6px;
+		cursor: pointer;
+		flex-shrink: 0;
 	}
 
 	.back-btn:hover {

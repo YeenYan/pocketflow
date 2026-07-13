@@ -11,6 +11,7 @@
 		ViewfinderCircleIcon,
 		ArrowDownTrayIcon,
 		ArrowUpTrayIcon,
+		ArrowLeftIcon,
 	} from "@heroicons/vue/24/outline";
 	import Button from "../../components/button/Button.vue";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
@@ -402,7 +403,14 @@
 <template>
 	<div class="page-shell">
 		<header class="page-header mt-[-1rem]">
-			<button type="button" class="back-btn" @click="router.push('/me')">←</button>
+			<button
+				type="button"
+				class="back-btn"
+				aria-label="Back"
+				@click="router.push('/me')"
+			>
+				<ArrowLeftIcon class="h-5 w-5" />
+			</button>
 			<h1 class="page-title">Account</h1>
 			<span class="header-spacer" />
 		</header>
@@ -482,7 +490,7 @@
 			</button>
 		</GlassContainer>
 
-		<p class="app-version">App version: 1.0.0</p>
+		<p class="app-version">App version: 1.1.0</p>
 
 		<Teleport to="body">
 			<div v-if="activeModal" class="modal-overlay" @click.self="closeModal">
@@ -659,13 +667,16 @@
 	}
 
 	.back-btn {
-		background: none;
-		border: none;
-		font-size: 1.25rem;
-		cursor: pointer;
-		padding: 0.25rem 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.7rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: transparent;
 		color: var(--color-textPrimary);
-		border-radius: 6px;
+		cursor: pointer;
+		flex-shrink: 0;
 	}
 
 	.back-btn:hover {
@@ -765,11 +776,11 @@
 	}
 
 	.icon-box-backup {
-		background: rgba(212, 140, 106, 0.15);
+		background: var(--color-accentBg);
 	}
 
 	.icon-box-backup .row-icon {
-		color: #d48c6a;
+		color: var(--color-accentSolid);
 	}
 
 	.icon-box-import {

@@ -21,6 +21,9 @@
 		type TabBudget,
 		type TabBudgetExpense,
 	} from "../../db/budgetDb";
+	import { useTheme } from "../../composables/useTheme";
+
+	const { currentTheme } = useTheme();
 
 	const cutoffs = ref<CycleCutoff[]>([]);
 	const budgetEntries = ref<BudgetEntry[]>([]);
@@ -49,6 +52,14 @@
 	const RULE_COLORS_MUTED: Record<"Expenses" | "Wants", string> = {
 		Expenses: "rgba(110, 74, 74, 0.45)",
 		Wants: "rgba(79, 74, 102, 0.45)",
+	};
+	const RULE_COLORS_LIGHT: Record<"Expenses" | "Wants", string> = {
+		Expenses: "#b42318",
+		Wants: "#5b21b6",
+	};
+	const RULE_COLORS_MUTED_LIGHT: Record<"Expenses" | "Wants", string> = {
+		Expenses: "rgb(255 228 230 / 0.78)",
+		Wants: "rgb(237 233 254 / 0.82)",
 	};
 
 	const GAUGE_CX = 100;
@@ -272,12 +283,13 @@
 			const allotted = cutoff.allocations?.[name as RuleName]?.amount ?? 0;
 			const percent =
 				allotted > 0 ? Math.min(100, Math.round((spent / allotted) * 100)) : 0;
+			const dark = currentTheme.value === "dark";
 			return {
 				name,
 				spent,
 				percent,
-				color: RULE_COLORS[name],
-				bg: RULE_COLORS_MUTED[name],
+				color: dark ? RULE_COLORS[name] : RULE_COLORS_LIGHT[name],
+				bg: dark ? RULE_COLORS_MUTED[name] : RULE_COLORS_MUTED_LIGHT[name],
 				fill: progressFillColor(percent),
 				offset: CHIP_CIRC * (1 - percent / 100),
 			};
@@ -1003,6 +1015,15 @@
 		border-radius: 9999px;
 	}
 
+	:global(:root:not(.dark)) .rule-chip {
+		border: 1px solid rgb(255 255 255 / 0.7);
+		box-shadow:
+			0 4px 14px rgb(0 0 0 / 0.05),
+			inset 0 1px 0 rgb(255 255 255 / 0.8);
+		backdrop-filter: blur(16px);
+		-webkit-backdrop-filter: blur(16px);
+	}
+
 	.rule-chip-ring {
 		width: 2.1rem;
 		height: 2.1rem;
@@ -1013,6 +1034,10 @@
 	.rule-chip-track {
 		stroke: rgba(255, 255, 255, 0.18);
 		stroke-width: 3;
+	}
+
+	:global(:root:not(.dark)) .rule-chip-track {
+		stroke: rgb(0 0 0 / 0.1);
 	}
 
 	.rule-chip-fill {

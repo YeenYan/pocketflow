@@ -5,6 +5,7 @@
 		ChevronRightIcon,
 		BookOpenIcon,
 		BanknotesIcon,
+		ChartPieIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
@@ -60,6 +61,17 @@
 				</span>
 				<p class="tile-title">My Savings</p>
 				<p class="tile-subtitle">Track | Goals</p>
+			</GlassContainer>
+
+			<GlassContainer
+				class="menu-tile is-clickable"
+				@click="router.push('/me/analytics')"
+			>
+				<span class="tile-icon-box tile-icon-box-analytics">
+					<ChartPieIcon class="tile-icon" />
+				</span>
+				<p class="tile-title">Analytics</p>
+				<p class="tile-subtitle">Insights | Trends</p>
 			</GlassContainer>
 		</div>
 	</div>
@@ -185,6 +197,14 @@
 
 	.tile-icon-box-savings .tile-icon {
 		color: #10b981;
+	}
+
+	.tile-icon-box-analytics {
+		background: rgba(168, 85, 247, 0.15);
+	}
+
+	.tile-icon-box-analytics .tile-icon {
+		color: #a855f7;
 	}
 
 	.tile-icon {
