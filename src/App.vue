@@ -11,6 +11,11 @@
 	import BottomNav from "./components/BottomNav.vue";
 	import { useTheme } from "./composables/useTheme";
 	import { db, sessionUnlocked, setSessionUnlocked } from "./db/budgetDb";
+	import image1 from "./assets/img/image_1.webp";
+	import image2 from "./assets/img/image_2.webp";
+	import image3 from "./assets/img/image_3.webp";
+	import headOnly from "./assets/img/head_only.webp";
+	import appIcon from "./assets/img/App_Icon.webp";
 
 	const { currentTheme, toggleTheme } = useTheme();
 
@@ -18,6 +23,32 @@
 	const route = useRoute();
 	const pageTransition = ref("page-forward");
 	const layoutStyle = ref<Record<string, string>>({});
+
+	function preloadImage(src: string) {
+		return new Promise<void>((resolve) => {
+			if (!src) {
+				resolve();
+				return;
+			}
+			const img = new Image();
+			img.onload = () => resolve();
+			img.onerror = () => resolve();
+			img.src = src;
+		});
+	}
+
+	async function preloadAppImages() {
+		const startedAt = Date.now();
+		const profile = await db.userProfiles.get(1);
+		const urls = [image1, image2, image3, headOnly, appIcon];
+		if (profile?.photoUrl) urls.push(profile.photoUrl);
+		await Promise.all(urls.map((url) => preloadImage(url)));
+		const remaining = 2000 - (Date.now() - startedAt);
+		if (remaining > 0) {
+			await new Promise((resolve) => setTimeout(resolve, remaining));
+		}
+		document.getElementById("boot-loader")?.remove();
+	}
 
 	function syncLayoutViewport() {
 		const viewport = window.visualViewport;
@@ -56,6 +87,7 @@
 		window.visualViewport?.addEventListener("resize", syncLayoutViewport);
 		window.visualViewport?.addEventListener("scroll", syncLayoutViewport);
 		document.addEventListener("visibilitychange", onVisibilityChange);
+		preloadAppImages();
 	});
 
 	onUnmounted(() => {

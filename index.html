@@ -16,8 +16,62 @@
 		<meta name="apple-mobile-web-app-title" content="TestApp" />
 		<link rel="apple-touch-icon" href="/pwa-192x192.png" />
 		<title>PocketFlow App</title>
+		<style>
+			#boot-loader {
+				position: fixed;
+				inset: 0;
+				z-index: 99999;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 0.75rem;
+				background: #ffffff;
+			}
+
+			html.dark #boot-loader {
+				background: #0f0f0f;
+			}
+
+			.boot-loader-label {
+				margin: 0;
+				font-family: system-ui, -apple-system, sans-serif;
+				font-size: 0.95rem;
+				font-weight: 600;
+				color: #d58455;
+			}
+
+			.boot-loader-bar {
+				width: 120px;
+				height: 22px;
+				border-radius: 20px;
+				color: #d58455;
+				border: 2px solid;
+				position: relative;
+			}
+
+			.boot-loader-bar::before {
+				content: "";
+				position: absolute;
+				margin: 2px;
+				inset: 0 100% 0 0;
+				border-radius: inherit;
+				background: #d58455;
+				animation: boot-loader-fill 2s infinite;
+			}
+
+			@keyframes boot-loader-fill {
+				100% {
+					inset: 0;
+				}
+			}
+		</style>
 	</head>
 	<body>
+		<div id="boot-loader" aria-hidden="true">
+			<p class="boot-loader-label">Loading...</p>
+			<div class="boot-loader-bar"></div>
+		</div>
 		<div id="app"></div>
 		<script type="module" src="/src/main.ts"></script>
 	</body>
