@@ -5,6 +5,7 @@
 	import Divider from "../../../../components/divider/Divider.vue";
 	import GlassContainer from "../../../../components/containers/GlassContainer.vue";
 	import AmountField from "../../../../components/inputs/AmountField.vue";
+	import ToggleSwitch from "../../../../components/inputs/ToggleSwitch.vue";
 	import type { BudgetEntry } from "../../../../db/budgetDb";
 
 	defineProps<{
@@ -24,6 +25,8 @@
 	const emit = defineEmits<{
 		close: [];
 		save: [];
+		completeChange: [];
+		toWithdrawChange: [];
 		remove: [];
 		addSubItem: [];
 		deleteSubItem: [id: string];
@@ -34,6 +37,8 @@
 	}>();
 
 	const amount = defineModel<string>("amount", { default: "" });
+	const isComplete = defineModel<boolean>("isComplete", { default: false });
+	const toWithdraw = defineModel<boolean>("toWithdraw", { default: false });
 </script>
 
 <template>
@@ -62,6 +67,16 @@
 							/>
 						</span>
 						<span class="edit-item-name">{{ name }}</span>
+					</div>
+
+					<div class="toggle-row">
+						<span>Complete</span>
+						<ToggleSwitch v-model="isComplete" @change="emit('completeChange')" />
+					</div>
+
+					<div class="toggle-row">
+						<span>To Withdraw</span>
+						<ToggleSwitch v-model="toWithdraw" @change="emit('toWithdrawChange')" />
 					</div>
 
 					<AmountField v-model="amount" label="Amount" placeholder="0.00" />
@@ -125,12 +140,7 @@
 				</div>
 
 				<div class="drawer-actions">
-					<Button
-						variant="primary"
-						block
-						:disabled="!canSave"
-						@click="emit('save')"
-					>
+					<Button variant="primary" block :disabled="!canSave" @click="emit('save')">
 						Update
 					</Button>
 					<Button
@@ -152,4 +162,12 @@
 <style scoped>
 	@import "../sections/shared.css";
 	@import "./drawer-shared.css";
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		color: var(--color-textPrimary);
+	}
 </style>

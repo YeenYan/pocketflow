@@ -7,11 +7,14 @@
 		EyeSlashIcon,
 		Bars3Icon,
 		ArrowLeftIcon,
+		PlusIcon,
+		PencilIcon,
 	} from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import SelectField from "../../components/inputs/SelectField.vue";
 	import AmountField from "../../components/inputs/AmountField.vue";
+	import InputField from "../../components/inputs/InputField.vue";
 	import Button from "../../components/button/Button.vue";
 	import Divider from "../../components/divider/Divider.vue";
 	import pokoImg from "../../assets/img/image_2.webp";
@@ -176,6 +179,8 @@
 	const transferAmount = ref("");
 	const transferError = ref("");
 	const savingTransfer = ref(false);
+	const bankWallet = ref("");
+	const bankWalletLocked = ref(false);
 
 	const transferRuleOptions = [
 		{ value: "Expenses", label: "Expenses" },
@@ -281,6 +286,7 @@
 				iconWrapClass: iconWrapClass(item.color),
 				cardWrapClass: cardWrapClass(item.color),
 				totalSaved: itemSavedTotal(item),
+				bankWallet: item.bankWallet ?? "",
 			})),
 	);
 
@@ -494,6 +500,7 @@
 			| (typeof savingsItems.value)[number]
 			| (typeof savingsGoalItems.value)[number],
 	) {
+		const builder = itemBuilders.value.find((row) => row.id === item.id);
 		selectedItem.value = {
 			id: item.id,
 			name: item.name,
@@ -501,12 +508,31 @@
 			iconWrapClass: item.iconWrapClass,
 			totalSaved: item.totalSaved,
 		};
+		bankWallet.value = builder?.bankWallet ?? "";
+		bankWalletLocked.value = !!bankWallet.value.trim();
 		showItemDrawer.value = true;
 	}
 
 	function closeItemDrawer() {
 		showItemDrawer.value = false;
 		selectedItem.value = null;
+		bankWallet.value = "";
+		bankWalletLocked.value = false;
+	}
+
+	async function saveBankWallet() {
+		if (!selectedItem.value) return;
+		const value = bankWallet.value.trim();
+		await db.itemBuilders.update(selectedItem.value.id, {
+			bankWallet: value,
+		});
+		bankWallet.value = value;
+		bankWalletLocked.value = !!value;
+		await loadPageData();
+	}
+
+	function editBankWallet() {
+		bankWalletLocked.value = false;
 	}
 
 	function onUseSavingsClick() {
@@ -695,6 +721,9 @@
 						<p class="goal-card-type">Total Saved</p>
 						<p class="goal-card-amount">{{ formatAmount(item.totalSaved) }}</p>
 						<p class="goal-card-meta">{{ item.name }}</p>
+						<p v-if="item.bankWallet" class="goal-card-wallet">
+							{{ item.bankWallet }}
+						</p>
 					</div>
 				</div>
 			</div>
@@ -830,6 +859,35 @@
 								</Button>
 							</div>
 						</div>
+					</div>
+
+					<div class="bank-wallet-row">
+						<InputField
+							v-model="bankWallet"
+							label="Bank / Wallet used:"
+							placeholder="e.g. BDO, GCash"
+							mode="both"
+							:disabled="bankWalletLocked"
+						/>
+						<button
+							v-if="bankWalletLocked"
+							type="button"
+							class="bank-wallet-btn"
+							aria-label="Edit bank or wallet"
+							@click="editBankWallet"
+						>
+							<PencilIcon class="h-5 w-5" />
+						</button>
+						<button
+							v-else
+							type="button"
+							class="bank-wallet-btn"
+							aria-label="Save bank or wallet"
+							:disabled="!bankWallet.trim()"
+							@click="saveBankWallet"
+						>
+							<PlusIcon class="h-5 w-5" />
+						</button>
 					</div>
 
 					<p class="item-drawer-history-title">Saving History</p>
@@ -1371,6 +1429,43 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.goal-card-wallet {
+		margin: 0;
+		font-size: 0.65rem;
+		font-weight: 400;
+		opacity: 0.8;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.bank-wallet-row {
+		display: flex;
+		align-items: flex-end;
+		gap: 0.5rem;
+	}
+
+	.bank-wallet-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 2.75rem;
+		height: 2.75rem;
+		margin-bottom: 0.05rem;
+		padding: 0;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: var(--color-inputBg);
+		color: var(--color-textPrimary);
+		cursor: pointer;
+	}
+
+	.bank-wallet-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.transactions-card {

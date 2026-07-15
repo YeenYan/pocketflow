@@ -54,6 +54,7 @@ export interface ItemBuilder {
 	color?: string;
 	hasTarget?: boolean;
 	targetAmount?: number;
+	bankWallet?: string;
 	createdAt: string;
 }
 
@@ -66,6 +67,8 @@ export interface BudgetEntry {
 	amount: number;
 	itemBuilderId?: string;
 	parentBudgetEntryId?: string;
+	isComplete?: boolean;
+	toWithdraw?: boolean;
 	createdAt: string;
 }
 

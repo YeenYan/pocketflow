@@ -1,4 +1,5 @@
 <script setup lang="ts">
+	import { CheckIcon } from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../../../components/containers/GlassContainer.vue";
 	import type { BudgetEntry, RuleName } from "../../../../db/budgetDb";
@@ -70,11 +71,19 @@
 							/>
 						</span>
 						<div class="item-row-main">
-							<div class="flex justify-between">
+							<div class="flex justify-between items-center">
 								<span class="item-row-name">{{ entry.name }}</span>
-								<span class="item-row-amount">
-									₱{{ entry.amount.toLocaleString("en-PH") }}
-								</span>
+								<div class="flex items-center gap-2">
+									<span class="item-row-amount">
+										₱{{ entry.amount.toLocaleString("en-PH") }}
+									</span>
+									<div
+										v-if="entry.isComplete"
+										class="bg-progress-green rounded-full p-1"
+									>
+										<CheckIcon class="h-4 w-4 text-white" />
+									</div>
+								</div>
 							</div>
 							<div
 								class="flex justify-between items-center"

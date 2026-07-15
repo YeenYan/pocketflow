@@ -6,6 +6,7 @@
 		MoonIcon,
 		BellIcon,
 		ChatBubbleLeftRightIcon,
+		SwatchIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "./components/containers/GlassContainer.vue";
 	import BottomNav from "./components/BottomNav.vue";
@@ -18,6 +19,13 @@
 	import appIcon from "./assets/img/App_Icon.webp";
 
 	const { currentTheme, toggleTheme } = useTheme();
+
+	// TEMP_HOO_THEME: delete with CSS block in design-system.css
+	const hooThemeOn = ref(false);
+	function toggleHooTheme() {
+		hooThemeOn.value = !hooThemeOn.value;
+		document.documentElement.classList.toggle("theme-hoo", hooThemeOn.value);
+	}
 
 	const router = useRouter();
 	const route = useRoute();
@@ -173,6 +181,19 @@
 			>
 				<SunIcon v-if="currentTheme === 'dark'" class="h-5 w-5" />
 				<MoonIcon v-else class="h-5 w-5" />
+			</GlassContainer>
+			<!-- TEMP_HOO_THEME: delete with CSS block in design-system.css -->
+			<GlassContainer
+				as="button"
+				type="button"
+				rounded="full"
+				:padding="false"
+				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				:class="hooThemeOn ? 'text-accentSolid' : ''"
+				:aria-label="hooThemeOn ? 'Turn off HOO theme' : 'Turn on HOO theme'"
+				@click="toggleHooTheme"
+			>
+				<SwatchIcon class="h-5 w-5" />
 			</GlassContainer>
 		</header>
 		<main

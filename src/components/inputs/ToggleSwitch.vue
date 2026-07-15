@@ -1,15 +1,15 @@
 <script setup lang="ts">
-const model = defineModel<boolean>({ default: false });
+	const model = defineModel<boolean>({ default: false });
 
-withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false });
+	withDefaults(defineProps<{ disabled?: boolean }>(), { disabled: false });
 
-const emit = defineEmits<{ change: [] }>();
+	const emit = defineEmits<{ change: [] }>();
 
-const inputId = `toggle-${Math.random().toString(36).slice(2, 9)}`;
+	const inputId = `toggle-${Math.random().toString(36).slice(2, 9)}`;
 
-function onChange() {
-	emit("change");
-}
+	function onChange() {
+		emit("change");
+	}
 </script>
 
 <template>

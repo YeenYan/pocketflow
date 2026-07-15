@@ -189,3 +189,56 @@ html.dark {
 			#000000 100%
 		);
 }
+
+/* === TEMP_HOO_THEME: delete this entire block to remove === */
+html.theme-hoo {
+	--gradient-fill: linear-gradient(to top right, #032978 0%, #196aab 55%, #5299cd 100%);
+	--color-primary: #5299cd;
+	--color-bg: #001a4d;
+	--color-bgBody: #000a51;
+	--color-surface: #01256e;
+	--color-textPrimary: #f9fafb;
+	--color-textSecondary: #a9d0ea;
+	--color-border: rgb(82 153 205 / 0.28);
+	--color-accent: #5299cd;
+	--color-muted: #7cb5dd;
+	--color-surfaceHover: #032978;
+	--color-surfaceActive: #04137c;
+	--color-accentBg: rgb(82 153 205 / 0.16);
+	--color-accentText: #a9d0ea;
+	--color-inputBg: rgb(255 255 255 / 0.08);
+	--color-inputBorder: rgb(82 153 205 / 0.35);
+	--color-inputText: #f9fafb;
+	--color-primaryDark: #196aab;
+	--color-accentSolid: #5299cd;
+	--color-mutedSolid: #7cb5dd;
+	--color-glass-bg: rgb(1 37 110 / 0.55);
+	--color-glass-border: rgb(82 153 205 / 0.22);
+	--color-blob-a: rgb(4 19 124 / 0.35);
+	--color-blob-b: rgb(0 10 81 / 0.4);
+	--shadow-sm: 0 2px 8px rgb(0 0 0 / 0.25);
+	--shadow-md: 0 6px 20px rgb(0 0 0 / 0.3);
+	--shadow-lg: 0 12px 32px rgb(0 0 0 / 0.4);
+	--shadow-glass: 0 8px 32px rgb(0 0 0 / 0.35);
+}
+
+/* Beat light/dark body backgrounds — hoo-app dark navy */
+html.theme-hoo:not(.dark),
+html.theme-hoo.dark,
+:root.theme-hoo:not(.dark) body,
+:root.theme-hoo.dark body,
+html.theme-hoo .glass-layout {
+	background:
+		radial-gradient(circle at center, #04137c 0%, #000a51 70%, #001a4d 100%),
+		linear-gradient(0deg, #032978 0%, #011e64 50%, #001a4d 100%) !important;
+}
+
+/* Override light-mode solid white glass when HOO theme is on */
+html.theme-hoo:not(.dark) .glass {
+	background: var(--color-glass-bg);
+	border-color: var(--color-glass-border);
+	box-shadow: var(--shadow-glass);
+	backdrop-filter: blur(var(--blur-glass)) saturate(180%);
+	-webkit-backdrop-filter: blur(var(--blur-glass)) saturate(180%);
+}
+/* === END TEMP_HOO_THEME === */

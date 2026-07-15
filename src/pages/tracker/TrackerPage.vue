@@ -1,6 +1,10 @@
 <script setup lang="ts">
 	import { computed, onMounted, ref, watch } from "vue";
-	import { PaperAirplaneIcon } from "@heroicons/vue/24/outline";
+	import {
+		PaperAirplaneIcon,
+		ChevronDownIcon,
+		ChevronUpIcon,
+	} from "@heroicons/vue/24/outline";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
 	import Divider from "../../components/divider/Divider.vue";
 	import Button from "../../components/button/Button.vue";
@@ -444,10 +448,13 @@
 	const editItemIcon = ref("HomeIcon");
 	const editItemIconWrapClass = ref("");
 	const editItemAmount = ref("");
+	const editItemIsComplete = ref(false);
+	const editItemToWithdraw = ref(false);
 	const editItemBuilderId = ref("");
 	const editItemHasChildItems = ref(false);
 	const editItemError = ref("");
 	const savingEditItem = ref(false);
+	const toWithdrawExpanded = ref(false);
 
 	const itemSwipeOffsets = ref<Record<string, number>>({});
 	let itemSwipeStartX = 0;
@@ -944,6 +951,33 @@
 				};
 			});
 	});
+
+	const toWithdrawEntries = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return [];
+		return budgetEntries.value
+			.filter(
+				(entry) =>
+					entry.cutoffId === cutoffId &&
+					entry.toWithdraw &&
+					!entry.parentBudgetEntryId &&
+					!savingsTransferEntryIds.value.has(entry.id),
+			)
+			.map((entry) => {
+				const builder = entry.itemBuilderId
+					? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+					: itemBuilders.value.find((item) => item.name === entry.name);
+				return {
+					id: entry.id,
+					name: builder?.name ?? entry.name,
+					amount: entry.amount,
+				};
+			});
+	});
+
+	const toWithdrawTotal = computed(() =>
+		toWithdrawEntries.value.reduce((sum, entry) => sum + entry.amount, 0),
+	);
 
 	const ruleSpentAmount = computed(() => {
 		const entriesSum = activeRuleEntries.value.reduce(
@@ -1860,6 +1894,8 @@
 		editItemIcon.value = entry.icon;
 		editItemIconWrapClass.value = entry.iconWrapClass;
 		editItemAmount.value = String(entry.amount);
+		editItemIsComplete.value = !!entry.isComplete;
+		editItemToWithdraw.value = !!entry.toWithdraw;
 		editItemBuilderId.value = entry.builderId;
 		editItemHasChildItems.value = entry.hasChildItems;
 		editItemError.value = "";
@@ -1871,6 +1907,22 @@
 		editItemError.value = "";
 		subItemSwipeOffsets.value = {};
 		showEditItemModal.value = false;
+	}
+
+	async function saveEditItemComplete() {
+		if (!editItemId.value) return;
+		await db.budgetEntries.update(editItemId.value, {
+			isComplete: editItemIsComplete.value,
+		});
+		await reloadTracker();
+	}
+
+	async function saveEditItemToWithdraw() {
+		if (!editItemId.value) return;
+		await db.budgetEntries.update(editItemId.value, {
+			toWithdraw: editItemToWithdraw.value,
+		});
+		await reloadTracker();
 	}
 
 	async function saveEditItem() {
@@ -1885,7 +1937,11 @@
 		const excess = mainItemBudgetExcess(amount, oldAmount);
 		const doSave = async () => {
 			savingEditItem.value = true;
-			await db.budgetEntries.update(editItemId.value, { amount });
+			await db.budgetEntries.update(editItemId.value, {
+				amount,
+				isComplete: editItemIsComplete.value,
+				toWithdraw: editItemToWithdraw.value,
+			});
 			if (excess > 0) {
 				await addUnexpectedExpense(
 					editItemName.value,
@@ -2693,6 +2749,40 @@
 
 			<Divider margin-top="2rem" margin-bottom="2rem" />
 
+			<GlassContainer v-if="toWithdrawEntries.length" class="mb-4">
+				<div>
+					<button
+						type="button"
+						class="to-withdraw-header"
+						@click="toWithdrawExpanded = !toWithdrawExpanded"
+					>
+						<div class="to-withdraw-header-text">
+							<span class="to-withdraw-title">To Withdraw</span>
+						</div>
+						<ChevronUpIcon v-if="toWithdrawExpanded" class="to-withdraw-chevron" />
+						<ChevronDownIcon v-else class="to-withdraw-chevron" />
+					</button>
+				</div>
+				<ul v-if="toWithdrawExpanded" class="to-withdraw-list">
+					<li
+						v-for="entry in toWithdrawEntries"
+						:key="entry.id"
+						class="to-withdraw-row"
+					>
+						<span>{{ entry.name }}</span>
+						<span> ₱{{ entry.amount.toLocaleString("en-PH") }} </span>
+					</li>
+				</ul>
+				<div class="flex items-center justify-between pt-[1rem]">
+					<p class="text-textSecondary text-sm">Total Amount:</p>
+					<p class="to-withdraw-total">
+						₱{{ toWithdrawTotal.toLocaleString("en-PH") }}
+					</p>
+				</div>
+			</GlassContainer>
+
+			<Divider margin-top="2rem" margin-bottom="2rem" />
+
 			<div class="tracker-finalize-bar w-[80%] mx-auto">
 				<button
 					type="button"
@@ -2749,7 +2839,11 @@
 			:saving="savingEditItem"
 			:remove-btn-color="RULE_COLORS.Expenses"
 			v-model:amount="editItemAmount"
+			v-model:is-complete="editItemIsComplete"
+			v-model:to-withdraw="editItemToWithdraw"
 			@close="closeEditItemModal"
+			@complete-change="saveEditItemComplete"
+			@to-withdraw-change="saveEditItemToWithdraw"
 			@save="saveEditItem"
 			@remove="removeEditItem"
 			@add-sub-item="openSubItemModal"
@@ -2941,6 +3035,65 @@
 		max-width: 400px;
 		/* padding: 0 1rem; */
 		/* transform: translateX(-50%); */
+	}
+
+	.to-withdraw-header {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: inherit;
+		font-family: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.to-withdraw-header-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+
+	.to-withdraw-title {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.to-withdraw-total {
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--color-textSecondary);
+	}
+
+	.to-withdraw-chevron {
+		width: 1.25rem;
+		height: 1.25rem;
+		flex-shrink: 0;
+		color: var(--color-accentSolid);
+	}
+
+	.to-withdraw-list {
+		list-style: none;
+		margin: 0.75rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.to-withdraw-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		font-size: 0.9rem;
+		color: var(--color-textPrimary);
 	}
 
 	.finalize-btn {
