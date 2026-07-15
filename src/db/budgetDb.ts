@@ -69,6 +69,7 @@ export interface BudgetEntry {
 	parentBudgetEntryId?: string;
 	isComplete?: boolean;
 	toWithdraw?: boolean;
+	withdrawAmount?: number;
 	createdAt: string;
 }
 
@@ -77,6 +78,8 @@ export interface OthersBudget {
 	cutoffId: string;
 	monthKey: string;
 	budgetAllocated: number;
+	toWithdraw?: boolean;
+	withdrawAmount?: number;
 	createdAt: string;
 }
 
@@ -86,6 +89,8 @@ export interface OthersExpense {
 	monthKey: string;
 	expenseName: string;
 	amount: number;
+	toWithdraw?: boolean;
+	withdrawAmount?: number;
 	createdAt: string;
 }
 
@@ -95,6 +100,8 @@ export interface TabBudget {
 	monthKey: string;
 	ruleName: RuleName;
 	budgetAllocated: number;
+	toWithdraw?: boolean;
+	withdrawAmount?: number;
 	createdAt: string;
 }
 
@@ -105,6 +112,8 @@ export interface TabBudgetExpense {
 	ruleName: RuleName;
 	expenseName: string;
 	amount: number;
+	toWithdraw?: boolean;
+	withdrawAmount?: number;
 	createdAt: string;
 }
 

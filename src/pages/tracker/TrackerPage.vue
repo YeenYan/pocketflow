@@ -257,7 +257,13 @@
 	];
 
 	const DEFAULT_ITEM_COLOR = "emerald-500";
-	const ITEM_SWIPE_DELETE_WIDTH = 72;
+	const ITEM_SWIPE_DELETE_WIDTH = 120;
+
+	function vibrateOnRemove() {
+		if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+			navigator.vibrate(50);
+		}
+	}
 
 	// =============================================================================
 	// CHART — active arc shadow plugin
@@ -450,6 +456,8 @@
 	const editItemAmount = ref("");
 	const editItemIsComplete = ref(false);
 	const editItemToWithdraw = ref(false);
+	const editItemWithdrawAmount = ref("");
+	const editItemWithdrawLocked = ref(false);
 	const editItemBuilderId = ref("");
 	const editItemHasChildItems = ref(false);
 	const editItemError = ref("");
@@ -474,6 +482,9 @@
 
 	const showOthersBudgetModal = ref(false);
 	const othersBudgetAmount = ref("");
+	const othersBudgetToWithdraw = ref(false);
+	const othersBudgetWithdrawAmount = ref("");
+	const othersBudgetWithdrawLocked = ref(false);
 	const othersBudgetError = ref("");
 	const savingOthersBudget = ref(false);
 
@@ -481,11 +492,17 @@
 	const othersItemEditId = ref<string | "">("");
 	const othersExpenseName = ref("");
 	const othersExpenseAmount = ref("");
+	const othersExpenseToWithdraw = ref(false);
+	const othersExpenseWithdrawAmount = ref("");
+	const othersExpenseWithdrawLocked = ref(false);
 	const othersItemError = ref("");
 	const savingOthersItem = ref(false);
 
 	const showTabBudgetModal = ref(false);
 	const tabBudgetAmount = ref("");
+	const tabBudgetToWithdraw = ref(false);
+	const tabBudgetWithdrawAmount = ref("");
+	const tabBudgetWithdrawLocked = ref(false);
 	const tabBudgetError = ref("");
 	const savingTabBudget = ref(false);
 
@@ -493,6 +510,9 @@
 	const tabBudgetItemEditId = ref<string | "">("");
 	const tabBudgetExpenseName = ref("");
 	const tabBudgetExpenseAmount = ref("");
+	const tabBudgetExpenseToWithdraw = ref(false);
+	const tabBudgetExpenseWithdrawAmount = ref("");
+	const tabBudgetExpenseWithdrawLocked = ref(false);
 	const tabBudgetItemError = ref("");
 	const savingTabBudgetItem = ref(false);
 
@@ -954,25 +974,69 @@
 
 	const toWithdrawEntries = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
-		if (!cutoffId) return [];
-		return budgetEntries.value
-			.filter(
-				(entry) =>
-					entry.cutoffId === cutoffId &&
-					entry.toWithdraw &&
-					!entry.parentBudgetEntryId &&
-					!savingsTransferEntryIds.value.has(entry.id),
-			)
-			.map((entry) => {
-				const builder = entry.itemBuilderId
-					? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
-					: itemBuilders.value.find((item) => item.name === entry.name);
-				return {
-					id: entry.id,
-					name: builder?.name ?? entry.name,
-					amount: entry.amount,
-				};
+		if (!cutoffId) return [] as { id: string; name: string; amount: number }[];
+		const rows: { id: string; name: string; amount: number }[] = [];
+
+		for (const entry of budgetEntries.value) {
+			if (
+				entry.cutoffId !== cutoffId ||
+				!entry.toWithdraw ||
+				entry.parentBudgetEntryId ||
+				savingsTransferEntryIds.value.has(entry.id)
+			) {
+				continue;
+			}
+			const builder = entry.itemBuilderId
+				? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.value.find((item) => item.name === entry.name);
+			rows.push({
+				id: entry.id,
+				name: builder?.name ?? entry.name,
+				amount: entry.withdrawAmount ?? entry.amount,
 			});
+		}
+
+		if (tabBudget.value?.toWithdraw && tabBudget.value.cutoffId === cutoffId) {
+			rows.push({
+				id: tabBudget.value.id,
+				name: "Budget",
+				amount:
+					tabBudget.value.withdrawAmount ?? tabBudget.value.budgetAllocated,
+			});
+		}
+
+		for (const expense of tabBudgetExpenses.value) {
+			if (expense.cutoffId !== cutoffId || !expense.toWithdraw) continue;
+			rows.push({
+				id: expense.id,
+				name: expense.expenseName,
+				amount: expense.withdrawAmount ?? expense.amount,
+			});
+		}
+
+		if (
+			othersBudget.value?.toWithdraw &&
+			othersBudget.value.cutoffId === cutoffId
+		) {
+			rows.push({
+				id: othersBudget.value.id,
+				name: "Others",
+				amount:
+					othersBudget.value.withdrawAmount ??
+					othersBudget.value.budgetAllocated,
+			});
+		}
+
+		for (const expense of othersExpenses.value) {
+			if (expense.cutoffId !== cutoffId || !expense.toWithdraw) continue;
+			rows.push({
+				id: expense.id,
+				name: expense.expenseName,
+				amount: expense.withdrawAmount ?? expense.amount,
+			});
+		}
+
+		return rows;
 	});
 
 	const toWithdrawTotal = computed(() =>
@@ -1896,6 +1960,12 @@
 		editItemAmount.value = String(entry.amount);
 		editItemIsComplete.value = !!entry.isComplete;
 		editItemToWithdraw.value = !!entry.toWithdraw;
+		editItemWithdrawAmount.value = entry.toWithdraw
+			? String(entry.withdrawAmount ?? entry.amount)
+			: "";
+		editItemWithdrawLocked.value = !!(
+			entry.toWithdraw && (entry.withdrawAmount ?? entry.amount)
+		);
 		editItemBuilderId.value = entry.builderId;
 		editItemHasChildItems.value = entry.hasChildItems;
 		editItemError.value = "";
@@ -1906,6 +1976,7 @@
 	function closeEditItemModal() {
 		editItemError.value = "";
 		subItemSwipeOffsets.value = {};
+		editItemWithdrawLocked.value = false;
 		showEditItemModal.value = false;
 	}
 
@@ -1917,12 +1988,74 @@
 		await reloadTracker();
 	}
 
+	function resolveWithdrawFields(
+		enabled: boolean,
+		withdrawStr: string,
+		maxAmount: number,
+	):
+		| { ok: true; toWithdraw: false; withdrawAmount: undefined }
+		| { ok: true; toWithdraw: true; withdrawAmount: number }
+		| { ok: false; error: string } {
+		if (!enabled) {
+			return { ok: true, toWithdraw: false, withdrawAmount: undefined };
+		}
+		const n = Number(withdrawStr);
+		if (!withdrawStr || Number.isNaN(n) || n <= 0) {
+			return { ok: false, error: "Enter a valid withdraw amount" };
+		}
+		if (n > maxAmount) {
+			return {
+				ok: false,
+				error: `Withdraw amount cannot exceed ₱${maxAmount.toLocaleString("en-PH")}`,
+			};
+		}
+		return { ok: true, toWithdraw: true, withdrawAmount: n };
+	}
+
 	async function saveEditItemToWithdraw() {
 		if (!editItemId.value) return;
+		if (editItemToWithdraw.value) {
+			if (!editItemWithdrawAmount.value) {
+				editItemWithdrawAmount.value = editItemAmount.value;
+			}
+			editItemWithdrawLocked.value = false;
+			return;
+		}
+		editItemWithdrawAmount.value = "";
+		editItemWithdrawLocked.value = false;
+		editItemError.value = "";
 		await db.budgetEntries.update(editItemId.value, {
-			toWithdraw: editItemToWithdraw.value,
+			toWithdraw: false,
+			withdrawAmount: undefined,
 		});
 		await reloadTracker();
+	}
+
+	async function saveEditItemWithdrawAmount() {
+		if (!editItemId.value) return;
+		const maxAmount = Number(editItemAmount.value);
+		const withdraw = resolveWithdrawFields(
+			true,
+			editItemWithdrawAmount.value,
+			Number.isNaN(maxAmount) ? 0 : maxAmount,
+		);
+		if (!withdraw.ok) {
+			editItemError.value = withdraw.error;
+			return;
+		}
+		editItemError.value = "";
+		editItemToWithdraw.value = true;
+		editItemWithdrawAmount.value = String(withdraw.withdrawAmount);
+		editItemWithdrawLocked.value = true;
+		await db.budgetEntries.update(editItemId.value, {
+			toWithdraw: true,
+			withdrawAmount: withdraw.withdrawAmount,
+		});
+		await reloadTracker();
+	}
+
+	function editEditItemWithdrawAmount() {
+		editItemWithdrawLocked.value = false;
 	}
 
 	async function saveEditItem() {
@@ -1940,7 +2073,6 @@
 			await db.budgetEntries.update(editItemId.value, {
 				amount,
 				isComplete: editItemIsComplete.value,
-				toWithdraw: editItemToWithdraw.value,
 			});
 			if (excess > 0) {
 				await addUnexpectedExpense(
@@ -2000,7 +2132,7 @@
 
 	async function onItemSwipeEnd(id: string) {
 		const offset = itemSwipeOffset(id);
-		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
 			await removeSwipedItem(id);
 			return;
 		}
@@ -2048,7 +2180,7 @@
 
 	async function onSubItemSwipeEnd(id: string) {
 		const offset = subItemSwipeOffset(id);
-		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
 			await deleteSubItem(id);
 			return;
 		}
@@ -2058,6 +2190,7 @@
 	}
 
 	async function deleteSubItem(id: string) {
+		vibrateOnRemove();
 		await db.budgetEntries.delete(id);
 		delete subItemSwipeOffsets.value[id];
 		await loadBudgetEntries();
@@ -2145,6 +2278,7 @@
 	async function removeSwipedItem(id: string) {
 		itemSwipeOffsets.value = {};
 		itemSwipeActiveId = "";
+		vibrateOnRemove();
 		await deleteBudgetEntry(id);
 	}
 
@@ -2152,8 +2286,22 @@
 		othersBudgetError.value = "";
 		if (othersBudget.value) {
 			othersBudgetAmount.value = String(othersBudget.value.budgetAllocated);
+			othersBudgetToWithdraw.value = !!othersBudget.value.toWithdraw;
+			othersBudgetWithdrawAmount.value = othersBudget.value.toWithdraw
+				? String(
+						othersBudget.value.withdrawAmount ??
+							othersBudget.value.budgetAllocated,
+					)
+				: "";
+			othersBudgetWithdrawLocked.value = !!(
+				othersBudget.value.toWithdraw &&
+				(othersBudget.value.withdrawAmount ?? othersBudget.value.budgetAllocated)
+			);
 		} else {
 			othersBudgetAmount.value = "";
+			othersBudgetToWithdraw.value = false;
+			othersBudgetWithdrawAmount.value = "";
+			othersBudgetWithdrawLocked.value = false;
 		}
 		showOthersBudgetModal.value = true;
 	}
@@ -2161,6 +2309,51 @@
 	function closeOthersBudgetModal() {
 		othersBudgetError.value = "";
 		showOthersBudgetModal.value = false;
+	}
+
+	async function onOthersBudgetToWithdrawChange() {
+		if (othersBudgetToWithdraw.value) {
+			if (!othersBudgetWithdrawAmount.value && othersBudgetAmount.value) {
+				othersBudgetWithdrawAmount.value = othersBudgetAmount.value;
+			}
+			othersBudgetWithdrawLocked.value = false;
+			return;
+		}
+		othersBudgetWithdrawAmount.value = "";
+		othersBudgetWithdrawLocked.value = false;
+		if (!othersBudget.value?.id) return;
+		await db.othersBudgets.update(othersBudget.value.id, {
+			toWithdraw: false,
+			withdrawAmount: undefined,
+		});
+		await loadOthers();
+	}
+
+	async function saveOthersBudgetWithdrawAmount() {
+		if (!othersBudget.value?.id) return;
+		const maxAmount = Number(othersBudgetAmount.value);
+		const withdraw = resolveWithdrawFields(
+			true,
+			othersBudgetWithdrawAmount.value,
+			Number.isNaN(maxAmount) ? 0 : maxAmount,
+		);
+		if (!withdraw.ok) {
+			othersBudgetError.value = withdraw.error;
+			return;
+		}
+		othersBudgetError.value = "";
+		othersBudgetToWithdraw.value = true;
+		othersBudgetWithdrawAmount.value = String(withdraw.withdrawAmount);
+		othersBudgetWithdrawLocked.value = true;
+		await db.othersBudgets.update(othersBudget.value.id, {
+			toWithdraw: true,
+			withdrawAmount: withdraw.withdrawAmount,
+		});
+		await loadOthers();
+	}
+
+	function editOthersBudgetWithdrawAmount() {
+		othersBudgetWithdrawLocked.value = false;
 	}
 
 	async function saveOthersBudget() {
@@ -2214,12 +2407,20 @@
 		othersItemEditId.value = "";
 		othersExpenseName.value = "";
 		othersExpenseAmount.value = "";
+		othersExpenseToWithdraw.value = false;
+		othersExpenseWithdrawAmount.value = "";
+		othersExpenseWithdrawLocked.value = false;
 		othersItemError.value = "";
 		showOthersItemModal.value = true;
 	}
 
 	function onOthersItemRowClick(
-		expense: { expenseName: string; amount: number },
+		expense: {
+			expenseName: string;
+			amount: number;
+			toWithdraw?: boolean;
+			withdrawAmount?: number;
+		},
 		id: string,
 	) {
 		if (othersSwipeOffset(id) < 0) {
@@ -2230,6 +2431,13 @@
 		othersItemEditId.value = id;
 		othersExpenseName.value = expense.expenseName;
 		othersExpenseAmount.value = String(expense.amount);
+		othersExpenseToWithdraw.value = !!expense.toWithdraw;
+		othersExpenseWithdrawAmount.value = expense.toWithdraw
+			? String(expense.withdrawAmount ?? expense.amount)
+			: "";
+		othersExpenseWithdrawLocked.value = !!(
+			expense.toWithdraw && (expense.withdrawAmount ?? expense.amount)
+		);
 		othersItemError.value = "";
 		showOthersItemModal.value = true;
 	}
@@ -2238,6 +2446,51 @@
 		showOthersItemModal.value = false;
 		othersItemEditId.value = "";
 		othersItemError.value = "";
+	}
+
+	async function onOthersExpenseToWithdrawChange() {
+		if (othersExpenseToWithdraw.value) {
+			if (!othersExpenseWithdrawAmount.value && othersExpenseAmount.value) {
+				othersExpenseWithdrawAmount.value = othersExpenseAmount.value;
+			}
+			othersExpenseWithdrawLocked.value = false;
+			return;
+		}
+		othersExpenseWithdrawAmount.value = "";
+		othersExpenseWithdrawLocked.value = false;
+		if (!othersItemEditId.value) return;
+		await db.othersExpenses.update(othersItemEditId.value, {
+			toWithdraw: false,
+			withdrawAmount: undefined,
+		});
+		await loadOthers();
+	}
+
+	async function saveOthersExpenseWithdrawAmount() {
+		if (!othersItemEditId.value) return;
+		const maxAmount = Number(othersExpenseAmount.value);
+		const withdraw = resolveWithdrawFields(
+			true,
+			othersExpenseWithdrawAmount.value,
+			Number.isNaN(maxAmount) ? 0 : maxAmount,
+		);
+		if (!withdraw.ok) {
+			othersItemError.value = withdraw.error;
+			return;
+		}
+		othersItemError.value = "";
+		othersExpenseToWithdraw.value = true;
+		othersExpenseWithdrawAmount.value = String(withdraw.withdrawAmount);
+		othersExpenseWithdrawLocked.value = true;
+		await db.othersExpenses.update(othersItemEditId.value, {
+			toWithdraw: true,
+			withdrawAmount: withdraw.withdrawAmount,
+		});
+		await loadOthers();
+	}
+
+	function editOthersExpenseWithdrawAmount() {
+		othersExpenseWithdrawLocked.value = false;
 	}
 
 	async function saveOthersItem() {
@@ -2311,6 +2564,7 @@
 	}
 
 	async function deleteOthersExpense(id: string) {
+		vibrateOnRemove();
 		await db.othersExpenses.delete(id);
 		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
 		delete othersSwipeOffsets.value[id];
@@ -2348,7 +2602,7 @@
 
 	async function onOthersSwipeEnd(id: string) {
 		const offset = othersSwipeOffset(id);
-		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
 			await deleteOthersExpense(id);
 			return;
 		}
@@ -2361,8 +2615,19 @@
 		tabBudgetError.value = "";
 		if (tabBudget.value) {
 			tabBudgetAmount.value = String(tabBudget.value.budgetAllocated);
+			tabBudgetToWithdraw.value = !!tabBudget.value.toWithdraw;
+			tabBudgetWithdrawAmount.value = tabBudget.value.toWithdraw
+				? String(tabBudget.value.withdrawAmount ?? tabBudget.value.budgetAllocated)
+				: "";
+			tabBudgetWithdrawLocked.value = !!(
+				tabBudget.value.toWithdraw &&
+				(tabBudget.value.withdrawAmount ?? tabBudget.value.budgetAllocated)
+			);
 		} else {
 			tabBudgetAmount.value = "";
+			tabBudgetToWithdraw.value = false;
+			tabBudgetWithdrawAmount.value = "";
+			tabBudgetWithdrawLocked.value = false;
 		}
 		showTabBudgetModal.value = true;
 	}
@@ -2370,6 +2635,51 @@
 	function closeTabBudgetModal() {
 		tabBudgetError.value = "";
 		showTabBudgetModal.value = false;
+	}
+
+	async function onTabBudgetToWithdrawChange() {
+		if (tabBudgetToWithdraw.value) {
+			if (!tabBudgetWithdrawAmount.value && tabBudgetAmount.value) {
+				tabBudgetWithdrawAmount.value = tabBudgetAmount.value;
+			}
+			tabBudgetWithdrawLocked.value = false;
+			return;
+		}
+		tabBudgetWithdrawAmount.value = "";
+		tabBudgetWithdrawLocked.value = false;
+		if (!tabBudget.value?.id) return;
+		await db.tabBudgets.update(tabBudget.value.id, {
+			toWithdraw: false,
+			withdrawAmount: undefined,
+		});
+		await loadTabBudget();
+	}
+
+	async function saveTabBudgetWithdrawAmount() {
+		if (!tabBudget.value?.id) return;
+		const maxAmount = Number(tabBudgetAmount.value);
+		const withdraw = resolveWithdrawFields(
+			true,
+			tabBudgetWithdrawAmount.value,
+			Number.isNaN(maxAmount) ? 0 : maxAmount,
+		);
+		if (!withdraw.ok) {
+			tabBudgetError.value = withdraw.error;
+			return;
+		}
+		tabBudgetError.value = "";
+		tabBudgetToWithdraw.value = true;
+		tabBudgetWithdrawAmount.value = String(withdraw.withdrawAmount);
+		tabBudgetWithdrawLocked.value = true;
+		await db.tabBudgets.update(tabBudget.value.id, {
+			toWithdraw: true,
+			withdrawAmount: withdraw.withdrawAmount,
+		});
+		await loadTabBudget();
+	}
+
+	function editTabBudgetWithdrawAmount() {
+		tabBudgetWithdrawLocked.value = false;
 	}
 
 	async function saveTabBudget() {
@@ -2430,12 +2740,20 @@
 		tabBudgetItemEditId.value = "";
 		tabBudgetExpenseName.value = "";
 		tabBudgetExpenseAmount.value = "";
+		tabBudgetExpenseToWithdraw.value = false;
+		tabBudgetExpenseWithdrawAmount.value = "";
+		tabBudgetExpenseWithdrawLocked.value = false;
 		tabBudgetItemError.value = "";
 		showTabBudgetItemModal.value = true;
 	}
 
 	function onTabBudgetItemRowClick(
-		expense: { expenseName: string; amount: number },
+		expense: {
+			expenseName: string;
+			amount: number;
+			toWithdraw?: boolean;
+			withdrawAmount?: number;
+		},
 		id: string,
 	) {
 		if (tabBudgetSwipeOffset(id) < 0) {
@@ -2446,6 +2764,13 @@
 		tabBudgetItemEditId.value = id;
 		tabBudgetExpenseName.value = expense.expenseName;
 		tabBudgetExpenseAmount.value = String(expense.amount);
+		tabBudgetExpenseToWithdraw.value = !!expense.toWithdraw;
+		tabBudgetExpenseWithdrawAmount.value = expense.toWithdraw
+			? String(expense.withdrawAmount ?? expense.amount)
+			: "";
+		tabBudgetExpenseWithdrawLocked.value = !!(
+			expense.toWithdraw && (expense.withdrawAmount ?? expense.amount)
+		);
 		tabBudgetItemError.value = "";
 		showTabBudgetItemModal.value = true;
 	}
@@ -2454,6 +2779,54 @@
 		showTabBudgetItemModal.value = false;
 		tabBudgetItemEditId.value = "";
 		tabBudgetItemError.value = "";
+	}
+
+	async function onTabBudgetExpenseToWithdrawChange() {
+		if (tabBudgetExpenseToWithdraw.value) {
+			if (
+				!tabBudgetExpenseWithdrawAmount.value &&
+				tabBudgetExpenseAmount.value
+			) {
+				tabBudgetExpenseWithdrawAmount.value = tabBudgetExpenseAmount.value;
+			}
+			tabBudgetExpenseWithdrawLocked.value = false;
+			return;
+		}
+		tabBudgetExpenseWithdrawAmount.value = "";
+		tabBudgetExpenseWithdrawLocked.value = false;
+		if (!tabBudgetItemEditId.value) return;
+		await db.tabBudgetExpenses.update(tabBudgetItemEditId.value, {
+			toWithdraw: false,
+			withdrawAmount: undefined,
+		});
+		await loadTabBudget();
+	}
+
+	async function saveTabBudgetExpenseWithdrawAmount() {
+		if (!tabBudgetItemEditId.value) return;
+		const maxAmount = Number(tabBudgetExpenseAmount.value);
+		const withdraw = resolveWithdrawFields(
+			true,
+			tabBudgetExpenseWithdrawAmount.value,
+			Number.isNaN(maxAmount) ? 0 : maxAmount,
+		);
+		if (!withdraw.ok) {
+			tabBudgetItemError.value = withdraw.error;
+			return;
+		}
+		tabBudgetItemError.value = "";
+		tabBudgetExpenseToWithdraw.value = true;
+		tabBudgetExpenseWithdrawAmount.value = String(withdraw.withdrawAmount);
+		tabBudgetExpenseWithdrawLocked.value = true;
+		await db.tabBudgetExpenses.update(tabBudgetItemEditId.value, {
+			toWithdraw: true,
+			withdrawAmount: withdraw.withdrawAmount,
+		});
+		await loadTabBudget();
+	}
+
+	function editTabBudgetExpenseWithdrawAmount() {
+		tabBudgetExpenseWithdrawLocked.value = false;
 	}
 
 	async function saveTabBudgetItem() {
@@ -2528,6 +2901,7 @@
 	}
 
 	async function deleteTabBudgetExpense(id: string) {
+		vibrateOnRemove();
 		await db.tabBudgetExpenses.delete(id);
 		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
 		delete tabBudgetSwipeOffsets.value[id];
@@ -2565,7 +2939,7 @@
 
 	async function onTabBudgetSwipeEnd(id: string) {
 		const offset = tabBudgetSwipeOffset(id);
-		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
+		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
 			await deleteTabBudgetExpense(id);
 			return;
 		}
@@ -2838,12 +3212,16 @@
 			:can-save="canSaveEditItem"
 			:saving="savingEditItem"
 			:remove-btn-color="RULE_COLORS.Expenses"
+			:withdraw-locked="editItemWithdrawLocked"
 			v-model:amount="editItemAmount"
 			v-model:is-complete="editItemIsComplete"
 			v-model:to-withdraw="editItemToWithdraw"
+			v-model:withdraw-amount="editItemWithdrawAmount"
 			@close="closeEditItemModal"
 			@complete-change="saveEditItemComplete"
 			@to-withdraw-change="saveEditItemToWithdraw"
+			@save-withdraw="saveEditItemWithdrawAmount"
+			@edit-withdraw="editEditItemWithdrawAmount"
 			@save="saveEditItem"
 			@remove="removeEditItem"
 			@add-sub-item="openSubItemModal"
@@ -2879,8 +3257,14 @@
 			:is-editing="isEditingOthersBudget"
 			:error="othersBudgetError"
 			:can-save="canSaveOthersBudget"
+			:withdraw-locked="othersBudgetWithdrawLocked"
 			v-model:amount="othersBudgetAmount"
+			v-model:to-withdraw="othersBudgetToWithdraw"
+			v-model:withdraw-amount="othersBudgetWithdrawAmount"
 			@close="closeOthersBudgetModal"
+			@to-withdraw-change="onOthersBudgetToWithdrawChange"
+			@save-withdraw="saveOthersBudgetWithdrawAmount"
+			@edit-withdraw="editOthersBudgetWithdrawAmount"
 			@save="saveOthersBudget"
 		/>
 
@@ -2889,9 +3273,15 @@
 			:is-editing="!!othersItemEditId"
 			:error="othersItemError"
 			:can-save="canSaveOthersItem"
+			:withdraw-locked="othersExpenseWithdrawLocked"
 			v-model:name="othersExpenseName"
 			v-model:amount="othersExpenseAmount"
+			v-model:to-withdraw="othersExpenseToWithdraw"
+			v-model:withdraw-amount="othersExpenseWithdrawAmount"
 			@close="closeOthersItemModal"
+			@to-withdraw-change="onOthersExpenseToWithdrawChange"
+			@save-withdraw="saveOthersExpenseWithdrawAmount"
+			@edit-withdraw="editOthersExpenseWithdrawAmount"
 			@save="saveOthersItem"
 		/>
 
@@ -2900,8 +3290,14 @@
 			:is-editing="isEditingTabBudget"
 			:error="tabBudgetError"
 			:can-save="canSaveTabBudget"
+			:withdraw-locked="tabBudgetWithdrawLocked"
 			v-model:amount="tabBudgetAmount"
+			v-model:to-withdraw="tabBudgetToWithdraw"
+			v-model:withdraw-amount="tabBudgetWithdrawAmount"
 			@close="closeTabBudgetModal"
+			@to-withdraw-change="onTabBudgetToWithdrawChange"
+			@save-withdraw="saveTabBudgetWithdrawAmount"
+			@edit-withdraw="editTabBudgetWithdrawAmount"
 			@save="saveTabBudget"
 		/>
 
@@ -2910,9 +3306,15 @@
 			:is-editing="!!tabBudgetItemEditId"
 			:error="tabBudgetItemError"
 			:can-save="canSaveTabBudgetItem"
+			:withdraw-locked="tabBudgetExpenseWithdrawLocked"
 			v-model:name="tabBudgetExpenseName"
 			v-model:amount="tabBudgetExpenseAmount"
+			v-model:to-withdraw="tabBudgetExpenseToWithdraw"
+			v-model:withdraw-amount="tabBudgetExpenseWithdrawAmount"
 			@close="closeTabBudgetItemModal"
+			@to-withdraw-change="onTabBudgetExpenseToWithdrawChange"
+			@save-withdraw="saveTabBudgetExpenseWithdrawAmount"
+			@edit-withdraw="editTabBudgetExpenseWithdrawAmount"
 			@save="saveTabBudgetItem"
 		/>
 
