@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, nextTick } from 'vue'
+
 withDefaults(
 	defineProps<{
 		label: string
@@ -10,8 +12,23 @@ withDefaults(
 
 const model = defineModel<string>({ default: '' })
 
+function formatWithCommas(raw: string) {
+	if (!raw) return ''
+	const parts = raw.split('.')
+	const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+	if (parts.length > 1) return `${intPart}.${parts[1]}`
+	return intPart
+}
+
+const displayValue = computed(() => formatWithCommas(model.value))
+
 function onInput(event: Event) {
 	const el = event.target as HTMLInputElement
+	const cursor = el.selectionStart ?? el.value.length
+	const digitsBeforeCursor = el.value
+		.slice(0, cursor)
+		.replace(/[^\d.]/g, '').length
+
 	let value = el.value.replace(/[^\d.]/g, '')
 	const parts = value.split('.')
 	if (parts.length > 2) {
@@ -19,7 +36,17 @@ function onInput(event: Event) {
 	}
 
 	model.value = value
-	el.value = value
+
+	nextTick(() => {
+		const formatted = formatWithCommas(value)
+		let pos = 0
+		let digits = 0
+		while (pos < formatted.length && digits < digitsBeforeCursor) {
+			if (/[\d.]/.test(formatted[pos]!)) digits++
+			pos++
+		}
+		el.setSelectionRange(pos, pos)
+	})
 }
 </script>
 
@@ -29,7 +56,7 @@ function onInput(event: Event) {
 		<div class="input-wrap">
 			<span class="peso">₱</span>
 			<input
-				:value="model"
+				:value="displayValue"
 				type="text"
 				class="input"
 				:placeholder="placeholder"

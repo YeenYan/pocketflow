@@ -14,6 +14,7 @@
 	const loading = ref(false);
 	const error = ref("");
 	const messagesEl = ref<HTMLElement | null>(null);
+	const inputEl = ref<HTMLTextAreaElement | null>(null);
 	const photoUrl = ref("");
 	const displayName = ref("");
 
@@ -36,6 +37,9 @@
 		const othersExpenses = await db.othersExpenses.toArray();
 		const incomingBillItems = await db.incomingBillItems.toArray();
 		const incomingBillBudgets = await db.incomingBillBudgets.toArray();
+		const savingsTransfers = await db.savingsTransfers.toArray();
+		const ruleExtraBudgets = await db.ruleExtraBudgets.toArray();
+		const unexpectedExpenses = await db.unexpectedExpenses.toArray();
 
 		const lines: string[] = [];
 		if (profile?.displayName) {
@@ -164,6 +168,48 @@
 			if (expensesSpent > expensesAllotted || wantsSpent > wantsAllotted) {
 				yearTotals.overspentCutoffs += 1;
 			}
+
+			const cutoffTransfers = savingsTransfers.filter(
+				(t) => t.cutoffId === cutoffId,
+			);
+			if (cutoffTransfers.length) {
+				block.push("Savings transfers (used savings):");
+				for (const transfer of cutoffTransfers) {
+					const item = itemBuilders.find((b) => b.id === transfer.itemBuilderId);
+					block.push(
+						`- ${item?.name ?? "Savings item"}: ₱${transfer.amount.toLocaleString("en-PH")} to ${transfer.targetRule}`,
+					);
+				}
+			}
+
+			const cutoffExtras = ruleExtraBudgets.filter(
+				(e) => e.cutoffId === cutoffId,
+			);
+			if (cutoffExtras.length) {
+				block.push("Extra budget / add savings:");
+				for (const extra of cutoffExtras) {
+					const item = extra.itemBuilderId
+						? itemBuilders.find((b) => b.id === extra.itemBuilderId)
+						: null;
+					const itemLabel = item ? ` (${item.name})` : "";
+					block.push(
+						`- ${extra.ruleName}${itemLabel}: ${extra.label} ₱${extra.amount.toLocaleString("en-PH")}`,
+					);
+				}
+			}
+
+			const cutoffUnexpected = unexpectedExpenses.filter(
+				(u) => u.cutoffId === cutoffId,
+			);
+			if (cutoffUnexpected.length) {
+				block.push("Unexpected expenses:");
+				for (const u of cutoffUnexpected) {
+					block.push(
+						`- ${u.itemName} (${u.ruleName}): exceeded by ₱${u.excessAmount.toLocaleString("en-PH")} on ${u.date}`,
+					);
+				}
+			}
+
 			cutoffBlocks.push(block);
 		}
 
@@ -227,6 +273,97 @@
 				: activeList.reduce((latest, c) =>
 						!latest || c.createdAt > latest.createdAt ? c : latest,
 					);
+
+		const savingsItems = itemBuilders.filter((item) =>
+			item.categories.includes("Savings"),
+		);
+		if (savingsItems.length) {
+			const transferEntryIds = new Set(
+				savingsTransfers.map((t) => t.budgetEntryId),
+			);
+			const extraEntryIds = new Set(
+				ruleExtraBudgets
+					.filter((e) => e.budgetEntryId)
+					.map((e) => e.budgetEntryId!),
+			);
+			const countsTowardSavings = (entry: (typeof budgetEntries)[number]) => {
+				const cutoff = cutoffs.find((c) => c.id === entry.cutoffId);
+				if (cutoff?.status === "finalized") return true;
+				return (
+					transferEntryIds.has(entry.id) || extraEntryIds.has(entry.id)
+				);
+			};
+
+			lines.push("");
+			lines.push("My Savings:");
+			for (const item of savingsItems) {
+				const saved = budgetEntries
+					.filter(
+						(e) =>
+							e.ruleName === "Savings" &&
+							!e.parentBudgetEntryId &&
+							countsTowardSavings(e) &&
+							(e.itemBuilderId === item.id || e.name === item.name),
+					)
+					.reduce((sum, e) => sum + e.amount, 0);
+				const wallet = item.bankWallet?.trim();
+				lines.push(
+					`- ${item.name}: ₱${saved.toLocaleString("en-PH")} saved${wallet ? `, bank/wallet: ${wallet}` : ""}`,
+				);
+			}
+
+			const extraLabelMap = new Map(
+				ruleExtraBudgets
+					.filter((e) => e.budgetEntryId)
+					.map((e) => [e.budgetEntryId!, e.label]),
+			);
+			const transferMap = new Map(
+				savingsTransfers.map((t) => [t.budgetEntryId, t]),
+			);
+			const savingsHistory: Array<{
+				itemName: string;
+				subtitle: string;
+				amount: number;
+				createdAt: string;
+			}> = [];
+			for (const entry of budgetEntries) {
+				if (entry.ruleName !== "Savings" || entry.parentBudgetEntryId) continue;
+				if (!countsTowardSavings(entry)) continue;
+				const builder = entry.itemBuilderId
+					? itemBuilders.find((b) => b.id === entry.itemBuilderId)
+					: itemBuilders.find((b) => b.name === entry.name);
+				if (builder?.hasChildItems) continue;
+				const transfer = transferMap.get(entry.id);
+				const cutoff = cutoffs.find((c) => c.id === entry.cutoffId);
+				const month = cutoff
+					? new Date(cutoff.monthKey + "-01T00:00:00").toLocaleDateString(
+							"en-US",
+							{ month: "long" },
+						)
+					: "";
+				const cutoffLabel = cutoff
+					? `${month} - ${cutoff.label.charAt(0).toUpperCase() + cutoff.label.slice(1).replace("cutoff", "Cutoff")}`
+					: "";
+				savingsHistory.push({
+					itemName: builder?.name ?? entry.name,
+					subtitle: transfer
+						? `Used for ${transfer.targetRule}`
+						: (extraLabelMap.get(entry.id) ?? cutoffLabel),
+					amount: entry.amount,
+					createdAt: entry.createdAt,
+				});
+			}
+			savingsHistory.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+			if (savingsHistory.length) {
+				lines.push("Savings history (recent):");
+				for (const row of savingsHistory.slice(0, 15)) {
+					const sign = row.amount >= 0 ? "+" : "-";
+					lines.push(
+						`- ${row.itemName} (${row.subtitle}): ${sign}₱${Math.abs(row.amount).toLocaleString("en-PH")}`,
+					);
+				}
+			}
+		}
 
 		if (!activeCutoff) {
 			return lines.join("\n");
@@ -370,6 +507,98 @@
 			}
 		}
 
+		const toWithdrawRows: { name: string; amount: number }[] = [];
+		for (const entry of budgetEntries) {
+			if (
+				entry.cutoffId !== cutoffId ||
+				!entry.toWithdraw ||
+				entry.parentBudgetEntryId
+			) {
+				continue;
+			}
+			const builder = entry.itemBuilderId
+				? itemBuilders.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.find((item) => item.name === entry.name);
+			toWithdrawRows.push({
+				name: builder?.name ?? entry.name,
+				amount: entry.withdrawAmount ?? entry.amount,
+			});
+		}
+		if (tabBudget?.toWithdraw) {
+			toWithdrawRows.push({
+				name: "Budget",
+				amount: tabBudget.withdrawAmount ?? tabBudget.budgetAllocated,
+			});
+		}
+		for (const expense of tabExpenses) {
+			if (!expense.toWithdraw) continue;
+			toWithdrawRows.push({
+				name: expense.expenseName,
+				amount: expense.withdrawAmount ?? expense.amount,
+			});
+		}
+		if (othersBudget?.toWithdraw) {
+			toWithdrawRows.push({
+				name: "Others",
+				amount: othersBudget.withdrawAmount ?? othersBudget.budgetAllocated,
+			});
+		}
+		for (const expense of othersExpenseList) {
+			if (!expense.toWithdraw) continue;
+			toWithdrawRows.push({
+				name: expense.expenseName,
+				amount: expense.withdrawAmount ?? expense.amount,
+			});
+		}
+		if (toWithdrawRows.length) {
+			lines.push("To withdraw (marked for withdrawal):");
+			for (const row of toWithdrawRows) {
+				lines.push(`- ${row.name}: ₱${row.amount.toLocaleString("en-PH")}`);
+			}
+			const toWithdrawTotal = toWithdrawRows.reduce((sum, row) => sum + row.amount, 0);
+			lines.push(
+				`To withdraw total: ₱${toWithdrawTotal.toLocaleString("en-PH")}`,
+			);
+		}
+
+		const activeUnexpected = unexpectedExpenses.filter(
+			(u) => u.cutoffId === cutoffId,
+		);
+		if (activeUnexpected.length) {
+			lines.push("Unexpected expenses (active cutoff):");
+			for (const u of activeUnexpected) {
+				lines.push(
+					`- ${u.itemName} (${u.ruleName}): exceeded by ₱${u.excessAmount.toLocaleString("en-PH")} on ${u.date}`,
+				);
+			}
+		}
+
+		const activeTransfers = savingsTransfers.filter((t) => t.cutoffId === cutoffId);
+		if (activeTransfers.length) {
+			lines.push("Use savings (active cutoff):");
+			for (const transfer of activeTransfers) {
+				const item = itemBuilders.find((b) => b.id === transfer.itemBuilderId);
+				lines.push(
+					`- ${item?.name ?? "Savings item"}: ₱${transfer.amount.toLocaleString("en-PH")} to ${transfer.targetRule}`,
+				);
+			}
+		}
+
+		const activeAddSavings = ruleExtraBudgets.filter(
+			(e) => e.cutoffId === cutoffId && e.ruleName === "Savings",
+		);
+		if (activeAddSavings.length) {
+			lines.push("Add savings (active cutoff):");
+			for (const extra of activeAddSavings) {
+				const item = extra.itemBuilderId
+					? itemBuilders.find((b) => b.id === extra.itemBuilderId)
+					: null;
+				lines.push(
+					`- ${item?.name ?? "Savings item"}: ${extra.label} ₱${extra.amount.toLocaleString("en-PH")}`,
+				);
+			}
+		}
+
 		return lines.join("\n");
 	}
 
@@ -381,6 +610,8 @@
 		input.value = "";
 		error.value = "";
 		loading.value = true;
+		await nextTick();
+		resizeInput();
 		await scrollToBottom();
 
 		try {
@@ -411,6 +642,13 @@
 			e.preventDefault();
 			sendMessage();
 		}
+	}
+
+	function resizeInput() {
+		const el = inputEl.value;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
 	}
 
 	async function scrollToBottom() {
@@ -483,11 +721,13 @@
 				<p v-if="error" class="error">{{ error }}</p>
 				<GlassContainer rounded="3xl" class="input-box">
 					<textarea
+						ref="inputEl"
 						v-model="input"
 						class="input"
 						placeholder="Message Poko..."
 						rows="1"
 						:disabled="loading"
+						@input="resizeInput"
 						@keydown="onKeydown"
 					></textarea>
 					<button
@@ -716,11 +956,14 @@
 		flex: 1;
 		border: none;
 		outline: none;
-		resize: none;
+		resize: vertical;
 		font-size: 1rem;
 		font-family: inherit;
+		line-height: 1.5;
 		padding: 0.25rem 0.5rem;
-		max-height: 120px;
+		min-height: 2rem;
+		max-height: 160px;
+		overflow-y: auto;
 		background: transparent;
 		color: var(--color-textPrimary);
 	}

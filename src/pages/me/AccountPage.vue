@@ -490,7 +490,7 @@
 			</button>
 		</GlassContainer>
 
-		<p class="app-version">App version: 1.2.1</p>
+		<p class="app-version">App version: 1.2.2</p>
 
 		<Teleport to="body">
 			<div v-if="activeModal" class="modal-overlay" @click.self="closeModal">

@@ -24,6 +24,7 @@
 		type BudgetEntry,
 		type CycleCutoff,
 		type ItemBuilder,
+		type RuleExtraBudget,
 		type SavingsTransfer,
 	} from "../../db/budgetDb";
 
@@ -161,10 +162,12 @@
 	const budgetEntries = ref<BudgetEntry[]>([]);
 	const cutoffs = ref<CycleCutoff[]>([]);
 	const savingsTransfers = ref<SavingsTransfer[]>([]);
+	const ruleExtraBudgets = ref<RuleExtraBudget[]>([]);
 	const showHistoryDrawer = ref(false);
 	const showItemDrawer = ref(false);
 	const showTransferModal = ref(false);
 	const showTransferConfirm = ref(false);
+	const showAddModal = ref(false);
 	const showNoCutoffWarning = ref(false);
 	const historyFilter = ref("all");
 	const hideBalance = ref(true);
@@ -179,6 +182,10 @@
 	const transferAmount = ref("");
 	const transferError = ref("");
 	const savingTransfer = ref(false);
+	const addAmount = ref("");
+	const addDetails = ref("");
+	const addError = ref("");
+	const savingAdd = ref(false);
 	const bankWallet = ref("");
 	const bankWalletLocked = ref(false);
 
@@ -248,8 +255,15 @@
 	function countsTowardSavings(entry: BudgetEntry) {
 		const cutoff = cutoffs.value.find((c) => c.id === entry.cutoffId);
 		if (cutoff?.status === "finalized") return true;
-		return savingsTransfers.value.some(
-			(transfer) => transfer.budgetEntryId === entry.id,
+		if (
+			savingsTransfers.value.some(
+				(transfer) => transfer.budgetEntryId === entry.id,
+			)
+		) {
+			return true;
+		}
+		return ruleExtraBudgets.value.some(
+			(extra) => extra.budgetEntryId === entry.id,
 		);
 	}
 
@@ -326,6 +340,11 @@
 		const transferMap = new Map(
 			savingsTransfers.value.map((transfer) => [transfer.budgetEntryId, transfer]),
 		);
+		const extraLabelMap = new Map(
+			ruleExtraBudgets.value
+				.filter((extra) => extra.budgetEntryId)
+				.map((extra) => [extra.budgetEntryId!, extra.label]),
+		);
 		const rows: Array<{
 			id: string;
 			itemName: string;
@@ -349,13 +368,14 @@
 				const cutoff = cutoffMap.get(entry.cutoffId);
 				if (!cutoff) continue;
 				const transfer = transferMap.get(entry.id);
+				const extraLabel = extraLabelMap.get(entry.id);
 				rows.push({
 					id: entry.id,
 					itemName: builder?.name ?? entry.name,
 					itemBuilderId: builder?.id ?? "",
 					historySubtitle: transfer
 						? `Used for ${transfer.targetRule}`
-						: cutoffLabel(cutoff),
+						: (extraLabel ?? cutoffLabel(cutoff)),
 					amount: entry.amount,
 					createdAt: entry.createdAt,
 					icon: builder?.icon ?? "HomeIcon",
@@ -370,13 +390,14 @@
 			const cutoff = cutoffMap.get(entry.cutoffId);
 			if (!cutoff) continue;
 			const transfer = transferMap.get(entry.id);
+			const extraLabel = extraLabelMap.get(entry.id);
 			rows.push({
 				id: entry.id,
 				itemName: builder?.name ?? entry.name,
 				itemBuilderId: builder?.id ?? "",
 				historySubtitle: transfer
 					? `Used for ${transfer.targetRule}`
-					: cutoffLabel(cutoff),
+					: (extraLabel ?? cutoffLabel(cutoff)),
 				amount: entry.amount,
 				createdAt: entry.createdAt,
 				icon: builder?.icon ?? "HomeIcon",
@@ -409,6 +430,16 @@
 			amount > 0 &&
 			!!selectedItem.value &&
 			amount <= selectedItem.value.totalSaved
+		);
+	});
+
+	const canConfirmAdd = computed(() => {
+		const amount = Number(addAmount.value);
+		return (
+			!savingAdd.value &&
+			amount > 0 &&
+			!!addDetails.value.trim() &&
+			!!selectedItem.value
 		);
 	});
 
@@ -546,9 +577,25 @@
 		showTransferModal.value = true;
 	}
 
+	function onAddSavingsClick() {
+		if (!activeCutoff.value) {
+			showNoCutoffWarning.value = true;
+			return;
+		}
+		addAmount.value = "";
+		addDetails.value = "";
+		addError.value = "";
+		showAddModal.value = true;
+	}
+
 	function closeTransferModal() {
 		showTransferModal.value = false;
 		transferError.value = "";
+	}
+
+	function closeAddModal() {
+		showAddModal.value = false;
+		addError.value = "";
 	}
 
 	function closeTransferConfirm() {
@@ -575,6 +622,77 @@
 		budgetEntries.value = await db.budgetEntries.toArray();
 		cutoffs.value = await db.cycleCutoffs.toArray();
 		savingsTransfers.value = await db.savingsTransfers.toArray();
+		ruleExtraBudgets.value = await db.ruleExtraBudgets.toArray();
+	}
+
+	async function confirmAddSavings() {
+		const item = selectedItem.value;
+		const cutoff = activeCutoff.value;
+		const amount = Number(addAmount.value);
+		const details = addDetails.value.trim();
+		if (!item || !cutoff || amount <= 0 || !details) {
+			addError.value = "Enter an amount and details.";
+			return;
+		}
+
+		savingAdd.value = true;
+		addError.value = "";
+		const entryId = createId();
+		const now = new Date().toISOString();
+
+		try {
+			await db.transaction(
+				"rw",
+				[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
+				async () => {
+					await db.budgetEntries.add({
+						id: entryId,
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						ruleName: "Savings",
+						name: item.name,
+						amount,
+						itemBuilderId: item.id,
+						createdAt: now,
+					});
+
+					await db.ruleExtraBudgets.add({
+						id: createId(),
+						cutoffId: cutoff.id,
+						monthKey: cutoff.monthKey,
+						ruleName: "Savings",
+						amount,
+						label: details,
+						itemBuilderId: item.id,
+						budgetEntryId: entryId,
+						createdAt: now,
+					});
+
+					const freshCutoff = await db.cycleCutoffs.get(cutoff.id);
+					if (!freshCutoff?.allocations) return;
+
+					const allocations = {
+						Expenses: { ...freshCutoff.allocations.Expenses },
+						Savings: { ...freshCutoff.allocations.Savings },
+						Wants: { ...freshCutoff.allocations.Wants },
+					};
+					allocations.Savings = {
+						...allocations.Savings,
+						amount: allocations.Savings.amount + amount,
+					};
+					await db.cycleCutoffs.update(cutoff.id, { allocations });
+				},
+			);
+
+			await loadPageData();
+			selectedItem.value =
+				savingsItems.value.find((row) => row.id === item.id) ?? null;
+			showAddModal.value = false;
+		} catch {
+			addError.value = "Save failed. Please try again.";
+		} finally {
+			savingAdd.value = false;
+		}
 	}
 
 	async function confirmTransfer() {
@@ -848,12 +966,19 @@
 								class="item-drawer-icon-svg"
 							/>
 						</span> -->
-						<div class="item-drawer-main">
-							<p class="item-drawer-label">Total Saved</p>
-							<div class="item-drawer-amount-row">
-								<p class="item-drawer-amount">
-									{{ formatAmount(selectedItem.totalSaved) }}
-								</p>
+						<div class="flex justify-between w-full">
+							<div>
+								<p class="item-drawer-label">Total Saved</p>
+								<div class="item-drawer-amount-row">
+									<p class="item-drawer-amount">
+										{{ formatAmount(selectedItem.totalSaved) }}
+									</p>
+								</div>
+							</div>
+							<div class="item-drawer-btns">
+								<Button class="use-savings-btn" @click="onAddSavingsClick">
+									Add Savings
+								</Button>
 								<Button class="use-savings-btn" @click="onUseSavingsClick">
 									Use savings
 								</Button>
@@ -1029,8 +1154,38 @@
 							block
 							:disabled="!canConfirmTransfer"
 							@click="openTransferConfirm"
+							variant="primary"
 						>
 							Transfer
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Add Savings</h2>
+					<AmountField
+						v-model="addAmount"
+						label="How much to save"
+						placeholder="0"
+					/>
+					<InputField
+						v-model="addDetails"
+						label="Details"
+						placeholder="e.g. Bonus, side hustle"
+						mode="both"
+					/>
+					<p v-if="addError" class="modal-error">{{ addError }}</p>
+					<div class="modal-actions">
+						<Button block @click="closeAddModal">Cancel</Button>
+						<Button
+							block
+							:disabled="!canConfirmAdd"
+							@click="confirmAddSavings"
+							variant="primary"
+						>
+							{{ savingAdd ? "Saving..." : "Save Amount" }}
 						</Button>
 					</div>
 				</GlassContainer>
@@ -1605,11 +1760,6 @@
 		padding: 0 1rem;
 	}
 
-	.item-drawer-main {
-		flex: 1;
-		min-width: 0;
-	}
-
 	.item-drawer-amount-row {
 		display: flex;
 		align-items: center;
@@ -1641,7 +1791,7 @@
 
 	.item-drawer-amount {
 		margin: 0;
-		font-size: 1.35rem;
+		font-size: 1.8rem;
 		font-weight: 700;
 		color: var(--color-textPrimary);
 	}
@@ -1656,6 +1806,15 @@
 
 	.use-savings-btn {
 		flex-shrink: 0;
+	}
+
+	.item-drawer-btns {
+		display: flex;
+		flex-direction: column;
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 0.5rem;
 	}
 
 	.modal-overlay {

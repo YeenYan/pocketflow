@@ -120,7 +120,12 @@
 	const cutoffsInRange = computed(() => {
 		const r = activeRange.value;
 		return cutoffs.value
-			.filter((c) => c.monthKey >= r.start && c.monthKey <= r.end)
+			.filter(
+				(c) =>
+					c.status === "finalized" &&
+					c.monthKey >= r.start &&
+					c.monthKey <= r.end,
+			)
 			.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 	});
 
@@ -497,15 +502,14 @@
 	});
 
 	const trendData = computed<ChartData<"line", number[], string>>(() => {
-		const months = Array.from(
-			new Set(cutoffs.value.map((c) => c.monthKey)),
-		).sort();
+		const finalized = cutoffs.value.filter((c) => c.status === "finalized");
+		const months = Array.from(new Set(finalized.map((c) => c.monthKey))).sort();
 		const last = months.slice(-6);
 		const labels = last.map((m) => monthLabel(m));
 		const totals: Record<string, Record<RuleName, number>> = {};
 		for (const m of last)
 			totals[m] = { Expenses: 0, Savings: 0, Wants: 0 };
-		for (const c of cutoffs.value) {
+		for (const c of finalized) {
 			if (!totals[c.monthKey]) continue;
 			totals[c.monthKey].Expenses += spentForRuleInCutoff(c.id, "Expenses");
 			totals[c.monthKey].Savings += spentForRuleInCutoff(c.id, "Savings");
@@ -732,7 +736,7 @@
 					<ChartPieIcon class="empty-icon" />
 					<p class="empty-title">No analytics available yet.</p>
 					<p class="empty-sub">
-						Start tracking your expenses to generate insights.
+						Save a cutoff to generate insights from completed periods.
 					</p>
 				</GlassContainer>
 			</template>

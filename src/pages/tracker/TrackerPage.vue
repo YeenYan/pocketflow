@@ -260,7 +260,10 @@
 	const ITEM_SWIPE_DELETE_WIDTH = 120;
 
 	function vibrateOnRemove() {
-		if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+		if (
+			typeof navigator !== "undefined" &&
+			typeof navigator.vibrate === "function"
+		) {
 			navigator.vibrate(50);
 		}
 	}
@@ -1000,8 +1003,7 @@
 			rows.push({
 				id: tabBudget.value.id,
 				name: "Budget",
-				amount:
-					tabBudget.value.withdrawAmount ?? tabBudget.value.budgetAllocated,
+				amount: tabBudget.value.withdrawAmount ?? tabBudget.value.budgetAllocated,
 			});
 		}
 
@@ -1022,8 +1024,7 @@
 				id: othersBudget.value.id,
 				name: "Others",
 				amount:
-					othersBudget.value.withdrawAmount ??
-					othersBudget.value.budgetAllocated,
+					othersBudget.value.withdrawAmount ?? othersBudget.value.budgetAllocated,
 			});
 		}
 
@@ -1964,7 +1965,8 @@
 			? String(entry.withdrawAmount ?? entry.amount)
 			: "";
 		editItemWithdrawLocked.value = !!(
-			entry.toWithdraw && (entry.withdrawAmount ?? entry.amount)
+			entry.toWithdraw &&
+			(entry.withdrawAmount ?? entry.amount)
 		);
 		editItemBuilderId.value = entry.builderId;
 		editItemHasChildItems.value = entry.hasChildItems;
@@ -2289,8 +2291,7 @@
 			othersBudgetToWithdraw.value = !!othersBudget.value.toWithdraw;
 			othersBudgetWithdrawAmount.value = othersBudget.value.toWithdraw
 				? String(
-						othersBudget.value.withdrawAmount ??
-							othersBudget.value.budgetAllocated,
+						othersBudget.value.withdrawAmount ?? othersBudget.value.budgetAllocated,
 					)
 				: "";
 			othersBudgetWithdrawLocked.value = !!(
@@ -2436,7 +2437,8 @@
 			? String(expense.withdrawAmount ?? expense.amount)
 			: "";
 		othersExpenseWithdrawLocked.value = !!(
-			expense.toWithdraw && (expense.withdrawAmount ?? expense.amount)
+			expense.toWithdraw &&
+			(expense.withdrawAmount ?? expense.amount)
 		);
 		othersItemError.value = "";
 		showOthersItemModal.value = true;
@@ -2769,7 +2771,8 @@
 			? String(expense.withdrawAmount ?? expense.amount)
 			: "";
 		tabBudgetExpenseWithdrawLocked.value = !!(
-			expense.toWithdraw && (expense.withdrawAmount ?? expense.amount)
+			expense.toWithdraw &&
+			(expense.withdrawAmount ?? expense.amount)
 		);
 		tabBudgetItemError.value = "";
 		showTabBudgetItemModal.value = true;
@@ -2783,10 +2786,7 @@
 
 	async function onTabBudgetExpenseToWithdrawChange() {
 		if (tabBudgetExpenseToWithdraw.value) {
-			if (
-				!tabBudgetExpenseWithdrawAmount.value &&
-				tabBudgetExpenseAmount.value
-			) {
+			if (!tabBudgetExpenseWithdrawAmount.value && tabBudgetExpenseAmount.value) {
 				tabBudgetExpenseWithdrawAmount.value = tabBudgetExpenseAmount.value;
 			}
 			tabBudgetExpenseWithdrawLocked.value = false;
