@@ -10,6 +10,7 @@ import AccountPage from './pages/me/AccountPage.vue'
 import ItemsPage from './pages/me/ItemsPage.vue'
 import SavingsPage from './pages/me/SavingsPage.vue'
 import AnalyticsPage from './pages/me/AnalyticsPage.vue'
+import DebtNotePage from './pages/me/DebtNotePage.vue'
 import ChatPage from './pages/chat/ChatPage.vue'
 import OnboardingPage from './pages/auth/OnboardingPage.vue'
 import LockScreen from './pages/auth/LockScreen.vue'
@@ -31,6 +32,7 @@ const router = createRouter({
     { path: '/me/items', component: ItemsPage },
     { path: '/me/savings', component: SavingsPage },
     { path: '/me/analytics', component: AnalyticsPage },
+    { path: '/me/debt-note', component: DebtNotePage },
     { path: '/chat', component: ChatPage },
     { path: '/onboarding', component: OnboardingPage },
     { path: '/lock', component: LockScreen },

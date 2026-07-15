@@ -39,6 +39,8 @@
 		"incomingBillBudgets",
 		"savingsTransfers",
 		"ruleExtraBudgets",
+		"debtNotes",
+		"debtPayments",
 	] as const;
 
 	const router = useRouter();
@@ -282,6 +284,8 @@
 			db.unexpectedExpenses.clear(),
 			db.incomingBillItems.clear(),
 			db.incomingBillBudgets.clear(),
+			db.debtNotes.clear(),
+			db.debtPayments.clear(),
 		]);
 		deleting.value = false;
 		closeDeleteModal();

@@ -6,6 +6,7 @@
 		BookOpenIcon,
 		BanknotesIcon,
 		ChartPieIcon,
+		ClipboardDocumentListIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import Divider from "../../components/divider/Divider.vue";
@@ -72,6 +73,17 @@
 				</span>
 				<p class="tile-title">Analytics</p>
 				<p class="tile-subtitle">Insights | Trends</p>
+			</GlassContainer>
+
+			<GlassContainer
+				class="menu-tile is-clickable"
+				@click="router.push('/me/debt-note')"
+			>
+				<span class="tile-icon-box tile-icon-box-debt">
+					<ClipboardDocumentListIcon class="tile-icon" />
+				</span>
+				<p class="tile-title">Debt Note</p>
+				<p class="tile-subtitle">Borrowed | Lent</p>
 			</GlassContainer>
 		</div>
 	</div>
@@ -205,6 +217,14 @@
 
 	.tile-icon-box-analytics .tile-icon {
 		color: #a855f7;
+	}
+
+	.tile-icon-box-debt {
+		background: rgba(234, 88, 12, 0.15);
+	}
+
+	.tile-icon-box-debt .tile-icon {
+		color: #ea580c;
 	}
 
 	.tile-icon {

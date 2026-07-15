@@ -204,7 +204,8 @@
 				route.path === '/tracker' ||
 				route.path === '/reports' ||
 				route.path === '/me/items' ||
-				route.path === '/me/savings'
+				route.path === '/me/savings' ||
+				route.path === '/me/debt-note'
 					? 'overflow-hidden pb-0'
 					: [
 							showNav

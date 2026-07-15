@@ -178,6 +178,26 @@ export interface RuleExtraBudget {
 	createdAt: string;
 }
 
+export type DebtNoteType = "borrowed" | "lent";
+
+export interface DebtNote {
+	id: string;
+	type: DebtNoteType;
+	title: string;
+	amount: number;
+	date: string;
+	createdAt: string;
+}
+
+export interface DebtPayment {
+	id: string;
+	debtNoteId: string;
+	amount: number;
+	date: string;
+	description: string;
+	createdAt: string;
+}
+
 export const FIXED_RULES: Omit<Rule, "id">[] = [
 	{ name: "Expenses", percent: 50, itemCount: 0 },
 	{ name: "Savings", percent: 30, itemCount: 0 },
@@ -278,6 +298,8 @@ class BudgetDatabase extends Dexie {
 	incomingBillBudgets!: Table<IncomingBillBudget>;
 	savingsTransfers!: Table<SavingsTransfer>;
 	ruleExtraBudgets!: Table<RuleExtraBudget>;
+	debtNotes!: Table<DebtNote>;
+	debtPayments!: Table<DebtPayment>;
 
 	constructor() {
 		super("pocketflow-budget-db");
@@ -547,6 +569,10 @@ class BudgetDatabase extends Dexie {
 		this.version(22).stores({
 			ruleExtraBudgets:
 				"id, cutoffId, monthKey, ruleName, itemBuilderId, budgetEntryId, createdAt",
+		});
+		this.version(23).stores({
+			debtNotes: "id, type, date, createdAt",
+			debtPayments: "id, debtNoteId, date, createdAt",
 		});
 	}
 }
