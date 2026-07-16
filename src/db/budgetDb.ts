@@ -175,6 +175,8 @@ export interface RuleExtraBudget {
 	label: string;
 	itemBuilderId?: string;
 	budgetEntryId?: string;
+	/** Set when added via My Savings "Add Savings" — excluded from Tracker. */
+	source?: "mySavings";
 	createdAt: string;
 }
 

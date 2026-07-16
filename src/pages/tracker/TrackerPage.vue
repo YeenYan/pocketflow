@@ -446,6 +446,11 @@
 	const extraBudgetSavingsItemId = ref("");
 	const extraBudgetError = ref("");
 	const savingExtraBudget = ref(false);
+	const showRemoveItemConfirm = ref(false);
+	const pendingRemoveItemId = ref("");
+	const pendingRemoveItemName = ref("");
+	const pendingRemoveItemAmount = ref(0);
+	const removingItem = ref(false);
 	const itemFormId = ref("");
 	const itemFormAmount = ref("");
 	const itemFormError = ref("");
@@ -684,7 +689,8 @@
 						entry.cutoffId === cutoffId &&
 						entry.ruleName === name &&
 						!entry.parentBudgetEntryId &&
-						!savingsTransferEntryIds.value.has(entry.id),
+						!savingsTransferEntryIds.value.has(entry.id) &&
+						!mySavingsEntryIds.value.has(entry.id),
 				)
 				.reduce((sum, entry) => sum + entry.amount, 0);
 			const spent =
@@ -893,7 +899,9 @@
 		return ruleExtraBudgets.value
 			.filter(
 				(entry) =>
-					entry.cutoffId === cutoffId && entry.ruleName === activeTab.value,
+					entry.cutoffId === cutoffId &&
+					entry.ruleName === activeTab.value &&
+					entry.source !== "mySavings",
 			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 	});
@@ -936,6 +944,17 @@
 			new Set(savingsTransfers.value.map((transfer) => transfer.budgetEntryId)),
 	);
 
+	const mySavingsEntryIds = computed(
+		() =>
+			new Set(
+				ruleExtraBudgets.value
+					.filter(
+						(extra) => extra.source === "mySavings" && extra.budgetEntryId,
+					)
+					.map((extra) => extra.budgetEntryId!),
+			),
+	);
+
 	const activeRuleEntries = computed(() => {
 		const cutoffId = activeCutoff.value?.id;
 		if (!cutoffId) return [];
@@ -945,7 +964,8 @@
 					entry.cutoffId === cutoffId &&
 					entry.ruleName === activeTab.value &&
 					!entry.parentBudgetEntryId &&
-					!savingsTransferEntryIds.value.has(entry.id),
+					!savingsTransferEntryIds.value.has(entry.id) &&
+					!mySavingsEntryIds.value.has(entry.id),
 			)
 			.map((entry) => {
 				const builder = entry.itemBuilderId
@@ -2135,7 +2155,7 @@
 	async function onItemSwipeEnd(id: string) {
 		const offset = itemSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
-			await removeSwipedItem(id);
+			requestRemoveSwipedItem(id);
 			return;
 		}
 		itemSwipeOffsets.value[id] =
@@ -2282,6 +2302,35 @@
 		itemSwipeActiveId = "";
 		vibrateOnRemove();
 		await deleteBudgetEntry(id);
+	}
+
+	function requestRemoveSwipedItem(id: string) {
+		const entry =
+			activeRuleEntries.value.find((row) => row.id === id) ??
+			budgetEntries.value.find((row) => row.id === id);
+		if (!entry) return;
+		itemSwipeOffsets.value[id] = 0;
+		itemSwipeActiveId = "";
+		pendingRemoveItemId.value = id;
+		pendingRemoveItemName.value = entry.name;
+		pendingRemoveItemAmount.value = entry.amount;
+		showRemoveItemConfirm.value = true;
+	}
+
+	function closeRemoveItemConfirm() {
+		showRemoveItemConfirm.value = false;
+		pendingRemoveItemId.value = "";
+		pendingRemoveItemName.value = "";
+		pendingRemoveItemAmount.value = 0;
+	}
+
+	async function confirmRemoveSwipedItem() {
+		if (!pendingRemoveItemId.value) return;
+		removingItem.value = true;
+		const id = pendingRemoveItemId.value;
+		await removeSwipedItem(id);
+		removingItem.value = false;
+		closeRemoveItemConfirm();
 	}
 
 	function openOthersBudgetModal() {
@@ -3053,7 +3102,7 @@
 				:entries="activeRuleEntries"
 				:item-swipe-offset="itemSwipeOffset"
 				:progress-fill-color="progressFillColor"
-				@remove-swiped-item="removeSwipedItem"
+				@remove-swiped-item="requestRemoveSwipedItem"
 				@item-swipe-start="onItemSwipeStart"
 				@item-swipe-move="onItemSwipeMove"
 				@item-swipe-end="onItemSwipeEnd"
@@ -3399,6 +3448,36 @@
 							@click="confirmExtraBudget"
 						>
 							{{ savingExtraBudget ? "Adding..." : "Confirm" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showRemoveItemConfirm"
+				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeRemoveItemConfirm"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Remove Item
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Are you sure you want to remove
+						<strong class="text-textPrimary">{{ pendingRemoveItemName }}</strong>
+						(₱{{ pendingRemoveItemAmount.toLocaleString("en-PH") }})?
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeRemoveItemConfirm">
+							Cancel
+						</Button>
+						<Button
+							block
+							variant="danger"
+							:disabled="removingItem"
+							@click="confirmRemoveSwipedItem"
+						>
+							{{ removingItem ? "Removing..." : "Remove" }}
 						</Button>
 					</div>
 				</GlassContainer>

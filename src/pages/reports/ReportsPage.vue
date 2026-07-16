@@ -91,8 +91,22 @@
 		const c = selectedCutoff.value;
 		if (!c) return [];
 		return RULE_ORDER.map((name) => {
+			const mySavingsIds = new Set(
+				ruleExtraBudgets.value
+					.filter(
+						(extra) =>
+							extra.source === "mySavings" &&
+							extra.cutoffId === c.id &&
+							extra.budgetEntryId,
+					)
+					.map((extra) => extra.budgetEntryId!),
+			);
 			const entries = budgetEntries.value.filter(
-				(e) => e.cutoffId === c.id && e.ruleName === name && !e.parentBudgetEntryId,
+				(e) =>
+					e.cutoffId === c.id &&
+					e.ruleName === name &&
+					!e.parentBudgetEntryId &&
+					!mySavingsIds.has(e.id),
 			);
 			const entriesSum = entries.reduce((s, e) => s + e.amount, 0);
 			const tabSum = tabForCutoff.value.reduce((s, e) => s + e.amount, 0);
@@ -114,7 +128,12 @@
 							.reduce((sum, transfer) => sum + transfer.amount, 0)
 					: 0;
 			const extraBudget = ruleExtraBudgets.value
-				.filter((entry) => entry.cutoffId === c.id && entry.ruleName === name)
+				.filter(
+					(entry) =>
+						entry.cutoffId === c.id &&
+						entry.ruleName === name &&
+						entry.source !== "mySavings",
+				)
 				.reduce((sum, entry) => sum + entry.amount, 0);
 			const baseAllotted = Math.max(0, allotted - extraBudget - savingsBoost);
 			const hasBoost = extraBudget > 0 || savingsBoost > 0;

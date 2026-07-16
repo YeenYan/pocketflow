@@ -186,6 +186,7 @@
 	const addDetails = ref("");
 	const addError = ref("");
 	const savingAdd = ref(false);
+	const editingHistoryId = ref("");
 	const bankWallet = ref("");
 	const bankWalletLocked = ref(false);
 
@@ -340,10 +341,10 @@
 		const transferMap = new Map(
 			savingsTransfers.value.map((transfer) => [transfer.budgetEntryId, transfer]),
 		);
-		const extraLabelMap = new Map(
+		const extraByEntryId = new Map(
 			ruleExtraBudgets.value
 				.filter((extra) => extra.budgetEntryId)
-				.map((extra) => [extra.budgetEntryId!, extra.label]),
+				.map((extra) => [extra.budgetEntryId!, extra]),
 		);
 		const rows: Array<{
 			id: string;
@@ -354,6 +355,7 @@
 			createdAt: string;
 			icon: string;
 			iconWrapClass: string;
+			canEdit: boolean;
 		}> = [];
 
 		for (const entry of budgetEntries.value) {
@@ -368,18 +370,19 @@
 				const cutoff = cutoffMap.get(entry.cutoffId);
 				if (!cutoff) continue;
 				const transfer = transferMap.get(entry.id);
-				const extraLabel = extraLabelMap.get(entry.id);
+				const extra = extraByEntryId.get(entry.id);
 				rows.push({
 					id: entry.id,
 					itemName: builder?.name ?? entry.name,
 					itemBuilderId: builder?.id ?? "",
 					historySubtitle: transfer
 						? `Used for ${transfer.targetRule}`
-						: (extraLabel ?? cutoffLabel(cutoff)),
+						: (extra?.label ?? cutoffLabel(cutoff)),
 					amount: entry.amount,
 					createdAt: entry.createdAt,
 					icon: builder?.icon ?? "HomeIcon",
 					iconWrapClass: iconWrapClass(builder?.color),
+					canEdit: !transfer && extra?.source === "mySavings",
 				});
 				continue;
 			}
@@ -390,18 +393,19 @@
 			const cutoff = cutoffMap.get(entry.cutoffId);
 			if (!cutoff) continue;
 			const transfer = transferMap.get(entry.id);
-			const extraLabel = extraLabelMap.get(entry.id);
+			const extra = extraByEntryId.get(entry.id);
 			rows.push({
 				id: entry.id,
 				itemName: builder?.name ?? entry.name,
 				itemBuilderId: builder?.id ?? "",
 				historySubtitle: transfer
 					? `Used for ${transfer.targetRule}`
-					: (extraLabel ?? cutoffLabel(cutoff)),
+					: (extra?.label ?? cutoffLabel(cutoff)),
 				amount: entry.amount,
 				createdAt: entry.createdAt,
 				icon: builder?.icon ?? "HomeIcon",
 				iconWrapClass: iconWrapClass(builder?.color),
+				canEdit: !transfer && extra?.source === "mySavings",
 			});
 		}
 
@@ -435,12 +439,9 @@
 
 	const canConfirmAdd = computed(() => {
 		const amount = Number(addAmount.value);
-		return (
-			!savingAdd.value &&
-			amount > 0 &&
-			!!addDetails.value.trim() &&
-			!!selectedItem.value
-		);
+		if (savingAdd.value || amount <= 0 || !addDetails.value.trim()) return false;
+		if (editingHistoryId.value) return true;
+		return !!selectedItem.value;
 	});
 
 	const totalSavings = computed(() =>
@@ -582,8 +583,18 @@
 			showNoCutoffWarning.value = true;
 			return;
 		}
+		editingHistoryId.value = "";
 		addAmount.value = "";
 		addDetails.value = "";
+		addError.value = "";
+		showAddModal.value = true;
+	}
+
+	function openEditHistory(entry: (typeof savingsHistory.value)[number]) {
+		if (!entry.canEdit) return;
+		editingHistoryId.value = entry.id;
+		addAmount.value = String(entry.amount);
+		addDetails.value = entry.historySubtitle;
 		addError.value = "";
 		showAddModal.value = true;
 	}
@@ -595,6 +606,7 @@
 
 	function closeAddModal() {
 		showAddModal.value = false;
+		editingHistoryId.value = "";
 		addError.value = "";
 	}
 
@@ -626,11 +638,53 @@
 	}
 
 	async function confirmAddSavings() {
-		const item = selectedItem.value;
-		const cutoff = activeCutoff.value;
 		const amount = Number(addAmount.value);
 		const details = addDetails.value.trim();
-		if (!item || !cutoff || amount <= 0 || !details) {
+		if (amount <= 0 || !details) {
+			addError.value = "Enter an amount and details.";
+			return;
+		}
+
+		if (editingHistoryId.value) {
+			savingAdd.value = true;
+			addError.value = "";
+			try {
+				await db.transaction(
+					"rw",
+					[db.budgetEntries, db.ruleExtraBudgets],
+					async () => {
+						await db.budgetEntries.update(editingHistoryId.value, { amount });
+						const extra = await db.ruleExtraBudgets
+							.where("budgetEntryId")
+							.equals(editingHistoryId.value)
+							.first();
+						if (extra) {
+							await db.ruleExtraBudgets.update(extra.id, {
+								amount,
+								label: details,
+							});
+						}
+					},
+				);
+				await loadPageData();
+				if (selectedItem.value) {
+					selectedItem.value =
+						savingsItems.value.find((row) => row.id === selectedItem.value!.id) ??
+						null;
+				}
+				showAddModal.value = false;
+				editingHistoryId.value = "";
+			} catch {
+				addError.value = "Save failed. Please try again.";
+			} finally {
+				savingAdd.value = false;
+			}
+			return;
+		}
+
+		const item = selectedItem.value;
+		const cutoff = activeCutoff.value;
+		if (!item || !cutoff) {
 			addError.value = "Enter an amount and details.";
 			return;
 		}
@@ -643,7 +697,7 @@
 		try {
 			await db.transaction(
 				"rw",
-				[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
+				[db.budgetEntries, db.ruleExtraBudgets],
 				async () => {
 					await db.budgetEntries.add({
 						id: entryId,
@@ -665,22 +719,9 @@
 						label: details,
 						itemBuilderId: item.id,
 						budgetEntryId: entryId,
+						source: "mySavings",
 						createdAt: now,
 					});
-
-					const freshCutoff = await db.cycleCutoffs.get(cutoff.id);
-					if (!freshCutoff?.allocations) return;
-
-					const allocations = {
-						Expenses: { ...freshCutoff.allocations.Expenses },
-						Savings: { ...freshCutoff.allocations.Savings },
-						Wants: { ...freshCutoff.allocations.Wants },
-					};
-					allocations.Savings = {
-						...allocations.Savings,
-						amount: allocations.Savings.amount + amount,
-					};
-					await db.cycleCutoffs.update(cutoff.id, { allocations });
 				},
 			);
 
@@ -911,7 +952,13 @@
 				</div>
 
 				<ul v-if="previewHistory.length" class="history-list">
-					<li v-for="entry in previewHistory" :key="entry.id" class="history-row">
+					<li
+						v-for="entry in previewHistory"
+						:key="entry.id"
+						class="history-row"
+						:class="{ 'is-editable': entry.canEdit }"
+						@click="openEditHistory(entry)"
+					>
 						<span class="history-icon-wrap" :class="entry.iconWrapClass">
 							<component
 								:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
@@ -1017,7 +1064,13 @@
 
 					<p class="item-drawer-history-title">Saving History</p>
 					<ul v-if="itemHistory.length" class="history-list">
-						<li v-for="entry in itemHistory" :key="entry.id" class="history-row">
+						<li
+							v-for="entry in itemHistory"
+							:key="entry.id"
+							class="history-row"
+							:class="{ 'is-editable': entry.canEdit }"
+							@click="openEditHistory(entry)"
+						>
 							<span class="history-icon-wrap" :class="entry.iconWrapClass">
 								<component
 									:is="OutlineIcons[entry.icon as keyof typeof OutlineIcons]"
@@ -1079,6 +1132,8 @@
 							v-for="entry in filteredDrawerHistory"
 							:key="entry.id"
 							class="history-row"
+							:class="{ 'is-editable': entry.canEdit }"
+							@click="openEditHistory(entry)"
 						>
 							<span class="history-icon-wrap" :class="entry.iconWrapClass">
 								<component
@@ -1164,7 +1219,9 @@
 
 			<div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
 				<GlassContainer class="modal">
-					<h2 class="modal-title">Add Savings</h2>
+					<h2 class="modal-title">
+						{{ editingHistoryId ? "Edit Savings" : "Add Savings" }}
+					</h2>
 					<AmountField
 						v-model="addAmount"
 						label="How much to save"
@@ -1185,7 +1242,13 @@
 							@click="confirmAddSavings"
 							variant="primary"
 						>
-							{{ savingAdd ? "Saving..." : "Save Amount" }}
+							{{
+								savingAdd
+									? "Saving..."
+									: editingHistoryId
+										? "Save Changes"
+										: "Save Amount"
+							}}
 						</Button>
 					</div>
 				</GlassContainer>
@@ -1686,6 +1749,18 @@
 		padding: 0.85rem 0;
 		border-bottom: 1px solid
 			color-mix(in srgb, var(--color-inputBorder) 40%, transparent);
+	}
+
+	.history-row.is-editable {
+		cursor: pointer;
+		border-radius: 0.5rem;
+		margin: 0 -0.35rem;
+		padding-left: 0.35rem;
+		padding-right: 0.35rem;
+	}
+
+	.history-row.is-editable:hover {
+		background: var(--color-surfaceHover);
 	}
 
 	.history-row:last-child {
