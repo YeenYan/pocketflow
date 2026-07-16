@@ -1573,11 +1573,82 @@
 	}
 
 	async function deleteBudgetEntry(id: string) {
-		await db.budgetEntries.where("parentBudgetEntryId").equals(id).delete();
-		await db.budgetEntries.delete(id);
-		await db.unexpectedExpenses.where("sourceId").equals(id).delete();
+		const linkedExtras = await db.ruleExtraBudgets
+			.where("budgetEntryId")
+			.equals(id)
+			.toArray();
+
+		await db.transaction(
+			"rw",
+			[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets, db.unexpectedExpenses],
+			async () => {
+				for (const extra of linkedExtras) {
+					const cutoff = await db.cycleCutoffs.get(extra.cutoffId);
+					if (cutoff?.allocations?.[extra.ruleName]) {
+						const allocations = {
+							Expenses: { ...cutoff.allocations.Expenses },
+							Savings: { ...cutoff.allocations.Savings },
+							Wants: { ...cutoff.allocations.Wants },
+						};
+						allocations[extra.ruleName] = {
+							...allocations[extra.ruleName],
+							amount: Math.max(
+								0,
+								allocations[extra.ruleName].amount - extra.amount,
+							),
+						};
+						await db.cycleCutoffs.update(cutoff.id, { allocations });
+					}
+					await db.ruleExtraBudgets.delete(extra.id);
+				}
+				await db.budgetEntries.where("parentBudgetEntryId").equals(id).delete();
+				await db.budgetEntries.delete(id);
+				await db.unexpectedExpenses.where("sourceId").equals(id).delete();
+			},
+		);
+
+		await loadCutoffs();
 		await loadBudgetEntries();
+		await loadRuleExtraBudgets();
 		await loadUnexpectedExpenses();
+	}
+
+	// Remove extras whose linked budget entry was deleted earlier (label left behind).
+	async function cleanupOrphanedExtraBudgets() {
+		const entryIds = new Set(budgetEntries.value.map((entry) => entry.id));
+		const orphans = ruleExtraBudgets.value.filter(
+			(extra) => extra.budgetEntryId && !entryIds.has(extra.budgetEntryId),
+		);
+		if (!orphans.length) return;
+
+		await db.transaction(
+			"rw",
+			[db.cycleCutoffs, db.ruleExtraBudgets],
+			async () => {
+				for (const extra of orphans) {
+					const cutoff = await db.cycleCutoffs.get(extra.cutoffId);
+					if (cutoff?.allocations?.[extra.ruleName]) {
+						const allocations = {
+							Expenses: { ...cutoff.allocations.Expenses },
+							Savings: { ...cutoff.allocations.Savings },
+							Wants: { ...cutoff.allocations.Wants },
+						};
+						allocations[extra.ruleName] = {
+							...allocations[extra.ruleName],
+							amount: Math.max(
+								0,
+								allocations[extra.ruleName].amount - extra.amount,
+							),
+						};
+						await db.cycleCutoffs.update(cutoff.id, { allocations });
+					}
+					await db.ruleExtraBudgets.delete(extra.id);
+				}
+			},
+		);
+
+		await loadCutoffs();
+		await loadRuleExtraBudgets();
 	}
 
 	function goPrev() {
@@ -3023,6 +3094,7 @@
 		await loadBudgetEntries();
 		await loadSavingsTransfers();
 		await loadRuleExtraBudgets();
+		await cleanupOrphanedExtraBudgets();
 		await loadOthers();
 		await loadTabBudget();
 		await loadUnexpectedExpenses();
