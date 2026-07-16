@@ -1572,6 +1572,52 @@
 		await loadUnexpectedExpenses();
 	}
 
+	// Keep allotted amounts = percent base + extras + savings boosts (all rules).
+	async function reconcileAllocationExtras() {
+		let changed = false;
+		for (const cutoff of cutoffs.value) {
+			if (!cutoff.allocations || cutoff.status === "finalized") continue;
+			const pool = cutoff.amount + (cutoff.carryOverAmount ?? 0);
+			const next = {
+				Expenses: { ...cutoff.allocations.Expenses },
+				Savings: { ...cutoff.allocations.Savings },
+				Wants: { ...cutoff.allocations.Wants },
+			};
+			let ruleChanged = false;
+			for (const ruleName of RULE_ORDER) {
+				const base = pool * (next[ruleName].percent / 100);
+				const extraSum = ruleExtraBudgets.value
+					.filter(
+						(extra) =>
+							extra.cutoffId === cutoff.id &&
+							extra.ruleName === ruleName &&
+							extra.source !== "mySavings",
+					)
+					.reduce((sum, extra) => sum + extra.amount, 0);
+				const boostSum =
+					ruleName === "Expenses" || ruleName === "Wants"
+						? savingsTransfers.value
+								.filter(
+									(transfer) =>
+										transfer.cutoffId === cutoff.id &&
+										transfer.targetRule === ruleName,
+								)
+								.reduce((sum, transfer) => sum + transfer.amount, 0)
+						: 0;
+				const expected = base + extraSum + boostSum;
+				if (next[ruleName].amount !== expected) {
+					next[ruleName] = { ...next[ruleName], amount: expected };
+					ruleChanged = true;
+				}
+			}
+			if (ruleChanged) {
+				await db.cycleCutoffs.update(cutoff.id, { allocations: next });
+				changed = true;
+			}
+		}
+		if (changed) await loadCutoffs();
+	}
+
 	async function deleteBudgetEntry(id: string) {
 		const linkedExtras = await db.ruleExtraBudgets
 			.where("budgetEntryId")
@@ -1754,13 +1800,42 @@
 		let newCarryOver = 0;
 
 		if (editingCutoffId.value) {
-			await db.cycleCutoffs.update(editingCutoffId.value, {
+			const allocations = buildCutoffAllocations(
+				amount + carryOver,
+				formPercents.value,
+			);
+			const cutoffId = editingCutoffId.value;
+			for (const ruleName of RULE_ORDER) {
+				const extraSum = ruleExtraBudgets.value
+					.filter(
+						(extra) =>
+							extra.cutoffId === cutoffId &&
+							extra.ruleName === ruleName &&
+							extra.source !== "mySavings",
+					)
+					.reduce((sum, extra) => sum + extra.amount, 0);
+				const boostSum =
+					ruleName === "Expenses" || ruleName === "Wants"
+						? savingsTransfers.value
+								.filter(
+									(transfer) =>
+										transfer.cutoffId === cutoffId &&
+										transfer.targetRule === ruleName,
+								)
+								.reduce((sum, transfer) => sum + transfer.amount, 0)
+						: 0;
+				allocations[ruleName] = {
+					...allocations[ruleName],
+					amount: allocations[ruleName].amount + extraSum + boostSum,
+				};
+			}
+			await db.cycleCutoffs.update(cutoffId, {
 				monthKey,
 				slot,
 				label: name,
 				amount,
 				date,
-				allocations: buildCutoffAllocations(amount + carryOver, formPercents.value),
+				allocations,
 			});
 		} else {
 			const previous = previousCutoff.value;
@@ -3095,6 +3170,7 @@
 		await loadSavingsTransfers();
 		await loadRuleExtraBudgets();
 		await cleanupOrphanedExtraBudgets();
+		await reconcileAllocationExtras();
 		await loadOthers();
 		await loadTabBudget();
 		await loadUnexpectedExpenses();
