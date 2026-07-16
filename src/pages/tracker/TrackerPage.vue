@@ -450,6 +450,9 @@
 	const pendingRemoveItemId = ref("");
 	const pendingRemoveItemName = ref("");
 	const pendingRemoveItemAmount = ref(0);
+	const pendingRemoveKind = ref<"ruleItem" | "subItem" | "others" | "tabBudget">(
+		"ruleItem",
+	);
 	const removingItem = ref(false);
 	const itemFormId = ref("");
 	const itemFormAmount = ref("");
@@ -2349,7 +2352,7 @@
 	async function onSubItemSwipeEnd(id: string) {
 		const offset = subItemSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
-			await deleteSubItem(id);
+			requestRemoveSubItem(id);
 			return;
 		}
 		subItemSwipeOffsets.value[id] =
@@ -2362,6 +2365,18 @@
 		await db.budgetEntries.delete(id);
 		delete subItemSwipeOffsets.value[id];
 		await loadBudgetEntries();
+	}
+
+	function requestRemoveSubItem(id: string) {
+		const child = budgetEntries.value.find((entry) => entry.id === id);
+		if (!child) return;
+		subItemSwipeOffsets.value[id] = 0;
+		subItemSwipeActiveId = "";
+		pendingRemoveItemId.value = id;
+		pendingRemoveItemName.value = child.name;
+		pendingRemoveItemAmount.value = child.amount;
+		pendingRemoveKind.value = "subItem";
+		showRemoveItemConfirm.value = true;
 	}
 
 	function openSubItemModal() {
@@ -2460,6 +2475,7 @@
 		pendingRemoveItemId.value = id;
 		pendingRemoveItemName.value = entry.name;
 		pendingRemoveItemAmount.value = entry.amount;
+		pendingRemoveKind.value = "ruleItem";
 		showRemoveItemConfirm.value = true;
 	}
 
@@ -2468,13 +2484,18 @@
 		pendingRemoveItemId.value = "";
 		pendingRemoveItemName.value = "";
 		pendingRemoveItemAmount.value = 0;
+		pendingRemoveKind.value = "ruleItem";
 	}
 
 	async function confirmRemoveSwipedItem() {
 		if (!pendingRemoveItemId.value) return;
 		removingItem.value = true;
 		const id = pendingRemoveItemId.value;
-		await removeSwipedItem(id);
+		const kind = pendingRemoveKind.value;
+		if (kind === "ruleItem") await removeSwipedItem(id);
+		else if (kind === "subItem") await deleteSubItem(id);
+		else if (kind === "others") await deleteOthersExpense(id);
+		else await deleteTabBudgetExpense(id);
 		removingItem.value = false;
 		closeRemoveItemConfirm();
 	}
@@ -2769,6 +2790,18 @@
 		await loadUnexpectedExpenses();
 	}
 
+	function requestRemoveOthersExpense(id: string) {
+		const expense = othersExpenses.value.find((row) => row.id === id);
+		if (!expense) return;
+		othersSwipeOffsets.value[id] = 0;
+		othersSwipeActiveId = "";
+		pendingRemoveItemId.value = id;
+		pendingRemoveItemName.value = expense.expenseName;
+		pendingRemoveItemAmount.value = expense.amount;
+		pendingRemoveKind.value = "others";
+		showRemoveItemConfirm.value = true;
+	}
+
 	function othersSwipeOffset(id: string) {
 		return othersSwipeOffsets.value[id] ?? 0;
 	}
@@ -2800,7 +2833,7 @@
 	async function onOthersSwipeEnd(id: string) {
 		const offset = othersSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
-			await deleteOthersExpense(id);
+			requestRemoveOthersExpense(id);
 			return;
 		}
 		othersSwipeOffsets.value[id] =
@@ -3104,6 +3137,18 @@
 		await loadUnexpectedExpenses();
 	}
 
+	function requestRemoveTabBudgetExpense(id: string) {
+		const expense = tabBudgetExpenses.value.find((row) => row.id === id);
+		if (!expense) return;
+		tabBudgetSwipeOffsets.value[id] = 0;
+		tabBudgetSwipeActiveId = "";
+		pendingRemoveItemId.value = id;
+		pendingRemoveItemName.value = expense.expenseName;
+		pendingRemoveItemAmount.value = expense.amount;
+		pendingRemoveKind.value = "tabBudget";
+		showRemoveItemConfirm.value = true;
+	}
+
 	function tabBudgetSwipeOffset(id: string) {
 		return tabBudgetSwipeOffsets.value[id] ?? 0;
 	}
@@ -3135,7 +3180,7 @@
 	async function onTabBudgetSwipeEnd(id: string) {
 		const offset = tabBudgetSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH) {
-			await deleteTabBudgetExpense(id);
+			requestRemoveTabBudgetExpense(id);
 			return;
 		}
 		tabBudgetSwipeOffsets.value[id] =
@@ -3283,7 +3328,7 @@
 					:swipe-offset="tabBudgetSwipeOffset"
 					:disabled="!activeCutoff"
 					@open-item-modal="openTabBudgetItemModal"
-					@delete-expense="deleteTabBudgetExpense"
+					@delete-expense="requestRemoveTabBudgetExpense"
 					@swipe-start="onTabBudgetSwipeStart"
 					@swipe-move="onTabBudgetSwipeMove"
 					@swipe-end="onTabBudgetSwipeEnd"
@@ -3310,7 +3355,7 @@
 					:swipe-offset="othersSwipeOffset"
 					:disabled="!activeCutoff"
 					@open-item-modal="openOthersItemModal"
-					@delete-expense="deleteOthersExpense"
+					@delete-expense="requestRemoveOthersExpense"
 					@swipe-start="onOthersSwipeStart"
 					@swipe-move="onOthersSwipeMove"
 					@swipe-end="onOthersSwipeEnd"
@@ -3422,7 +3467,7 @@
 			@save="saveEditItem"
 			@remove="removeEditItem"
 			@add-sub-item="openSubItemModal"
-			@delete-sub-item="deleteSubItem"
+			@delete-sub-item="requestRemoveSubItem"
 			@sub-item-row-click="onSubItemRowClick"
 			@sub-item-swipe-start="onSubItemSwipeStart"
 			@sub-item-swipe-move="onSubItemSwipeMove"

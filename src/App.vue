@@ -11,7 +11,7 @@
 	import GlassContainer from "./components/containers/GlassContainer.vue";
 	import BottomNav from "./components/BottomNav.vue";
 	import { useTheme } from "./composables/useTheme";
-	import { db, sessionUnlocked, setSessionUnlocked } from "./db/budgetDb";
+	import { db, sessionUnlocked, restoreSessionUnlocked } from "./db/budgetDb";
 	import image1 from "./assets/img/image_1.webp";
 	import image2 from "./assets/img/image_2.webp";
 	import image3 from "./assets/img/image_3.webp";
@@ -68,15 +68,11 @@
 	}
 
 	async function onVisibilityChange() {
-		if (document.visibilityState === "hidden") {
-			const profile = await db.userProfiles.get(1);
-			if (profile?.lockEnabled && profile.onboardingCompleted) {
-				setSessionUnlocked(false);
-			}
-			return;
-		}
+		if (document.visibilityState === "hidden") return;
 
 		if (document.visibilityState !== "visible") return;
+
+		if (!sessionUnlocked) restoreSessionUnlocked();
 
 		const profile = await db.userProfiles.get(1);
 		if (

@@ -16,7 +16,7 @@ import OnboardingPage from './pages/auth/OnboardingPage.vue'
 import LockScreen from './pages/auth/LockScreen.vue'
 import './styles/main.css'
 import { initTheme } from './composables/useTheme'
-import { db, sessionUnlocked } from './db/budgetDb'
+import { db, sessionUnlocked, restoreSessionUnlocked } from './db/budgetDb'
 
 initTheme()
 
@@ -45,6 +45,10 @@ router.beforeEach(async (to) => {
   if (!profile?.onboardingCompleted) {
     if (to.path !== '/onboarding') return '/onboarding'
     return true
+  }
+
+  if (profile.lockEnabled && !sessionUnlocked) {
+    restoreSessionUnlocked()
   }
 
   if (profile.lockEnabled && !sessionUnlocked) {

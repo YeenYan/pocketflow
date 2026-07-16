@@ -16,6 +16,7 @@
 		type ItemBuilder,
 		type OthersBudget,
 		type OthersExpense,
+		type RuleExtraBudget,
 		type RuleName,
 		type SavingsTransfer,
 		type TabBudget,
@@ -33,6 +34,7 @@
 	const othersBudgets = ref<OthersBudget[]>([]);
 	const othersExpenses = ref<OthersExpense[]>([]);
 	const savingsTransfers = ref<SavingsTransfer[]>([]);
+	const ruleExtraBudgets = ref<RuleExtraBudget[]>([]);
 	const displayName = ref("");
 	const photoUrl = ref("");
 	const showAllRecentItems = ref(false);
@@ -99,6 +101,7 @@
 		othersBudgets.value = await db.othersBudgets.toArray();
 		othersExpenses.value = await db.othersExpenses.toArray();
 		savingsTransfers.value = await db.savingsTransfers.toArray();
+		ruleExtraBudgets.value = await db.ruleExtraBudgets.toArray();
 	}
 
 	onMounted(loadData);
@@ -306,13 +309,19 @@
 		const transferEntryIds = new Set(
 			savingsTransfers.value.map((transfer) => transfer.budgetEntryId),
 		);
+		const mySavingsEntryIds = new Set(
+			ruleExtraBudgets.value
+				.filter((extra) => extra.source === "mySavings" && extra.budgetEntryId)
+				.map((extra) => extra.budgetEntryId!),
+		);
 		return budgetEntries.value
 			.filter(
 				(entry) =>
 					entry.cutoffId === cutoffId &&
 					entry.ruleName === "Savings" &&
 					!entry.parentBudgetEntryId &&
-					!transferEntryIds.has(entry.id),
+					!transferEntryIds.has(entry.id) &&
+					!mySavingsEntryIds.has(entry.id),
 			)
 			.reduce((sum, entry) => sum + entry.amount, 0);
 	});
@@ -620,15 +629,17 @@
 					<BanknotesIcon class="savings-icon" />
 				</span>
 				<div class="savings-main">
-					<p class="savings-name">Savings</p>
-					<p class="savings-amount">
-						<span class="savings-saved"
-							>₱{{ savingsSaved.toLocaleString("en-PH") }}</span
-						>
-						<span class="savings-target">
-							of ₱{{ savingsTarget.toLocaleString("en-PH") }}
-						</span>
-					</p>
+					<div class="flex justify-between items-center gap-2">
+						<span class="savings-name">Savings</span>
+						<p class="savings-amount">
+							<span class="savings-saved"
+								>₱{{ savingsSaved.toLocaleString("en-PH") }}</span
+							>
+							<span class="savings-target">
+								of ₱{{ savingsTarget.toLocaleString("en-PH") }}
+							</span>
+						</p>
+					</div>
 				</div>
 				<div class="savings-ring-wrap">
 					<svg class="savings-ring" viewBox="0 0 44 44" aria-hidden="true">
@@ -1084,7 +1095,7 @@
 		flex-shrink: 0;
 		align-items: center;
 		justify-content: center;
-		border-radius: 0.65rem;
+		border-radius: 0.5rem;
 	}
 
 	.savings-icon {
@@ -1105,18 +1116,21 @@
 	}
 
 	.savings-amount {
-		margin: 0.2rem 0 0;
-		font-size: 0.8rem;
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 600;
 		line-height: 1.2;
+		flex-shrink: 0;
 	}
 
 	.savings-saved {
-		font-weight: 700;
+		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
 
 	.savings-target {
 		margin-left: 0.2rem;
+		font-weight: 500;
 		color: var(--color-textSecondary);
 	}
 

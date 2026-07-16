@@ -208,8 +208,27 @@ export const FIXED_RULES: Omit<Rule, "id">[] = [
 
 export let sessionUnlocked = false;
 
+const SESSION_UNTIL_KEY = "sessionUnlockedUntil";
+const SESSION_MS = 15 * 60 * 1000;
+
 export function setSessionUnlocked(value: boolean) {
 	sessionUnlocked = value;
+	if (value) {
+		localStorage.setItem(SESSION_UNTIL_KEY, String(Date.now() + SESSION_MS));
+	} else {
+		localStorage.removeItem(SESSION_UNTIL_KEY);
+	}
+}
+
+export function restoreSessionUnlocked() {
+	const until = Number(localStorage.getItem(SESSION_UNTIL_KEY) || 0);
+	if (until > Date.now()) {
+		sessionUnlocked = true;
+		return true;
+	}
+	localStorage.removeItem(SESSION_UNTIL_KEY);
+	sessionUnlocked = false;
+	return false;
 }
 
 export function createId(): string {

@@ -239,6 +239,7 @@
 	const showDeleteConfirm = ref(false);
 	const pendingDeleteId = ref("");
 	const pendingDeleteName = ref("");
+	const pendingDeleteInTracker = ref(false);
 	const deleting = ref(false);
 
 	const swipeOffsets = ref<Record<string, number>>({});
@@ -379,19 +380,17 @@
 		const item = itemBuilders.value.find((entry) => entry.id === id);
 		if (!item) return;
 		swipeOffsets.value[id] = 0;
-		if (await isItemUsedInTracker(id, item.name)) {
-			pendingDeleteId.value = id;
-			pendingDeleteName.value = item.name;
-			showDeleteConfirm.value = true;
-			return;
-		}
-		await deleteItem(id);
+		pendingDeleteId.value = id;
+		pendingDeleteName.value = item.name;
+		pendingDeleteInTracker.value = await isItemUsedInTracker(id, item.name);
+		showDeleteConfirm.value = true;
 	}
 
 	function closeDeleteConfirm() {
 		showDeleteConfirm.value = false;
 		pendingDeleteId.value = "";
 		pendingDeleteName.value = "";
+		pendingDeleteInTracker.value = false;
 	}
 
 	async function confirmDeleteItem() {
@@ -399,18 +398,14 @@
 		deleting.value = true;
 		const id = pendingDeleteId.value;
 		const name = pendingDeleteName.value;
-		await deleteTrackerEntriesForItem(id, name);
+		if (pendingDeleteInTracker.value) {
+			await deleteTrackerEntriesForItem(id, name);
+		}
 		await db.itemBuilders.delete(id);
 		swipeOffsets.value[id] = 0;
 		await loadItems();
 		deleting.value = false;
 		closeDeleteConfirm();
-	}
-
-	async function deleteItem(id: string) {
-		await db.itemBuilders.delete(id);
-		swipeOffsets.value[id] = 0;
-		await loadItems();
 	}
 
 	function swipeOffset(id: string) {
@@ -578,11 +573,18 @@
 					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
 						Remove Item
 					</h2>
-					<p class="m-0 text-center text-sm text-textSecondary">
+					<p
+						v-if="pendingDeleteInTracker"
+						class="m-0 text-center text-sm text-textSecondary"
+					>
 						<strong class="text-textPrimary">{{ pendingDeleteName }}</strong> is used
 						in the current cutoff. Removing it will also remove it from the current
 						cutoff and may affect your budget calculations. Past cutoffs will not be
 						affected. Are you sure?
+					</p>
+					<p v-else class="m-0 text-center text-sm text-textSecondary">
+						Are you sure you want to remove
+						<strong class="text-textPrimary">{{ pendingDeleteName }}</strong>?
 					</p>
 					<div class="flex gap-3">
 						<Button block variant="shade" @click="closeDeleteConfirm">Cancel</Button>
@@ -592,7 +594,7 @@
 							:disabled="deleting"
 							@click="confirmDeleteItem"
 						>
-							Remove
+							{{ deleting ? "Removing..." : "Remove" }}
 						</Button>
 					</div>
 				</GlassContainer>

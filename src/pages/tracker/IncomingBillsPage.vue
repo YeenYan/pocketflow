@@ -237,6 +237,11 @@
 	const showResetConfirm = ref(false);
 	const showActiveTrackerModal = ref(false);
 	const showMoveConfirm = ref(false);
+	const showRemoveItemConfirm = ref(false);
+	const pendingRemoveItemId = ref("");
+	const pendingRemoveItemName = ref("");
+	const pendingRemoveItemAmount = ref(0);
+	const removingItem = ref(false);
 
 	const showCutoffModal = ref(false);
 	const cutoffFormAmount = ref("");
@@ -835,6 +840,34 @@
 		await loadItems();
 	}
 
+	function requestRemoveItem(id: string) {
+		const item = items.value.find((row) => row.id === id);
+		if (!item) return;
+		expenseSwipeOffsets.value[id] = 0;
+		savingsSwipeOffsets.value[id] = 0;
+		expenseSwipeActiveId = "";
+		savingsSwipeActiveId = "";
+		pendingRemoveItemId.value = id;
+		pendingRemoveItemName.value = item.name;
+		pendingRemoveItemAmount.value = item.amount;
+		showRemoveItemConfirm.value = true;
+	}
+
+	function closeRemoveItemConfirm() {
+		showRemoveItemConfirm.value = false;
+		pendingRemoveItemId.value = "";
+		pendingRemoveItemName.value = "";
+		pendingRemoveItemAmount.value = 0;
+	}
+
+	async function confirmRemoveItem() {
+		if (!pendingRemoveItemId.value) return;
+		removingItem.value = true;
+		await deleteItem(pendingRemoveItemId.value);
+		removingItem.value = false;
+		closeRemoveItemConfirm();
+	}
+
 	function expenseSwipeOffset(id: string) {
 		return expenseSwipeOffsets.value[id] ?? 0;
 	}
@@ -868,7 +901,7 @@
 	async function onExpenseSwipeEnd(id: string) {
 		const offset = expenseSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
-			await deleteItem(id);
+			requestRemoveItem(id);
 			return;
 		}
 		expenseSwipeOffsets.value[id] =
@@ -901,7 +934,7 @@
 	async function onSavingsSwipeEnd(id: string) {
 		const offset = savingsSwipeOffset(id);
 		if (offset <= -ITEM_SWIPE_DELETE_WIDTH * 0.85) {
-			await deleteItem(id);
+			requestRemoveItem(id);
 			return;
 		}
 		savingsSwipeOffsets.value[id] =
@@ -970,7 +1003,7 @@
 				:swipe-offset="expenseSwipeOffset"
 				hide-add-button
 				hide-date
-				@delete-expense="deleteItem"
+				@delete-expense="requestRemoveItem"
 				@swipe-start="onExpenseSwipeStart"
 				@swipe-move="onExpenseSwipeMove"
 				@swipe-end="onExpenseSwipeEnd"
@@ -983,7 +1016,7 @@
 				:swipe-offset="savingsSwipeOffset"
 				hide-add-button
 				hide-date
-				@delete-expense="deleteItem"
+				@delete-expense="requestRemoveItem"
 				@swipe-start="onSavingsSwipeStart"
 				@swipe-move="onSavingsSwipeMove"
 				@swipe-end="onSavingsSwipeEnd"
@@ -1221,6 +1254,38 @@
 					<div class="flex gap-3">
 						<Button block variant="shade" @click="closeResetConfirm">Cancel</Button>
 						<Button variant="danger" block @click="confirmReset">Reset</Button>
+					</div>
+				</GlassContainer>
+			</div>
+		</Teleport>
+
+		<Teleport to="body">
+			<div
+				v-if="showRemoveItemConfirm"
+				class="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4"
+				@click.self="closeRemoveItemConfirm"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Remove Item
+					</h2>
+					<p class="m-0 text-center text-sm text-textSecondary">
+						Are you sure you want to remove
+						<strong class="text-textPrimary">{{ pendingRemoveItemName }}</strong>
+						(₱{{ pendingRemoveItemAmount.toLocaleString("en-PH") }})?
+					</p>
+					<div class="flex gap-3">
+						<Button block variant="shade" @click="closeRemoveItemConfirm">
+							Cancel
+						</Button>
+						<Button
+							block
+							variant="danger"
+							:disabled="removingItem"
+							@click="confirmRemoveItem"
+						>
+							{{ removingItem ? "Removing..." : "Remove" }}
+						</Button>
 					</div>
 				</GlassContainer>
 			</div>
