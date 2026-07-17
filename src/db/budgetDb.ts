@@ -65,6 +65,7 @@ export interface BudgetEntry {
 	ruleName: RuleName;
 	name: string;
 	amount: number;
+	date?: string;
 	itemBuilderId?: string;
 	parentBudgetEntryId?: string;
 	isComplete?: boolean;

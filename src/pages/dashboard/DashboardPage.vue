@@ -681,12 +681,7 @@
 								>₱{{ row.allocated.toLocaleString("en-PH") }}</span
 							>
 						</p>
-						<div class="child-item-spent-meta">
-							<p class="child-item-spent-amount">
-								₱{{ row.spent.toLocaleString("en-PH") }}
-							</p>
-							<p class="child-item-pct">( {{ row.percent }}% ) spent</p>
-						</div>
+						<p class="child-item-pct">( {{ row.percent }}% )</p>
 					</div>
 					<div class="child-item-track">
 						<div
@@ -696,6 +691,15 @@
 								background: progressFillColor(row.percent),
 							}"
 						/>
+					</div>
+					<div class="child-item-foot">
+						<p class="child-item-spent-amount">
+							₱{{ row.spent.toLocaleString("en-PH") }} spent
+						</p>
+						<p class="child-item-left-amount">
+							₱{{ Math.max(0, row.allocated - row.spent).toLocaleString("en-PH") }}
+							left
+						</p>
 					</div>
 				</div>
 			</GlassContainer>
@@ -714,12 +718,7 @@
 								>₱{{ row.amount.toLocaleString("en-PH") }}</span
 							>
 						</p>
-						<div class="child-item-spent-meta">
-							<p class="child-item-spent-amount">
-								₱{{ row.childrenSpent.toLocaleString("en-PH") }}
-							</p>
-							<p class="child-item-pct">( {{ row.percent }}% ) spent</p>
-						</div>
+						<p class="child-item-pct">( {{ row.percent }}% )</p>
 					</div>
 					<div class="child-item-track">
 						<div
@@ -729,6 +728,19 @@
 								background: progressFillColor(row.percent),
 							}"
 						/>
+					</div>
+					<div class="child-item-foot">
+						<p class="child-item-spent-amount">
+							₱{{ row.childrenSpent.toLocaleString("en-PH") }} spent
+						</p>
+						<p class="child-item-left-amount">
+							₱{{
+								Math.max(0, row.amount - row.childrenSpent).toLocaleString(
+									"en-PH",
+								)
+							}}
+							left
+						</p>
 					</div>
 				</div>
 			</GlassContainer>
@@ -1203,25 +1215,27 @@
 		color: var(--color-textPrimary);
 	}
 
-	.child-item-spent-meta {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 0.5rem;
-	}
-
-	.child-item-spent-amount {
-		margin: 0;
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: var(--color-textPrimary);
-	}
-
 	.child-item-pct {
 		margin: 0;
 		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
+	}
+
+	.child-item-foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 0.35rem;
+	}
+
+	.child-item-spent-amount,
+	.child-item-left-amount {
+		margin: 0;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-textSecondary);
 	}
 
 	.child-item-track {

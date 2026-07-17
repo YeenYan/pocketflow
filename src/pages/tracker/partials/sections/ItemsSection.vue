@@ -85,11 +85,8 @@
 									</div>
 								</div>
 							</div>
-							<div
-								class="flex justify-between items-center"
-								v-if="entry.hasChildItems"
-							>
-								<div class="rule-progress-track w-[75%]">
+							<div v-if="entry.hasChildItems" class="flex flex-col gap-1">
+								<div class="rule-progress-track w-full">
 									<div
 										class="rule-progress-fill"
 										:style="{
@@ -101,9 +98,19 @@
 										}"
 									/>
 								</div>
-								<span class="rule-progress-spent">
-									₱{{ entry.childrenSpent.toLocaleString("en-PH") }}
-								</span>
+								<div class="flex justify-between items-center">
+									<span class="rule-progress-spent">
+										₱{{ entry.childrenSpent.toLocaleString("en-PH") }} spent
+									</span>
+									<span class="rule-progress-spent">
+										₱{{
+											Math.max(0, entry.amount - entry.childrenSpent).toLocaleString(
+												"en-PH",
+											)
+										}}
+										left
+									</span>
+								</div>
 							</div>
 						</div>
 					</div>

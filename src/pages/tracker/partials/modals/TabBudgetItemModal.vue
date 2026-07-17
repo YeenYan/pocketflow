@@ -39,6 +39,10 @@
 				<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
 					{{ isEditing ? "Edit Budget Item" : "Add Budget Item" }}
 				</h2>
+				<div class="toggle-row">
+					<span>To Withdraw</span>
+					<ToggleSwitch v-model="toWithdraw" @change="emit('toWithdrawChange')" />
+				</div>
 				<InputField
 					v-model="name"
 					label="Name"
@@ -46,10 +50,6 @@
 					mode="both"
 				/>
 				<AmountField v-model="amount" label="Amount" placeholder="0.00" />
-				<div class="toggle-row">
-					<span>To Withdraw</span>
-					<ToggleSwitch v-model="toWithdraw" @change="emit('toWithdrawChange')" />
-				</div>
 				<div v-if="toWithdraw" class="bank-wallet-row">
 					<AmountField
 						v-model="withdrawAmount"
@@ -82,12 +82,7 @@
 				</p>
 				<div class="flex gap-3">
 					<Button block variant="shade" @click="emit('close')">Cancel</Button>
-					<Button
-						variant="primary"
-						block
-						:disabled="!canSave"
-						@click="emit('save')"
-					>
+					<Button variant="primary" block :disabled="!canSave" @click="emit('save')">
 						{{ isEditing ? "Update" : "Save" }}
 					</Button>
 				</div>

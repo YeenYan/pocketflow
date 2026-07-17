@@ -241,4 +241,15 @@ html.theme-hoo:not(.dark) .glass {
 	backdrop-filter: blur(var(--blur-glass)) saturate(180%);
 	-webkit-backdrop-filter: blur(var(--blur-glass)) saturate(180%);
 }
+
+/* Beat light-mode modal/drawer white overrides (higher specificity in main.css) */
+html.theme-hoo:not(.dark) .drawer-overlay .glass,
+html.theme-hoo:not(.dark) .bg-overlay .glass,
+html.theme-hoo:not(.dark) .modal-overlay .glass {
+	background: var(--color-glass-bg);
+	border-color: var(--color-glass-border);
+	box-shadow: var(--shadow-glass);
+	backdrop-filter: blur(var(--blur-glass)) saturate(180%);
+	-webkit-backdrop-filter: blur(var(--blur-glass)) saturate(180%);
+}
 /* === END TEMP_HOO_THEME === */

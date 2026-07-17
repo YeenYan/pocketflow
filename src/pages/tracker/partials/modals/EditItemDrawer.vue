@@ -152,7 +152,12 @@
 								@touchmove="emit('subItemSwipeMove', String(child.id), $event)"
 								@touchend="emit('subItemSwipeEnd', String(child.id))"
 							>
-								<span class="subitem-name">{{ child.name }}</span>
+								<div class="flex flex-col min-w-0">
+									<span class="subitem-name">{{ child.name }}</span>
+									<span v-if="child.date" class="text-xs text-textSecondary">
+										{{ child.date }}
+									</span>
+								</div>
 								<span class="subitem-amount">
 									₱{{ child.amount.toLocaleString("en-PH") }}
 								</span>

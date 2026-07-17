@@ -488,6 +488,7 @@
 	const subItemEditId = ref("");
 	const subItemName = ref("");
 	const subItemAmount = ref("");
+	const subItemDate = ref("");
 	const subItemError = ref("");
 	const savingSubItem = ref(false);
 
@@ -817,7 +818,11 @@
 		if (!entry) return true;
 		const name = subItemName.value.trim();
 		const amount = Number(subItemAmount.value);
-		return name === entry.name && amount === entry.amount;
+		return (
+			name === entry.name &&
+			amount === entry.amount &&
+			subItemDate.value === (entry.date ?? "")
+		);
 	});
 
 	const canSaveSubItem = computed(() => {
@@ -995,7 +1000,8 @@
 					childrenSpent,
 					childProgressPercent,
 				};
-			});
+			})
+			.sort((a, b) => Number(b.hasChildItems) - Number(a.hasChildItems));
 	});
 
 	const toWithdrawEntries = computed(() => {
@@ -2383,6 +2389,7 @@
 		subItemEditId.value = "";
 		subItemName.value = "";
 		subItemAmount.value = "";
+		subItemDate.value = todayDate();
 		subItemError.value = "";
 		showSubItemModal.value = true;
 	}
@@ -2396,6 +2403,7 @@
 		subItemEditId.value = id;
 		subItemName.value = child.name;
 		subItemAmount.value = String(child.amount);
+		subItemDate.value = child.date ?? todayDate();
 		subItemError.value = "";
 		showSubItemModal.value = true;
 	}
@@ -2409,12 +2417,17 @@
 	async function saveSubItem() {
 		const name = subItemName.value.trim();
 		const amount = Number(subItemAmount.value);
+		const date = subItemDate.value;
 		if (!name) {
 			subItemError.value = "Enter sub item name";
 			return;
 		}
 		if (!subItemAmount.value || Number.isNaN(amount) || amount <= 0) {
 			subItemError.value = "Enter a valid amount";
+			return;
+		}
+		if (!date) {
+			subItemError.value = "Enter a date";
 			return;
 		}
 
@@ -2436,7 +2449,7 @@
 
 		savingSubItem.value = true;
 		if (subItemEditId.value) {
-			await db.budgetEntries.update(subItemEditId.value, { name, amount });
+			await db.budgetEntries.update(subItemEditId.value, { name, amount, date });
 		} else {
 			if (!parentEntry) {
 				savingSubItem.value = false;
@@ -2449,6 +2462,7 @@
 				ruleName: parentEntry.ruleName,
 				name,
 				amount,
+				date,
 				parentBudgetEntryId: editItemId.value,
 				createdAt: new Date().toISOString(),
 			});
@@ -3490,6 +3504,7 @@
 			:can-save="canSaveSubItem"
 			v-model:name="subItemName"
 			v-model:amount="subItemAmount"
+			v-model:date="subItemDate"
 			@close="closeSubItemModal"
 			@save="saveSubItem"
 		/>

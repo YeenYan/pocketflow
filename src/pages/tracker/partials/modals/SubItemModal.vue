@@ -18,6 +18,7 @@
 
 	const name = defineModel<string>("name", { default: "" });
 	const amount = defineModel<string>("amount", { default: "" });
+	const date = defineModel<string>("date", { default: "" });
 </script>
 
 <template>
@@ -41,6 +42,11 @@
 
 				<AmountField v-model="amount" label="Amount" placeholder="0.00" />
 
+				<label class="flex w-full min-w-0 flex-col gap-2">
+					<span class="text-base text-textPrimary">Date</span>
+					<input v-model="date" type="date" class="field-input field-input-date" />
+				</label>
+
 				<p v-if="error" class="m-0 text-center text-sm text-[#f87171]">
 					{{ error }}
 				</p>
@@ -60,3 +66,37 @@
 		</div>
 	</Teleport>
 </template>
+
+<style scoped>
+	.field-input {
+		width: 100%;
+		min-width: 0;
+		max-width: 100%;
+		box-sizing: border-box;
+		padding: 0.875rem 1.25rem;
+		border-radius: 9999px;
+		border: 1px solid var(--color-inputBorder);
+		background: var(--color-inputBg);
+		color: var(--color-inputText);
+		font-size: 1rem;
+		font-family: inherit;
+		outline: none;
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
+	}
+
+	.field-input-date {
+		display: block;
+		-webkit-min-logical-width: 0;
+	}
+
+	.field-input-date::-webkit-date-and-time-value {
+		min-width: 0;
+		text-align: left;
+	}
+
+	.field-input:focus {
+		border-color: var(--color-textSecondary);
+	}
+</style>
