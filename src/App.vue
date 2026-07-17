@@ -7,11 +7,17 @@
 		BellIcon,
 		ChatBubbleLeftRightIcon,
 		SwatchIcon,
+		LockClosedIcon,
 	} from "@heroicons/vue/24/outline";
 	import GlassContainer from "./components/containers/GlassContainer.vue";
 	import BottomNav from "./components/BottomNav.vue";
 	import { useTheme } from "./composables/useTheme";
-	import { db, sessionUnlocked, restoreSessionUnlocked } from "./db/budgetDb";
+	import {
+		db,
+		sessionUnlocked,
+		setSessionUnlocked,
+		restoreSessionUnlocked,
+	} from "./db/budgetDb";
 	import image1 from "./assets/img/image_1.webp";
 	import image2 from "./assets/img/image_2.webp";
 	import image3 from "./assets/img/image_3.webp";
@@ -133,12 +139,17 @@
 			});
 		}
 	}
+
+	function lockApp() {
+		setSessionUnlocked(false);
+		router.push("/lock");
+	}
 </script>
 
 <template>
 	<div class="glass-layout flex flex-col" :style="layoutStyle">
 		<header
-			class="relative z-10 flex shrink-0 justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
+			class="relative z-10 flex shrink-0 items-center justify-end gap-2 p-4 pt-[max(1rem,env(safe-area-inset-top))]"
 		>
 			<GlassContainer
 				v-if="showNav"
@@ -146,7 +157,7 @@
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				class="flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
 				aria-label="Open financial assistant"
 				@click="router.push('/chat')"
 			>
@@ -158,7 +169,7 @@
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				class="flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
 				aria-label="Test notification"
 				@click="testNotification"
 			>
@@ -169,7 +180,7 @@
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				class="flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
 				:aria-label="
 					currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
 				"
@@ -184,12 +195,24 @@
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="p-2 text-textSecondary hover:bg-surfaceHover"
+				class="flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
 				:class="hooThemeOn ? 'text-accentSolid' : ''"
 				:aria-label="hooThemeOn ? 'Turn off HOO theme' : 'Turn on HOO theme'"
 				@click="toggleHooTheme"
 			>
 				<SwatchIcon class="h-5 w-5" />
+			</GlassContainer>
+			<GlassContainer
+				v-if="!hideAllChrome"
+				as="button"
+				type="button"
+				rounded="full"
+				:padding="false"
+				class="lock-btn flex h-10 w-10 shrink-0 items-center justify-center hover:opacity-90"
+				aria-label="Lock app"
+				@click="lockApp"
+			>
+				<LockClosedIcon class="h-6 w-6" />
 			</GlassContainer>
 		</header>
 		<main

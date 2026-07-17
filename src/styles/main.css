@@ -131,6 +131,14 @@ body {
 	color: var(--color-onColor);
 }
 
+.lock-btn.glass,
+:root:not(.dark) .lock-btn.glass,
+html.theme-hoo:not(.dark) .lock-btn.glass {
+	background: var(--color-progress-red);
+	border-color: transparent;
+	color: #fff;
+}
+
 .page-view {
 	display: flex;
 	flex: 1 1 0;
