@@ -1,5 +1,11 @@
 <script setup lang="ts">
-	import { XMarkIcon, PlusIcon, PencilIcon } from "@heroicons/vue/24/outline";
+	import { computed, ref } from "vue";
+	import {
+		XMarkIcon,
+		PlusIcon,
+		PencilIcon,
+		ArrowsUpDownIcon,
+	} from "@heroicons/vue/24/outline";
 	import * as OutlineIcons from "@heroicons/vue/24/outline";
 	import Button from "../../../../components/button/Button.vue";
 	import Divider from "../../../../components/divider/Divider.vue";
@@ -8,7 +14,7 @@
 	import ToggleSwitch from "../../../../components/inputs/ToggleSwitch.vue";
 	import type { BudgetEntry } from "../../../../db/budgetDb";
 
-	defineProps<{
+	const props = defineProps<{
 		show: boolean;
 		name: string;
 		icon: string;
@@ -43,6 +49,15 @@
 	const isComplete = defineModel<boolean>("isComplete", { default: false });
 	const toWithdraw = defineModel<boolean>("toWithdraw", { default: false });
 	const withdrawAmount = defineModel<string>("withdrawAmount", { default: "" });
+
+	const sortOrder = ref<"asc" | "desc">("desc");
+
+	const sortedSubItems = computed(() =>
+		[...props.subItems].sort((a, b) => {
+			const cmp = (a.date ?? "").localeCompare(b.date ?? "");
+			return sortOrder.value === "asc" ? cmp : -cmp;
+		}),
+	);
 </script>
 
 <template>
@@ -115,6 +130,25 @@
 
 					<Divider margin-top="1rem" margin-bottom="1rem" />
 
+					<div
+						v-if="hasChildItems && subItems.length"
+						class="subitem-toolbar"
+					>
+						<span class="subitem-toolbar-label">Item Lists</span>
+						<button
+							type="button"
+							class="sort-btn"
+							:aria-label="
+								sortOrder === 'desc'
+									? 'Sort date newest first'
+									: 'Sort date oldest first'
+							"
+							@click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
+						>
+							<ArrowsUpDownIcon class="h-5 w-5" />
+						</button>
+					</div>
+
 					<p
 						v-if="hasChildItems && !subItems.length"
 						class="m-0 text-center text-sm text-textSecondary"
@@ -122,47 +156,62 @@
 						No sub items yet
 					</p>
 
-					<ul v-if="hasChildItems && subItems.length" class="subitem-list">
-						<li
-							v-for="child in subItems"
+					<ul v-if="hasChildItems && sortedSubItems.length" class="subitem-list">
+						<template
+							v-for="(child, index) in sortedSubItems"
 							:key="child.id"
-							class="subitem-swipe-wrap"
-							:class="{ 'is-swiped': subItemSwipeOffset(String(child.id)) < 0 }"
 						>
-							<button
-								type="button"
-								class="subitem-swipe-delete"
-								aria-label="Remove sub item"
-								@click.stop="emit('deleteSubItem', child.id!)"
-							>
-								<component
-									:is="OutlineIcons.TrashIcon"
-									class="subitem-swipe-delete-icon"
-								/>
-							</button>
-							<div
-								class="subitem-row"
-								:style="{
-									transform: `translateX(${subItemSwipeOffset(String(child.id))}px)`,
-								}"
-								@click="emit('subItemRowClick', child, String(child.id))"
-								@touchstart.passive="
-									emit('subItemSwipeStart', String(child.id), $event)
+							<li
+								v-if="
+									index === 0 ||
+									(child.date ?? '') !== (sortedSubItems[index - 1].date ?? '')
 								"
-								@touchmove="emit('subItemSwipeMove', String(child.id), $event)"
-								@touchend="emit('subItemSwipeEnd', String(child.id))"
+								class="subitem-date-divider"
 							>
-								<div class="flex flex-col min-w-0">
-									<span class="subitem-name">{{ child.name }}</span>
-									<span v-if="child.date" class="text-xs text-textSecondary">
-										{{ child.date }}
+								<span class="subitem-date-label">
+									{{ child.date || "No date" }}
+								</span>
+								<span class="subitem-date-line" />
+							</li>
+							<li
+								class="subitem-swipe-wrap"
+								:class="{ 'is-swiped': subItemSwipeOffset(String(child.id)) < 0 }"
+							>
+								<button
+									type="button"
+									class="subitem-swipe-delete"
+									aria-label="Remove sub item"
+									@click.stop="emit('deleteSubItem', child.id!)"
+								>
+									<component
+										:is="OutlineIcons.TrashIcon"
+										class="subitem-swipe-delete-icon"
+									/>
+								</button>
+								<div
+									class="subitem-row"
+									:style="{
+										transform: `translateX(${subItemSwipeOffset(String(child.id))}px)`,
+									}"
+									@click="emit('subItemRowClick', child, String(child.id))"
+									@touchstart.passive="
+										emit('subItemSwipeStart', String(child.id), $event)
+									"
+									@touchmove="emit('subItemSwipeMove', String(child.id), $event)"
+									@touchend="emit('subItemSwipeEnd', String(child.id))"
+								>
+									<div class="flex flex-col min-w-0">
+										<span class="subitem-name">{{ child.name }}</span>
+										<span v-if="child.date" class="text-xs text-textSecondary">
+											{{ child.date }}
+										</span>
+									</div>
+									<span class="subitem-amount">
+										₱{{ child.amount.toLocaleString("en-PH") }}
 									</span>
 								</div>
-								<span class="subitem-amount">
-									₱{{ child.amount.toLocaleString("en-PH") }}
-								</span>
-							</div>
-						</li>
+							</li>
+						</template>
 					</ul>
 
 					<Button
@@ -233,5 +282,53 @@
 	.bank-wallet-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.subitem-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.subitem-toolbar-label {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.sort-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.875rem;
+		border: 1px solid var(--color-inputBorder);
+		border-radius: 9999px;
+		background: transparent;
+		color: var(--color-textPrimary);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.subitem-date-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		list-style: none;
+		margin: 0.35rem 0 0.15rem;
+		padding: 0;
+	}
+
+	.subitem-date-label {
+		flex-shrink: 0;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--color-textSecondary);
+	}
+
+	.subitem-date-line {
+		flex: 1;
+		height: 1px;
+		background: var(--color-inputBorder);
 	}
 </style>
