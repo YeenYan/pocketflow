@@ -4,6 +4,7 @@
 		PaperAirplaneIcon,
 		ChevronDownIcon,
 		ChevronUpIcon,
+		TrashIcon,
 	} from "@heroicons/vue/24/outline";
 	import { Chart as ChartJS, ArcElement, Tooltip } from "chart.js";
 	import Divider from "../../components/divider/Divider.vue";
@@ -441,6 +442,8 @@
 	const showItemModal = ref(false);
 	const showExtraBudgetModal = ref(false);
 	const showExtraBudgetConfirm = ref(false);
+	const showManageExtraBudgetsModal = ref(false);
+	const extraBudgetEditId = ref("");
 	const extraBudgetAmount = ref("");
 	const extraBudgetLabel = ref("Extra Budget");
 	const extraBudgetSavingsItemId = ref("");
@@ -450,9 +453,9 @@
 	const pendingRemoveItemId = ref("");
 	const pendingRemoveItemName = ref("");
 	const pendingRemoveItemAmount = ref(0);
-	const pendingRemoveKind = ref<"ruleItem" | "subItem" | "others" | "tabBudget">(
-		"ruleItem",
-	);
+	const pendingRemoveKind = ref<
+		"ruleItem" | "subItem" | "others" | "tabBudget" | "extraBudget"
+	>("ruleItem");
 	const removingItem = ref(false);
 	const itemFormId = ref("");
 	const itemFormAmount = ref("");
@@ -914,6 +917,17 @@
 			.reduce((sum, entry) => sum + entry.amount, 0);
 	});
 
+	const activeRuleExtraBudgets = computed(() => {
+		const cutoffId = activeCutoff.value?.id;
+		if (!cutoffId) return [] as RuleExtraBudget[];
+		return ruleExtraBudgets.value.filter(
+			(entry) =>
+				entry.cutoffId === cutoffId &&
+				entry.ruleName === activeTab.value &&
+				entry.source !== "mySavings",
+		);
+	});
+
 	const baseRuleAmount = computed(() =>
 		Math.max(
 			0,
@@ -956,9 +970,7 @@
 		() =>
 			new Set(
 				ruleExtraBudgets.value
-					.filter(
-						(extra) => extra.source === "mySavings" && extra.budgetEntryId,
-					)
+					.filter((extra) => extra.source === "mySavings" && extra.budgetEntryId)
 					.map((extra) => extra.budgetEntryId!),
 			),
 	);
@@ -1322,6 +1334,20 @@
 		if (!extraBudgetLabel.value.trim()) return false;
 		if (activeTab.value === "Savings" && !extraBudgetSavingsItemId.value)
 			return false;
+		if (extraBudgetEditId.value) {
+			const extra = ruleExtraBudgets.value.find(
+				(entry) => entry.id === extraBudgetEditId.value,
+			);
+			if (!extra) return false;
+			if (
+				extraBudgetLabel.value.trim() === extra.label &&
+				amount === extra.amount &&
+				(activeTab.value !== "Savings" ||
+					extraBudgetSavingsItemId.value === (extra.itemBuilderId ?? ""))
+			) {
+				return false;
+			}
+		}
 		return true;
 	});
 
@@ -1608,8 +1634,7 @@
 						? savingsTransfers.value
 								.filter(
 									(transfer) =>
-										transfer.cutoffId === cutoff.id &&
-										transfer.targetRule === ruleName,
+										transfer.cutoffId === cutoff.id && transfer.targetRule === ruleName,
 								)
 								.reduce((sum, transfer) => sum + transfer.amount, 0)
 						: 0;
@@ -1635,7 +1660,12 @@
 
 		await db.transaction(
 			"rw",
-			[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets, db.unexpectedExpenses],
+			[
+				db.cycleCutoffs,
+				db.budgetEntries,
+				db.ruleExtraBudgets,
+				db.unexpectedExpenses,
+			],
 			async () => {
 				for (const extra of linkedExtras) {
 					const cutoff = await db.cycleCutoffs.get(extra.cutoffId);
@@ -1647,10 +1677,7 @@
 						};
 						allocations[extra.ruleName] = {
 							...allocations[extra.ruleName],
-							amount: Math.max(
-								0,
-								allocations[extra.ruleName].amount - extra.amount,
-							),
+							amount: Math.max(0, allocations[extra.ruleName].amount - extra.amount),
 						};
 						await db.cycleCutoffs.update(cutoff.id, { allocations });
 					}
@@ -1690,10 +1717,7 @@
 						};
 						allocations[extra.ruleName] = {
 							...allocations[extra.ruleName],
-							amount: Math.max(
-								0,
-								allocations[extra.ruleName].amount - extra.amount,
-							),
+							amount: Math.max(0, allocations[extra.ruleName].amount - extra.amount),
 						};
 						await db.cycleCutoffs.update(cutoff.id, { allocations });
 					}
@@ -1828,8 +1852,7 @@
 						? savingsTransfers.value
 								.filter(
 									(transfer) =>
-										transfer.cutoffId === cutoffId &&
-										transfer.targetRule === ruleName,
+										transfer.cutoffId === cutoffId && transfer.targetRule === ruleName,
 								)
 								.reduce((sum, transfer) => sum + transfer.amount, 0)
 						: 0;
@@ -1901,6 +1924,7 @@
 			extraBudgetError.value = "Add a cutoff first";
 			return;
 		}
+		extraBudgetEditId.value = "";
 		extraBudgetAmount.value = "";
 		extraBudgetLabel.value = "Extra Budget";
 		extraBudgetSavingsItemId.value = "";
@@ -1908,8 +1932,28 @@
 		showExtraBudgetModal.value = true;
 	}
 
+	function openManageExtraBudgetsModal() {
+		if (!activeRuleExtraBudgets.value.length) return;
+		showManageExtraBudgetsModal.value = true;
+	}
+
+	function closeManageExtraBudgetsModal() {
+		showManageExtraBudgetsModal.value = false;
+	}
+
+	function openEditExtraBudget(extra: RuleExtraBudget) {
+		extraBudgetEditId.value = extra.id;
+		extraBudgetAmount.value = String(extra.amount);
+		extraBudgetLabel.value = extra.label;
+		extraBudgetSavingsItemId.value = extra.itemBuilderId ?? "";
+		extraBudgetError.value = "";
+		showManageExtraBudgetsModal.value = false;
+		showExtraBudgetModal.value = true;
+	}
+
 	function closeExtraBudgetModal() {
 		showExtraBudgetModal.value = false;
+		extraBudgetEditId.value = "";
 		extraBudgetError.value = "";
 	}
 
@@ -1940,6 +1984,50 @@
 		showExtraBudgetConfirm.value = false;
 	}
 
+	function requestRemoveExtraBudget(extra: RuleExtraBudget) {
+		pendingRemoveItemId.value = extra.id;
+		pendingRemoveItemName.value = extra.label;
+		pendingRemoveItemAmount.value = extra.amount;
+		pendingRemoveKind.value = "extraBudget";
+		showRemoveItemConfirm.value = true;
+	}
+
+	async function deleteExtraBudget(id: string) {
+		const extra = ruleExtraBudgets.value.find((entry) => entry.id === id);
+		if (!extra) return;
+
+		await db.transaction(
+			"rw",
+			[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
+			async () => {
+				const cutoff = await db.cycleCutoffs.get(extra.cutoffId);
+				if (cutoff?.allocations?.[extra.ruleName]) {
+					const allocations = {
+						Expenses: { ...cutoff.allocations.Expenses },
+						Savings: { ...cutoff.allocations.Savings },
+						Wants: { ...cutoff.allocations.Wants },
+					};
+					allocations[extra.ruleName] = {
+						...allocations[extra.ruleName],
+						amount: Math.max(0, allocations[extra.ruleName].amount - extra.amount),
+					};
+					await db.cycleCutoffs.update(cutoff.id, { allocations });
+				}
+				if (extra.budgetEntryId) {
+					await db.budgetEntries.delete(extra.budgetEntryId);
+				}
+				await db.ruleExtraBudgets.delete(extra.id);
+			},
+		);
+
+		await loadCutoffs();
+		await loadBudgetEntries();
+		await loadRuleExtraBudgets();
+		if (!activeRuleExtraBudgets.value.length) {
+			showManageExtraBudgetsModal.value = false;
+		}
+	}
+
 	async function confirmExtraBudget() {
 		const cutoff = activeCutoff.value;
 		const amount = Number(extraBudgetAmount.value);
@@ -1951,10 +2039,68 @@
 		savingExtraBudget.value = true;
 		extraBudgetError.value = "";
 		const now = new Date().toISOString();
-		const extraBudgetId = createId();
-		let budgetEntryId: string | undefined;
+		const editingId = extraBudgetEditId.value;
 
 		try {
+			if (editingId) {
+				const existing = ruleExtraBudgets.value.find(
+					(entry) => entry.id === editingId,
+				);
+				if (!existing) return;
+				const delta = amount - existing.amount;
+
+				await db.transaction(
+					"rw",
+					[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
+					async () => {
+						await db.ruleExtraBudgets.update(editingId, {
+							amount,
+							label,
+							itemBuilderId:
+								ruleName === "Savings" ? extraBudgetSavingsItemId.value : undefined,
+						});
+
+						if (existing.budgetEntryId) {
+							const builder = itemBuilders.value.find(
+								(item) => item.id === extraBudgetSavingsItemId.value,
+							);
+							await db.budgetEntries.update(existing.budgetEntryId, {
+								amount,
+								name: builder?.name ?? label,
+								itemBuilderId:
+									ruleName === "Savings" ? extraBudgetSavingsItemId.value : undefined,
+							});
+						}
+
+						if (delta !== 0) {
+							const freshCutoff = await db.cycleCutoffs.get(cutoff.id);
+							if (!freshCutoff?.allocations) return;
+							const allocations = {
+								Expenses: { ...freshCutoff.allocations.Expenses },
+								Savings: { ...freshCutoff.allocations.Savings },
+								Wants: { ...freshCutoff.allocations.Wants },
+							};
+							allocations[ruleName] = {
+								...allocations[ruleName],
+								amount: Math.max(0, allocations[ruleName].amount + delta),
+							};
+							await db.cycleCutoffs.update(cutoff.id, { allocations });
+						}
+					},
+				);
+
+				await loadCutoffs();
+				await loadBudgetEntries();
+				await loadRuleExtraBudgets();
+				showExtraBudgetConfirm.value = false;
+				showExtraBudgetModal.value = false;
+				extraBudgetEditId.value = "";
+				return;
+			}
+
+			const extraBudgetId = createId();
+			let budgetEntryId: string | undefined;
+
 			await db.transaction(
 				"rw",
 				[db.cycleCutoffs, db.budgetEntries, db.ruleExtraBudgets],
@@ -2038,7 +2184,9 @@
 			showExtraBudgetConfirm.value = false;
 			showExtraBudgetModal.value = false;
 		} catch {
-			extraBudgetError.value = "Failed to add extra budget. Please try again.";
+			extraBudgetError.value = editingId
+				? "Failed to update extra budget. Please try again."
+				: "Failed to add extra budget. Please try again.";
 			showExtraBudgetConfirm.value = false;
 		} finally {
 			savingExtraBudget.value = false;
@@ -2509,6 +2657,7 @@
 		if (kind === "ruleItem") await removeSwipedItem(id);
 		else if (kind === "subItem") await deleteSubItem(id);
 		else if (kind === "others") await deleteOthersExpense(id);
+		else if (kind === "extraBudget") await deleteExtraBudget(id);
 		else await deleteTabBudgetExpense(id);
 		removingItem.value = false;
 		closeRemoveItemConfirm();
@@ -3301,6 +3450,7 @@
 				:disabled="!activeCutoff"
 				@open-item-modal="openItemModal"
 				@open-extra-budget-modal="openExtraBudgetModal"
+				@manage-extra-budgets="openManageExtraBudgetsModal"
 				@open-unexpected-drawer="openUnexpectedDrawer"
 			/>
 
@@ -3591,13 +3741,56 @@
 
 		<Teleport to="body">
 			<div
+				v-if="showManageExtraBudgetsModal"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+				@click.self="closeManageExtraBudgetsModal"
+			>
+				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
+					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
+						Extra Budgets
+					</h2>
+					<ul class="m-0 flex list-none flex-col gap-2 p-0">
+						<li
+							v-for="extra in activeRuleExtraBudgets"
+							:key="extra.id"
+							class="flex items-center gap-2"
+						>
+							<button
+								type="button"
+								class="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border border-inputBorder px-3 py-2.5 text-left"
+								@click="openEditExtraBudget(extra)"
+							>
+								<span class="min-w-0 truncate text-sm font-semibold text-textPrimary">
+									{{ extra.label }}
+								</span>
+								<span class="shrink-0 text-sm text-textPrimary">
+									₱{{ extra.amount.toLocaleString("en-PH") }}
+								</span>
+							</button>
+							<button
+								type="button"
+								class="inline-flex shrink-0 items-center justify-center rounded-full bg-[#f87171] p-2.5 text-white"
+								aria-label="Remove extra budget"
+								@click="requestRemoveExtraBudget(extra)"
+							>
+								<TrashIcon class="h-4 w-4" />
+							</button>
+						</li>
+					</ul>
+					<Button block variant="shade" @click="closeManageExtraBudgetsModal">
+						Close
+					</Button>
+				</GlassContainer>
+			</div>
+
+			<div
 				v-if="showExtraBudgetModal && !showExceedModal"
 				class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
 				@click.self="closeExtraBudgetModal"
 			>
 				<GlassContainer class="flex w-full min-w-0 max-w-[400px] flex-col gap-4">
 					<h2 class="m-0 text-center text-lg font-semibold text-textPrimary">
-						Add Extra Budget
+						{{ extraBudgetEditId ? "Edit Extra Budget" : "Add Extra Budget" }}
 					</h2>
 					<InputField
 						v-model="extraBudgetLabel"
@@ -3642,8 +3835,9 @@
 						Confirm Extra Budget
 					</h2>
 					<p class="m-0 text-center text-sm text-textSecondary">
-						Add ₱{{ Number(extraBudgetAmount).toLocaleString("en-PH") }} extra budget
-						to {{ activeTab }} as "{{ extraBudgetLabel.trim() }}"?
+						{{ extraBudgetEditId ? "Update" : "Add" }}
+						₱{{ Number(extraBudgetAmount).toLocaleString("en-PH") }} extra budget to
+						{{ activeTab }} as "{{ extraBudgetLabel.trim() }}"?
 					</p>
 					<div class="flex gap-3">
 						<Button block variant="shade" @click="closeExtraBudgetConfirm">
@@ -3655,7 +3849,13 @@
 							:disabled="savingExtraBudget"
 							@click="confirmExtraBudget"
 						>
-							{{ savingExtraBudget ? "Adding..." : "Confirm" }}
+							{{
+								savingExtraBudget
+									? extraBudgetEditId
+										? "Updating..."
+										: "Adding..."
+									: "Confirm"
+							}}
 						</Button>
 					</div>
 				</GlassContainer>

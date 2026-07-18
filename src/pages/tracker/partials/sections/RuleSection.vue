@@ -32,6 +32,7 @@
 	const emit = defineEmits<{
 		openItemModal: [];
 		openExtraBudgetModal: [];
+		manageExtraBudgets: [];
 		openUnexpectedDrawer: [];
 	}>();
 </script>
@@ -87,12 +88,14 @@
 					>
 						{{ displaySavingsBoost }}
 					</p>
-					<p
+					<button
 						v-if="displayExtraBudget"
-						class="m-0 mt-0.5 text-[0.72rem] text-textSecondary"
+						type="button"
+						class="extra-budget-link"
+						@click="emit('manageExtraBudgets')"
 					>
 						{{ displayExtraBudget }}
-					</p>
+					</button>
 					<p
 						v-if="displayTotalRuleAmount"
 						class="m-0 mt-0.5 text-[0.8rem] font-semibold text-textPrimary"
@@ -126,7 +129,13 @@
 			<div class="flex items-center justify-between">
 				<span class="rule-progress-spent"
 					>-{{ displayRuleSpent }}
-					{{ activeTab === "Savings" ? "Saved" : "spent" }}</span
+					{{
+						activeTab === "Savings"
+							? "Saved"
+							: activeTab === "Expenses"
+								? "Budgeted"
+								: "spent"
+					}}</span
 				>
 				<p class="rule-progress-pct">{{ ruleProgressPercent }}%</p>
 			</div>
@@ -203,6 +212,19 @@
 		color: var(--color-textPrimary);
 		font-size: 0.75rem;
 		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.extra-budget-link {
+		display: block;
+		margin: 0.25rem 0 0;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--color-textSecondary);
+		font-size: 0.72rem;
+		text-align: left;
+		text-decoration: underline;
 		cursor: pointer;
 	}
 

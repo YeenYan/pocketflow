@@ -198,7 +198,8 @@
 
 	const spentPercent = computed(() => {
 		if (spendBudgetAmount.value <= 0) return 0;
-		return Math.round((spentAmount.value / spendBudgetAmount.value) * 100);
+		const used = Math.max(0, spendBudgetAmount.value - amountLeft.value);
+		return Math.round((used / spendBudgetAmount.value) * 100);
 	});
 
 	function progressFillColor(percent: number) {
@@ -237,17 +238,54 @@
 			spendBudgetAmount.value > 0 && spentAmount.value > spendBudgetAmount.value,
 	);
 
-	const amountLeft = computed(() =>
-		Math.max(0, spendBudgetAmount.value - spentAmount.value),
+	const amountLeft = computed(() => {
+		const cutoff = activeCutoff.value;
+		const cutoffId = cutoff?.id;
+		if (!cutoffId) return 0;
+
+		let left = 0;
+
+		let expensesEntriesSum = 0;
+		let wantsEntriesSum = 0;
+
+		for (const entry of budgetEntries.value) {
+			if (entry.cutoffId !== cutoffId || entry.parentBudgetEntryId) continue;
+			if (entry.ruleName === "Expenses") expensesEntriesSum += entry.amount;
+			else if (entry.ruleName === "Wants") wantsEntriesSum += entry.amount;
+			else continue;
+
+			const builder = entry.itemBuilderId
+				? itemBuilders.value.find((item) => item.id === entry.itemBuilderId)
+				: itemBuilders.value.find((item) => item.name === entry.name);
+			if (!builder?.hasChildItems) continue;
+
+			const childrenSpent = budgetEntries.value
+				.filter((child) => child.parentBudgetEntryId === entry.id)
+				.reduce((sum, child) => sum + child.amount, 0);
+			left += Math.max(0, entry.amount - childrenSpent);
+		}
+
+		left += Math.max(0, tabBudgetAllocated.value - tabBudgetSpent.value);
+		left += Math.max(0, othersAllocated.value - othersSpent.value);
+
+		const expensesAllotted = cutoff?.allocations?.Expenses?.amount ?? 0;
+		const wantsAllotted = cutoff?.allocations?.Wants?.amount ?? 0;
+		const expensesReserved =
+			expensesEntriesSum + tabBudgetReserved.value + othersReserved.value;
+		left += Math.max(0, expensesAllotted - expensesReserved);
+		left += Math.max(0, wantsAllotted - wantsEntriesSum);
+
+		return left;
+	});
+
+	const displayLeftAmount = computed(
+		() => `₱${amountLeft.value.toLocaleString("en-PH")}`,
 	);
 
-	const displayLeft = computed(
-		() => `₱${amountLeft.value.toLocaleString("en-PH")} left`,
-	);
-
-	const displaySpent = computed(
-		() => `₱${spentAmount.value.toLocaleString("en-PH")} spent already`,
-	);
+	const displaySpent = computed(() => {
+		const used = Math.max(0, spendBudgetAmount.value - amountLeft.value);
+		return `₱${used.toLocaleString("en-PH")} spent already`;
+	});
 
 	const cutoffName = computed(() => {
 		const cutoff = activeCutoff.value;
@@ -546,7 +584,11 @@
 			</div>
 
 			<p class="hero-headline">
-				{{ activeCutoff ? displayLeft : "No cutoff set" }}
+				<template v-if="activeCutoff">
+					{{ displayLeftAmount }}
+					<span class="hero-headline-label">left to spend</span>
+				</template>
+				<template v-else>No cutoff set</template>
 			</p>
 			<p v-if="activeCutoff" class="hero-sub">{{ displaySpent }}</p>
 
@@ -614,7 +656,8 @@
 					<div class="rule-chip-text">
 						<span class="rule-chip-name">{{ rule.name }}</span>
 						<span class="rule-chip-spent" :style="{ color: rule.color }">
-							₱{{ rule.spent.toLocaleString("en-PH") }} spent
+							₱{{ rule.spent.toLocaleString("en-PH") }}
+							{{ rule.name === "Expenses" ? "Budgeted" : "spent" }}
 						</span>
 					</div>
 				</div>
@@ -735,9 +778,7 @@
 						</p>
 						<p class="child-item-left-amount">
 							₱{{
-								Math.max(0, row.amount - row.childrenSpent).toLocaleString(
-									"en-PH",
-								)
+								Math.max(0, row.amount - row.childrenSpent).toLocaleString("en-PH")
 							}}
 							left
 						</p>
@@ -943,6 +984,12 @@
 		line-height: 1.15;
 		color: var(--color-textPrimary);
 		text-align: center;
+	}
+
+	.hero-headline-label {
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: var(--color-textSecondary);
 	}
 
 	.hero-sub {
