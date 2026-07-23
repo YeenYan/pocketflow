@@ -12,12 +12,18 @@ import SavingsPage from "./pages/me/SavingsPage.vue";
 import AnalyticsPage from "./pages/me/AnalyticsPage.vue";
 import DebtNotePage from "./pages/me/DebtNotePage.vue";
 import DebtNoteDetailPage from "./pages/me/DebtNoteDetailPage.vue";
+import DebtNoteJoinPage from "./pages/me/DebtNoteJoinPage.vue";
 import ChatPage from "./pages/chat/ChatPage.vue";
 import OnboardingPage from "./pages/auth/OnboardingPage.vue";
 import LockScreen from "./pages/auth/LockScreen.vue";
 import "./styles/main.css";
 import { initTheme } from "./composables/useTheme";
 import { db, sessionUnlocked, restoreSessionUnlocked } from "./db/budgetDb";
+import {
+	listenForegroundMessages,
+	registerFcmToken,
+	syncFirebaseUserProfile,
+} from "./firebase";
 
 initTheme();
 
@@ -34,6 +40,7 @@ const router = createRouter({
 		{ path: "/me/savings", component: SavingsPage },
 		{ path: "/me/analytics", component: AnalyticsPage },
 		{ path: "/me/debt-note", component: DebtNotePage },
+		{ path: "/me/debt-note/join", component: DebtNoteJoinPage },
 		{ path: "/me/debt-note/:id", component: DebtNoteDetailPage },
 		{ path: "/chat", component: ChatPage },
 		{ path: "/onboarding", component: OnboardingPage },
@@ -80,3 +87,21 @@ createApp(App).use(router).mount("#app");
 
 // Expose update function globally if needed for manual refresh prompts
 window.__pwaUpdateSW = updateSW;
+
+async function initFirebaseSession() {
+	try {
+		const profile = await db.userProfiles.get(1);
+		if (!profile?.onboardingCompleted) return;
+		await syncFirebaseUserProfile();
+		await registerFcmToken();
+		listenForegroundMessages((title, body) => {
+			if ("Notification" in window && Notification.permission === "granted") {
+				new Notification(title, { body, icon: "/pwa-192x192.png" });
+			}
+		});
+	} catch (err) {
+		console.warn("Firebase init skipped/failed:", err);
+	}
+}
+
+void initFirebaseSession();

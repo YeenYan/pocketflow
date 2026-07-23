@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSelf(uid);
+    }
+
+    match /debtLinks/{linkId} {
+      allow create: if signedIn()
+        && request.resource.data.lenderUid == request.auth.uid;
+      allow read: if signedIn()
+        && (resource.data.lenderUid == request.auth.uid
+          || resource.data.borrowerUid == request.auth.uid
+          || resource.data.borrowerUid == null);
+      allow update: if signedIn()
+        && (resource.data.lenderUid == request.auth.uid
+          || (resource.data.borrowerUid == null
+            && request.resource.data.borrowerUid == request.auth.uid)
+          || resource.data.borrowerUid == request.auth.uid);
+
+      match /payments/{paymentId} {
+        allow read, write: if signedIn()
+          && (get(/databases/$(database)/documents/debtLinks/$(linkId)).data.lenderUid
+                == request.auth.uid
+            || get(/databases/$(database)/documents/debtLinks/$(linkId)).data.borrowerUid
+                == request.auth.uid);
+      }
+    }
+
+    match /invites/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.lenderUid == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.lenderUid == request.auth.uid
+          || (resource.data.usedByUid == null
+            && request.resource.data.usedByUid == request.auth.uid));
+    }
+  }
+}

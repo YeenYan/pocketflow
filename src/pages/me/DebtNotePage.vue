@@ -2,6 +2,7 @@
 	import { ref } from "vue";
 	import { useRouter } from "vue-router";
 	import { ArrowLeftIcon } from "@heroicons/vue/24/outline";
+	import Button from "../../components/button/Button.vue";
 	import BorrowedPage from "./BorrowedPage.vue";
 	import LentPage from "./LentPage.vue";
 
@@ -25,6 +26,12 @@
 			<h1 class="page-title">Debt Note</h1>
 			<span class="header-spacer" />
 		</header>
+
+		<div class="join-row">
+			<Button class="join-btn" @click="router.push('/me/debt-note/join')">
+				Join via code
+			</Button>
+		</div>
 
 		<div class="monitoring-tabs-wrap">
 			<div class="monitoring-tabs">
@@ -102,6 +109,16 @@
 
 	.header-spacer {
 		width: 2rem;
+	}
+
+	.join-row {
+		display: flex;
+		justify-content: flex-end;
+		padding-top: 0.75rem;
+	}
+
+	.join-btn {
+		flex-shrink: 0;
 	}
 
 	.monitoring-tabs-wrap {

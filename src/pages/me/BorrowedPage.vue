@@ -13,6 +13,7 @@
 		type DebtNoteType,
 		type DebtPayment,
 	} from "../../db/budgetDb";
+	import { markLocalNoteLinked } from "../../firebase";
 
 	const props = withDefaults(
 		defineProps<{
@@ -67,6 +68,15 @@
 	}
 
 	async function loadData() {
+		notes.value = await db.debtNotes.toArray();
+		for (const note of notes.value) {
+			if (!note.linkId) continue;
+			try {
+				await markLocalNoteLinked(note.linkId);
+			} catch {
+				/* offline / rules */
+			}
+		}
 		notes.value = await db.debtNotes.toArray();
 		payments.value = await db.debtPayments.toArray();
 	}

@@ -9,6 +9,8 @@ export interface UserProfile {
 	biometricCredentialId?: string;
 	lockEnabled: boolean;
 	onboardingCompleted: boolean;
+	firebaseUid?: string;
+	fcmToken?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -190,6 +192,12 @@ export interface DebtNote {
 	amount: number;
 	date: string;
 	createdAt: string;
+	linkId?: string;
+	role?: "lender" | "borrower";
+	counterpartyUid?: string;
+	counterpartyName?: string;
+	inviteCode?: string;
+	syncStatus?: "local" | "pending" | "linked" | "error";
 }
 
 export interface DebtPayment {
@@ -199,6 +207,9 @@ export interface DebtPayment {
 	date: string;
 	description: string;
 	createdAt: string;
+	cloudPaymentId?: string;
+	createdByUid?: string;
+	syncedAt?: string;
 }
 
 export const FIXED_RULES: Omit<Rule, "id">[] = [
@@ -595,6 +606,10 @@ class BudgetDatabase extends Dexie {
 		this.version(23).stores({
 			debtNotes: "id, type, date, createdAt",
 			debtPayments: "id, debtNoteId, date, createdAt",
+		});
+		this.version(24).stores({
+			debtNotes: "id, type, date, createdAt, linkId, inviteCode",
+			debtPayments: "id, debtNoteId, date, createdAt, cloudPaymentId",
 		});
 	}
 }
