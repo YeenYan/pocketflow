@@ -13,15 +13,24 @@ import AnalyticsPage from "./pages/me/AnalyticsPage.vue";
 import DebtNotePage from "./pages/me/DebtNotePage.vue";
 import DebtNoteDetailPage from "./pages/me/DebtNoteDetailPage.vue";
 import DebtNoteJoinPage from "./pages/me/DebtNoteJoinPage.vue";
+import NotificationsPage from "./pages/me/NotificationsPage.vue";
 import ChatPage from "./pages/chat/ChatPage.vue";
 import OnboardingPage from "./pages/auth/OnboardingPage.vue";
 import LockScreen from "./pages/auth/LockScreen.vue";
 import "./styles/main.css";
 import { initTheme } from "./composables/useTheme";
-import { db, sessionUnlocked, restoreSessionUnlocked } from "./db/budgetDb";
 import {
+	addAppNotification,
+	db,
+	sessionUnlocked,
+	restoreSessionUnlocked,
+} from "./db/budgetDb";
+import {
+	applyDebtPushData,
 	listenForegroundMessages,
+	refreshGlobalDebtSync,
 	registerFcmToken,
+	setDebtSyncNotifier,
 	syncFirebaseUserProfile,
 } from "./firebase";
 
@@ -42,6 +51,7 @@ const router = createRouter({
 		{ path: "/me/debt-note", component: DebtNotePage },
 		{ path: "/me/debt-note/join", component: DebtNoteJoinPage },
 		{ path: "/me/debt-note/:id", component: DebtNoteDetailPage },
+		{ path: "/notifications", component: NotificationsPage },
 		{ path: "/chat", component: ChatPage },
 		{ path: "/onboarding", component: OnboardingPage },
 		{ path: "/lock", component: LockScreen },
@@ -88,16 +98,68 @@ createApp(App).use(router).mount("#app");
 // Expose update function globally if needed for manual refresh prompts
 window.__pwaUpdateSW = updateSW;
 
+function showDebtNotification(title: string, body: string) {
+	if ("Notification" in window && Notification.permission === "granted") {
+		new Notification(title, { body, icon: "/pwa-192x192.png" });
+	}
+}
+
 async function initFirebaseSession() {
 	try {
 		const profile = await db.userProfiles.get(1);
 		if (!profile?.onboardingCompleted) return;
 		await syncFirebaseUserProfile();
 		await registerFcmToken();
-		listenForegroundMessages((title, body) => {
-			if ("Notification" in window && Notification.permission === "granted") {
-				new Notification(title, { body, icon: "/pwa-192x192.png" });
+
+		setDebtSyncNotifier((event) => {
+			if (event.kind === "payment" && event.amount) {
+				const title = "Debt Note payment";
+				const body = `₱${Math.round(event.amount).toLocaleString("en-PH")} was recorded on a linked debt.`;
+				void addAppNotification({
+					title,
+					body,
+					type: "debt_payment",
+				});
+				showDebtNotification(title, body);
+			} else if (event.kind === "removed") {
+				const title = "Debt Note removed";
+				const body = "A linked debt entry was removed.";
+				void addAppNotification({
+					title,
+					body,
+					type: "debt_removed",
+				});
+				showDebtNotification(title, body);
 			}
+		});
+
+		listenForegroundMessages(async (title, body, data) => {
+			await applyDebtPushData(data);
+			// App-open sync already records inbox items via setDebtSyncNotifier.
+			if (document.visibilityState === "visible") return;
+			if (title || body) {
+				void addAppNotification({
+					title: title || "PocketFlow",
+					body: body || "",
+					type: data.type || "general",
+					linkId: data.linkId,
+				});
+				showDebtNotification(title || "PocketFlow", body);
+			}
+		});
+
+		await refreshGlobalDebtSync();
+
+		document.addEventListener("visibilitychange", () => {
+			if (document.visibilityState === "visible") {
+				void refreshGlobalDebtSync();
+			}
+		});
+
+		navigator.serviceWorker?.addEventListener("message", (event) => {
+			if (event.data?.type !== "debt-push-click") return;
+			void applyDebtPushData(event.data.data || {});
+			void refreshGlobalDebtSync();
 		});
 	} catch (err) {
 		console.warn("Firebase init skipped/failed:", err);

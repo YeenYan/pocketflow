@@ -41,6 +41,7 @@
 		"ruleExtraBudgets",
 		"debtNotes",
 		"debtPayments",
+		"appNotifications",
 	] as const;
 
 	const router = useRouter();
@@ -286,6 +287,7 @@
 			db.incomingBillBudgets.clear(),
 			db.debtNotes.clear(),
 			db.debtPayments.clear(),
+			db.appNotifications.clear(),
 		]);
 		deleting.value = false;
 		closeDeleteModal();
@@ -494,7 +496,7 @@
 			</button>
 		</GlassContainer>
 
-		<p class="app-version">App version: 1.5.0</p>
+		<p class="app-version">App version: 1.5.1</p>
 
 		<Teleport to="body">
 			<div v-if="activeModal" class="modal-overlay" @click.self="closeModal">

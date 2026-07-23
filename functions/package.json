@@ -1,0 +1,11 @@
+{
+  "name": "pocketflow-functions",
+  "description": "FCM push for Debt Note link events",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.0"
+  },
+  "private": true
+}

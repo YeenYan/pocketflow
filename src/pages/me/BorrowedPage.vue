@@ -13,7 +13,7 @@
 		type DebtNoteType,
 		type DebtPayment,
 	} from "../../db/budgetDb";
-	import { markLocalNoteLinked } from "../../firebase";
+	import { markLocalNoteLinked, pullDebtPayments } from "../../firebase";
 
 	const props = withDefaults(
 		defineProps<{
@@ -73,6 +73,10 @@
 			if (!note.linkId) continue;
 			try {
 				await markLocalNoteLinked(note.linkId);
+				const still = await db.debtNotes.get(note.id);
+				if (still?.linkId) {
+					await pullDebtPayments(still.linkId, still.id);
+				}
 			} catch {
 				/* offline / rules */
 			}

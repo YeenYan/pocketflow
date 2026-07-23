@@ -212,6 +212,16 @@ export interface DebtPayment {
 	syncedAt?: string;
 }
 
+export interface AppNotification {
+	id: string;
+	title: string;
+	body: string;
+	type: string;
+	linkId?: string;
+	read: 0 | 1;
+	createdAt: string;
+}
+
 export const FIXED_RULES: Omit<Rule, "id">[] = [
 	{ name: "Expenses", percent: 50, itemCount: 0 },
 	{ name: "Savings", percent: 30, itemCount: 0 },
@@ -245,6 +255,41 @@ export function restoreSessionUnlocked() {
 
 export function createId(): string {
 	return crypto.randomUUID();
+}
+
+export async function addAppNotification(input: {
+	title: string;
+	body: string;
+	type?: string;
+	linkId?: string;
+}) {
+	await db.appNotifications.add({
+		id: createId(),
+		title: input.title,
+		body: input.body,
+		type: input.type || "general",
+		linkId: input.linkId,
+		read: 0,
+		createdAt: new Date().toISOString(),
+	});
+	window.dispatchEvent(new Event("app-notifications-changed"));
+}
+
+export async function getUnreadNotificationCount() {
+	return db.appNotifications.where("read").equals(0).count();
+}
+
+export async function markNotificationRead(id: string) {
+	await db.appNotifications.update(id, { read: 1 });
+	window.dispatchEvent(new Event("app-notifications-changed"));
+}
+
+export async function markAllNotificationsRead() {
+	const unread = await db.appNotifications.where("read").equals(0).toArray();
+	for (const row of unread) {
+		await db.appNotifications.update(row.id, { read: 1 });
+	}
+	window.dispatchEvent(new Event("app-notifications-changed"));
 }
 
 export function buildCutoffAllocations(
@@ -333,6 +378,7 @@ class BudgetDatabase extends Dexie {
 	ruleExtraBudgets!: Table<RuleExtraBudget>;
 	debtNotes!: Table<DebtNote>;
 	debtPayments!: Table<DebtPayment>;
+	appNotifications!: Table<AppNotification>;
 
 	constructor() {
 		super("pocketflow-budget-db");
@@ -610,6 +656,9 @@ class BudgetDatabase extends Dexie {
 		this.version(24).stores({
 			debtNotes: "id, type, date, createdAt, linkId, inviteCode",
 			debtPayments: "id, debtNoteId, date, createdAt, cloudPaymentId",
+		});
+		this.version(25).stores({
+			appNotifications: "id, read, createdAt, type",
 		});
 	}
 }

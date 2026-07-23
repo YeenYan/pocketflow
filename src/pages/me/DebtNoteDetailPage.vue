@@ -24,6 +24,7 @@
 		listenDebtLinkRemoval,
 		listenDebtPayments,
 		markLocalNoteLinked,
+		pullDebtPayments,
 		pushDebtPayment,
 		removeDebtLinkCloud,
 		updateDebtPaymentCloud,
@@ -148,7 +149,7 @@
 			current.id,
 			async (amount, fromOther) => {
 				await loadData();
-				if (!fromOther) return;
+				if (!fromOther || amount <= 0) return;
 				const body = `Payment of ${formatAmount(amount)} was recorded.`;
 				syncToast.value = body;
 				if ("Notification" in window && Notification.permission === "granted") {
@@ -456,6 +457,7 @@
 					router.replace("/me/debt-note");
 					return;
 				}
+				await pullDebtPayments(note.value.linkId, note.value.id);
 				await loadData();
 			} catch {
 				/* offline / rules */

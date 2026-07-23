@@ -151,13 +151,107 @@ export async function registerFcmToken() {
 export function listenForegroundMessages(
 	handler: (title: string, body: string, data: Record<string, string>) => void,
 ) {
-	if (!messaging) return () => {};
+	if (!messaging) {
+		try {
+			messaging = getMessaging(firebaseApp);
+		} catch {
+			return () => {};
+		}
+	}
 	return onMessage(messaging, (payload) => {
 		const title = payload.notification?.title ?? "PocketFlow";
 		const body = payload.notification?.body ?? "";
 		const data = (payload.data ?? {}) as Record<string, string>;
 		handler(title, body, data);
 	});
+}
+
+export async function applyDebtPushData(data: Record<string, string>) {
+	const linkId = data.linkId;
+	if (!linkId) return;
+	const note = await db.debtNotes.where("linkId").equals(linkId).first();
+	if (!note) return;
+
+	if (data.type === "debt_removed") {
+		const pays = await db.debtPayments
+			.where("debtNoteId")
+			.equals(note.id)
+			.toArray();
+		for (const p of pays) await db.debtPayments.delete(p.id);
+		await db.debtNotes.delete(note.id);
+		return;
+	}
+
+	if (data.type === "debt_payment") {
+		await pullDebtPayments(linkId, note.id);
+	}
+}
+
+type DebtSyncEvent = {
+	kind: "payment" | "removed";
+	amount?: number;
+};
+
+let debtSyncNotifier: ((event: DebtSyncEvent) => void) | null = null;
+let stopGlobalDebtSync: (() => void) | null = null;
+
+export function setDebtSyncNotifier(
+	notifier: ((event: DebtSyncEvent) => void) | null,
+) {
+	debtSyncNotifier = notifier;
+}
+
+export async function refreshGlobalDebtSync() {
+	stopGlobalDebtSync?.();
+	stopGlobalDebtSync = null;
+
+	const notes = await db.debtNotes.toArray();
+	const stops: Array<() => void> = [];
+
+	for (const note of notes) {
+		if (!note.linkId) continue;
+		const linkId = note.linkId;
+		const noteId = note.id;
+
+		try {
+			await markLocalNoteLinked(linkId);
+			const still = await db.debtNotes.get(noteId);
+			if (!still?.linkId) continue;
+			await pullDebtPayments(still.linkId, still.id);
+		} catch {
+			/* offline / rules */
+		}
+
+		const still = await db.debtNotes.get(noteId);
+		if (!still?.linkId) continue;
+
+		stops.push(
+			listenDebtPayments(still.linkId, still.id, (amount, fromOther) => {
+				if (fromOther && amount > 0) {
+					debtSyncNotifier?.({ kind: "payment", amount });
+				}
+			}),
+		);
+
+		stops.push(
+			listenDebtLinkRemoval(still.linkId, async () => {
+				const local = await db.debtNotes.where("linkId").equals(linkId).first();
+				if (!local) return;
+				const pays = await db.debtPayments
+					.where("debtNoteId")
+					.equals(local.id)
+					.toArray();
+				for (const p of pays) await db.debtPayments.delete(p.id);
+				await db.debtNotes.delete(local.id);
+				debtSyncNotifier?.({ kind: "removed" });
+			}),
+		);
+	}
+
+	stopGlobalDebtSync = () => {
+		for (const stop of stops) stop();
+		stopGlobalDebtSync = null;
+	};
 }
 
 export async function createDebtInvite(note: DebtNote) {
@@ -207,6 +301,7 @@ export async function createDebtInvite(note: DebtNote) {
 		syncStatus: "pending",
 	});
 
+	void refreshGlobalDebtSync();
 	return { linkId, inviteCode };
 }
 
@@ -257,7 +352,7 @@ export async function claimDebtInvite(code: string) {
 	const localNote: DebtNote = {
 		id: createId(),
 		type: "borrowed",
-		title: link.lenderName || "Lender",
+		title: String(link.title || link.lenderName || "Borrowed"),
 		amount: Number(link.amount) || 0,
 		date: String(link.date || now.slice(0, 10)),
 		createdAt: now,
@@ -271,6 +366,7 @@ export async function claimDebtInvite(code: string) {
 	await db.debtNotes.add(localNote);
 
 	await pullDebtPayments(invite.linkId, localNote.id);
+	void refreshGlobalDebtSync();
 	return localNote;
 }
 
@@ -358,6 +454,8 @@ export function listenDebtPayments(
 		collection(firestore, "debtLinks", linkId, "payments"),
 		async (snap) => {
 			const user = firebaseAuth.currentUser;
+			let notifyAmount = 0;
+			let notifyFromOther = false;
 
 			for (const change of snap.docChanges()) {
 				const data = change.doc.data();
@@ -401,7 +499,8 @@ export function listenDebtPayments(
 				}
 
 				if (ready && change.type === "added" && !known.has(cloudPaymentId)) {
-					onRemotePayment?.(amount, fromOther);
+					notifyAmount = amount;
+					notifyFromOther = fromOther;
 				}
 				known.add(cloudPaymentId);
 			}
@@ -412,6 +511,8 @@ export function listenDebtPayments(
 				}
 				ready = true;
 			}
+
+			onRemotePayment?.(notifyAmount, notifyFromOther);
 		},
 	);
 }

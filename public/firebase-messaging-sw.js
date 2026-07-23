@@ -27,3 +27,23 @@ messaging.onBackgroundMessage((payload) => {
 		data: payload.data || {},
 	});
 });
+
+self.addEventListener("notificationclick", (event) => {
+	event.notification.close();
+	const linkId = event.notification.data && event.notification.data.linkId;
+	const targetUrl = linkId ? "/me/debt-note" : "/me/debt-note";
+	event.waitUntil(
+		clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+			for (const client of list) {
+				if ("focus" in client) {
+					client.postMessage({
+						type: "debt-push-click",
+						data: event.notification.data || {},
+					});
+					return client.focus();
+				}
+			}
+			if (clients.openWindow) return clients.openWindow(targetUrl);
+		}),
+	);
+});

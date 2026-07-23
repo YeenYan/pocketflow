@@ -1,7 +1,8 @@
 <script setup lang="ts">
-	import { onMounted, ref } from "vue";
+	import { nextTick, onMounted, onUnmounted, ref } from "vue";
 	import { useRoute, useRouter } from "vue-router";
 	import { ArrowLeftIcon } from "@heroicons/vue/24/outline";
+	import { Html5Qrcode } from "html5-qrcode";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import Button from "../../components/button/Button.vue";
@@ -13,16 +14,77 @@
 	const inviteCode = ref("");
 	const error = ref("");
 	const joining = ref(false);
+	const scanning = ref(false);
+	const scanError = ref("");
+	let scanner: Html5Qrcode | null = null;
 
 	onMounted(() => {
 		const code = String(route.query.code ?? "");
 		if (code) inviteCode.value = code.toUpperCase();
 	});
 
+	onUnmounted(() => {
+		void stopScan();
+	});
+
+	function parseInvitePayload(raw: string) {
+		const text = raw.trim();
+		try {
+			const url = new URL(text);
+			const fromQuery = url.searchParams.get("code");
+			if (fromQuery) return fromQuery.toUpperCase();
+		} catch {
+			/* plain code */
+		}
+		return text.toUpperCase();
+	}
+
+	async function stopScan() {
+		if (!scanner) {
+			scanning.value = false;
+			return;
+		}
+		try {
+			await scanner.stop();
+		} catch {
+			/* ignore */
+		}
+		try {
+			await scanner.clear();
+		} catch {
+			/* ignore */
+		}
+		scanner = null;
+		scanning.value = false;
+	}
+
+	async function startScan() {
+		error.value = "";
+		scanError.value = "";
+		scanning.value = true;
+		await nextTick();
+		try {
+			scanner = new Html5Qrcode("join-qr-reader");
+			await scanner.start(
+				{ facingMode: "environment" },
+				{ fps: 10, qrbox: { width: 220, height: 220 } },
+				async (decoded) => {
+					inviteCode.value = parseInvitePayload(decoded);
+					await stopScan();
+				},
+				() => {},
+			);
+		} catch {
+			scanError.value = "Camera unavailable. Enter the code manually.";
+			await stopScan();
+		}
+	}
+
 	async function joinDebt() {
 		error.value = "";
 		joining.value = true;
 		try {
+			await stopScan();
 			const note = await claimDebtInvite(inviteCode.value);
 			router.replace(`/me/debt-note/${note.id}`);
 		} catch (err) {
@@ -51,9 +113,16 @@
 
 		<div class="body">
 			<p class="hint">
-				Enter the invite code from the lender, or open a shared QR link.
+				Scan the lender's QR code, or enter the invite code manually.
 			</p>
 			<GlassContainer class="card">
+				<div v-if="scanning" class="scanner-wrap">
+					<div id="join-qr-reader" class="scanner" />
+					<Button block variant="shade" @click="stopScan">Stop scanning</Button>
+				</div>
+				<Button v-else block variant="shade" @click="startScan">Scan QR code</Button>
+				<p v-if="scanError" class="error">{{ scanError }}</p>
+
 				<InputField
 					v-model="inviteCode"
 					label="Invite code"
@@ -136,6 +205,18 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.85rem;
+	}
+
+	.scanner-wrap {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.scanner {
+		overflow: hidden;
+		border-radius: 0.75rem;
+		min-height: 220px;
 	}
 
 	.error {

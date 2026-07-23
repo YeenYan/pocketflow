@@ -14,6 +14,7 @@
 	import { useTheme } from "./composables/useTheme";
 	import {
 		db,
+		getUnreadNotificationCount,
 		sessionUnlocked,
 		setSessionUnlocked,
 		restoreSessionUnlocked,
@@ -37,7 +38,15 @@
 	const route = useRoute();
 	const pageTransition = ref("page-forward");
 	const layoutStyle = ref<Record<string, string>>({});
+	const unreadCount = ref(0);
 
+	async function refreshUnreadCount() {
+		try {
+			unreadCount.value = await getUnreadNotificationCount();
+		} catch {
+			unreadCount.value = 0;
+		}
+	}
 	function preloadImage(src: string) {
 		return new Promise<void>((resolve) => {
 			if (!src) {
@@ -78,6 +87,8 @@
 
 		if (document.visibilityState !== "visible") return;
 
+		void refreshUnreadCount();
+
 		if (!sessionUnlocked) restoreSessionUnlocked();
 
 		const profile = await db.userProfiles.get(1);
@@ -97,6 +108,8 @@
 		window.visualViewport?.addEventListener("resize", syncLayoutViewport);
 		window.visualViewport?.addEventListener("scroll", syncLayoutViewport);
 		document.addEventListener("visibilitychange", onVisibilityChange);
+		window.addEventListener("app-notifications-changed", refreshUnreadCount);
+		void refreshUnreadCount();
 		preloadAppImages();
 	});
 
@@ -104,6 +117,7 @@
 		window.visualViewport?.removeEventListener("resize", syncLayoutViewport);
 		window.visualViewport?.removeEventListener("scroll", syncLayoutViewport);
 		document.removeEventListener("visibilitychange", onVisibilityChange);
+		window.removeEventListener("app-notifications-changed", refreshUnreadCount);
 	});
 
 	const tabPaths = ["/dashboard", "/tracker", "/reports", "/me"];
@@ -126,19 +140,6 @@
 		pageTransition.value =
 			toIdx >= 0 && fromIdx >= 0 && toIdx < fromIdx ? "page-back" : "page-forward";
 	});
-
-	async function testNotification() {
-		if (!("Notification" in window)) return;
-
-		const permission = await Notification.requestPermission();
-
-		if (permission === "granted") {
-			new Notification("My Test App", {
-				body: "PWA notification test successful!",
-				icon: "/pwa-192x192.png",
-			});
-		}
-	}
 
 	function lockApp() {
 		setSessionUnlocked(false);
@@ -169,11 +170,14 @@
 				type="button"
 				rounded="full"
 				:padding="false"
-				class="flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
-				aria-label="Test notification"
-				@click="testNotification"
+				class="bell-btn relative flex h-9 w-9 shrink-0 items-center justify-center text-textSecondary hover:bg-surfaceHover"
+				aria-label="Notifications"
+				@click="router.push('/notifications')"
 			>
 				<BellIcon class="h-5 w-5" />
+				<span v-if="unreadCount > 0" class="bell-chip">
+					{{ unreadCount > 9 ? "9+" : unreadCount }}
+				</span>
 			</GlassContainer>
 			<GlassContainer
 				as="button"
@@ -243,3 +247,21 @@
 		<BottomNav v-if="showNav" />
 	</div>
 </template>
+
+<style scoped>
+	.bell-chip {
+		position: absolute;
+		top: -0.15rem;
+		right: -0.15rem;
+		min-width: 1.05rem;
+		height: 1.05rem;
+		padding: 0 0.25rem;
+		border-radius: 9999px;
+		background: #ef4444;
+		color: #fff;
+		font-size: 0.65rem;
+		font-weight: 700;
+		line-height: 1.05rem;
+		text-align: center;
+	}
+</style>
