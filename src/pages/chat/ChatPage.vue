@@ -40,10 +40,77 @@
 		const savingsTransfers = await db.savingsTransfers.toArray();
 		const ruleExtraBudgets = await db.ruleExtraBudgets.toArray();
 		const unexpectedExpenses = await db.unexpectedExpenses.toArray();
+		const debtNotes = await db.debtNotes.toArray();
+		const debtPayments = await db.debtPayments.toArray();
 
 		const lines: string[] = [];
 		if (profile?.displayName) {
 			lines.push(`User: ${profile.displayName}`);
+		}
+
+		function pushDebtNoteRecords() {
+			lines.push("");
+			lines.push("Debt Note records:");
+			if (!debtNotes.length) {
+				lines.push("No debt notes yet.");
+				return;
+			}
+			const sortedNotes = [...debtNotes].sort((a, b) =>
+				b.createdAt.localeCompare(a.createdAt),
+			);
+			for (const note of sortedNotes) {
+				const pays = debtPayments
+					.filter(
+						(p) => p.debtNoteId === note.id && p.status !== "rejected",
+					)
+					.sort(
+						(a, b) =>
+							b.date.localeCompare(a.date) ||
+							b.createdAt.localeCompare(a.createdAt),
+					);
+				const paid = pays
+					.filter((p) => !p.status || p.status === "approved")
+					.reduce((sum, p) => sum + p.amount, 0);
+				const pendingCount = pays.filter((p) => p.status === "pending").length;
+				const remaining = Math.max(0, note.amount - paid);
+				const done = note.amount > 0 && paid >= note.amount;
+				const kind = note.type === "borrowed" ? "Borrowed" : "Lent";
+				lines.push(
+					`- ${kind}: "${note.title}" total ₱${note.amount.toLocaleString("en-PH")} dated ${note.date}; ${note.type === "borrowed" ? "paid" : "received"} ₱${paid.toLocaleString("en-PH")}; remaining ₱${remaining.toLocaleString("en-PH")}${done ? " (Completed)" : ""}`,
+				);
+				if (note.counterpartyName) {
+					lines.push(`  Counterparty: ${note.counterpartyName}`);
+				}
+				if (note.linkId) {
+					lines.push(
+						`  Linked entry (${note.role || note.type}): sync ${note.syncStatus || "shared"}`,
+					);
+				} else {
+					lines.push("  Local-only entry (not linked).");
+				}
+				if (pendingCount) {
+					lines.push(`  Pending approval payments: ${pendingCount}`);
+				}
+				if (pays.length) {
+					lines.push("  Payment history:");
+					for (const p of pays) {
+						const statusLabel =
+							p.status === "pending"
+								? " [Pending Approval]"
+								: p.status === "approved" || !p.status
+									? ""
+									: ` [${p.status}]`;
+						const desc = p.description?.trim()
+							? ` — ${p.description.trim()}`
+							: "";
+						lines.push(
+							`  - ₱${p.amount.toLocaleString("en-PH")} on ${p.date}${desc}${statusLabel}`,
+						);
+					}
+				} else {
+					lines.push("  No payments recorded yet.");
+				}
+			}
 		}
 
 		const sortedCutoffs = [...cutoffs].sort((a, b) =>
@@ -80,6 +147,7 @@
 					`Incoming bills total: ₱${incomingTotal.toLocaleString("en-PH")}`,
 				);
 			}
+			pushDebtNoteRecords();
 			return lines.join("\n");
 		}
 
@@ -366,6 +434,7 @@
 		}
 
 		if (!activeCutoff) {
+			pushDebtNoteRecords();
 			return lines.join("\n");
 		}
 
@@ -599,6 +668,7 @@
 			}
 		}
 
+		pushDebtNoteRecords();
 		return lines.join("\n");
 	}
 
@@ -682,7 +752,7 @@
 						<p class="tip-name">Poko</p>
 						<p class="tip-message">How can I help with your finances today?</p>
 						<p class="tip-sub">
-							Ask about your budget, spending, savings, or habits.
+							Ask about your budget, spending, savings, debt notes, or habits.
 						</p>
 					</div>
 				</div>

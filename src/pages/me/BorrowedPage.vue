@@ -287,9 +287,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--color-overlay);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
+		background: oklch(0.13 0.03 256 / 0.22);
+		backdrop-filter: blur(8px);
+		-webkit-backdrop-filter: blur(8px);
 	}
 
 	/* https://uiverse.io/doniaskima/rare-falcon-68 */
