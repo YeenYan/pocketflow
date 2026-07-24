@@ -344,6 +344,7 @@
 	}
 
 	function onSwipeStart(id: string, event: TouchEvent) {
+		if (isFullyPaid.value) return;
 		const touch = event.touches[0];
 		if (!touch) return;
 		swipeStartX = touch.clientX;
@@ -378,6 +379,7 @@
 	}
 
 	function onRowClick(entry: DebtPayment) {
+		if (isFullyPaid.value) return;
 		if (swipeMoved) {
 			swipeMoved = false;
 			return;
@@ -645,9 +647,10 @@
 					v-for="entry in notePayments"
 					:key="entry.id"
 					class="item-swipe-wrap"
-					:class="{ 'is-swiped': swipeOffset(entry.id) < 0 }"
+					:class="{ 'is-swiped': !isFullyPaid && swipeOffset(entry.id) < 0 }"
 				>
 					<button
+						v-if="!isFullyPaid"
 						type="button"
 						class="item-swipe-delete"
 						aria-label="Delete"
@@ -658,10 +661,15 @@
 					<div
 						class="payment-row"
 						:class="{
-							'is-swiped': swipeOffset(entry.id) < 0,
+							'is-swiped': !isFullyPaid && swipeOffset(entry.id) < 0,
 							'is-pending': entry.status === 'pending',
+							'is-readonly': isFullyPaid,
 						}"
-						:style="{ transform: `translateX(${swipeOffset(entry.id)}px)` }"
+						:style="
+							isFullyPaid
+								? undefined
+								: { transform: `translateX(${swipeOffset(entry.id)}px)` }
+						"
 						@touchstart.passive="onSwipeStart(entry.id, $event)"
 						@touchmove="onSwipeMove(entry.id, $event)"
 						@touchend="onSwipeEnd(entry.id)"
@@ -1224,6 +1232,11 @@
 
 	.payment-row.is-pending {
 		opacity: 0.92;
+	}
+
+	.payment-row.is-readonly {
+		cursor: default;
+		pointer-events: none;
 	}
 
 	.payment-date {
