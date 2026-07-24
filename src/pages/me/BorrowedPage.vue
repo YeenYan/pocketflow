@@ -1,5 +1,5 @@
 <script setup lang="ts">
-	import { computed, onMounted, ref } from "vue";
+	import { computed, onMounted, onUnmounted, ref } from "vue";
 	import { useRouter } from "vue-router";
 	import { PlusIcon } from "@heroicons/vue/24/outline";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
@@ -44,9 +44,13 @@
 			.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
 	);
 
+	function isCountedPayment(p: DebtPayment) {
+		return !p.status || p.status === "approved";
+	}
+
 	function paidTotal(noteId: string) {
 		return payments.value
-			.filter((p) => p.debtNoteId === noteId)
+			.filter((p) => p.debtNoteId === noteId && isCountedPayment(p))
 			.reduce((sum, p) => sum + p.amount, 0);
 	}
 
@@ -56,7 +60,15 @@
 	}
 
 	function paymentCount(noteId: string) {
-		return payments.value.filter((p) => p.debtNoteId === noteId).length;
+		return payments.value.filter(
+			(p) => p.debtNoteId === noteId && isCountedPayment(p),
+		).length;
+	}
+
+	function pendingCount(noteId: string) {
+		return payments.value.filter(
+			(p) => p.debtNoteId === noteId && p.status === "pending",
+		).length;
 	}
 
 	function circleOffset(percent: number) {
@@ -65,6 +77,20 @@
 
 	function todayIso() {
 		return new Date().toISOString().slice(0, 10);
+	}
+
+	function formatAmount(amount: number) {
+		return `₱${Math.round(amount).toLocaleString("en-PH")}`;
+	}
+
+	function formatDate(value: string) {
+		if (!value) return "";
+		const d = new Date(value + "T00:00:00");
+		return d.toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		});
 	}
 
 	async function loadData() {
@@ -140,7 +166,14 @@
 		router.push(`/me/debt-note/${note.id}`);
 	}
 
-	onMounted(loadData);
+	onMounted(() => {
+		void loadData();
+		window.addEventListener("app-debt-payments-changed", loadData);
+	});
+
+	onUnmounted(() => {
+		window.removeEventListener("app-debt-payments-changed", loadData);
+	});
 </script>
 
 <template>
@@ -169,6 +202,8 @@
 					<span class="circle-percent">{{ progressPercent(note) }}%</span>
 				</div>
 				<p class="card-title">{{ note.title }}</p>
+				<p class="card-amount">{{ formatAmount(note.amount) }}</p>
+				<p class="card-date">{{ formatDate(note.date) }}</p>
 				<p class="card-sub">
 					{{ paymentCount(note.id) }}
 					{{
@@ -180,6 +215,9 @@
 								? "amount received"
 								: "amounts received"
 					}}
+				</p>
+				<p v-if="pendingCount(note.id)" class="card-pending">
+					{{ pendingCount(note.id) }} pending approval
 				</p>
 			</GlassContainer>
 
@@ -251,8 +289,9 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		aspect-ratio: 1;
+		gap: 0.35rem;
+		min-height: 11.5rem;
+		padding: 0.85rem 0.65rem;
 		text-align: center;
 		box-shadow: none;
 	}
@@ -307,10 +346,30 @@
 		white-space: nowrap;
 	}
 
+	.card-amount {
+		margin: 0;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-textPrimary);
+	}
+
+	.card-date {
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--color-textSecondary);
+	}
+
 	.card-sub {
 		margin: 0;
 		font-size: 0.75rem;
 		color: var(--color-textSecondary);
+	}
+
+	.card-pending {
+		margin: 0;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--color-accentText);
 	}
 
 	.add-card {

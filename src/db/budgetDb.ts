@@ -210,6 +210,8 @@ export interface DebtPayment {
 	cloudPaymentId?: string;
 	createdByUid?: string;
 	syncedAt?: string;
+	/** Linked borrower submissions start as pending until lender accepts. */
+	status?: "pending" | "approved" | "rejected";
 }
 
 export interface AppNotification {

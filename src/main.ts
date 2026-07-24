@@ -112,30 +112,50 @@ async function initFirebaseSession() {
 		await registerFcmToken();
 
 		setDebtSyncNotifier((event) => {
+			const amount = event.amount
+				? `₱${Math.round(event.amount).toLocaleString("en-PH")}`
+				: "";
+			const who = event.who || "Someone";
+			const debtTitle = event.noteTitle || "linked debt";
+			let when = event.when || "";
+			if (when) {
+				const d = new Date(when + "T00:00:00");
+				if (!Number.isNaN(d.getTime())) {
+					when = d.toLocaleDateString("en-US", {
+						month: "short",
+						day: "numeric",
+						year: "numeric",
+					});
+				}
+			}
+
 			if (event.kind === "payment" && event.amount) {
 				const title = "Debt Note payment";
-				const amount = `₱${Math.round(event.amount).toLocaleString("en-PH")}`;
-				const who = event.who || "Someone";
-				const debtTitle = event.noteTitle || "linked debt";
-				let when = event.when || "";
-				if (when) {
-					const d = new Date(when + "T00:00:00");
-					if (!Number.isNaN(d.getTime())) {
-						when = d.toLocaleDateString("en-US", {
-							month: "short",
-							day: "numeric",
-							year: "numeric",
-						});
-					}
-				}
 				const body = when
 					? `${who} recorded ${amount} on ${when} for ${debtTitle}.`
 					: `${who} recorded ${amount} for ${debtTitle}.`;
-				void addAppNotification({
-					title,
-					body,
-					type: "debt_payment",
-				});
+				void addAppNotification({ title, body, type: "debt_payment" });
+				showDebtNotification(title, body);
+			} else if (event.kind === "payment_pending" && event.amount) {
+				const title = "Payment needs approval";
+				const body = when
+					? `${who} submitted ${amount} on ${when} for ${debtTitle}.`
+					: `${who} submitted ${amount} for ${debtTitle}.`;
+				void addAppNotification({ title, body, type: "debt_payment_pending" });
+				showDebtNotification(title, body);
+			} else if (event.kind === "payment_approved" && event.amount) {
+				const title = "Payment approved";
+				const body = when
+					? `Your ${amount} payment on ${when} for ${debtTitle} was approved.`
+					: `Your ${amount} payment for ${debtTitle} was approved.`;
+				void addAppNotification({ title, body, type: "debt_payment_approved" });
+				showDebtNotification(title, body);
+			} else if (event.kind === "payment_rejected" && event.amount) {
+				const title = "Payment rejected";
+				const body = when
+					? `Your ${amount} payment on ${when} for ${debtTitle} was rejected.`
+					: `Your ${amount} payment for ${debtTitle} was rejected.`;
+				void addAppNotification({ title, body, type: "debt_payment_rejected" });
 				showDebtNotification(title, body);
 			} else if (event.kind === "removed") {
 				const title = "Debt Note removed";
@@ -151,7 +171,16 @@ async function initFirebaseSession() {
 
 		listenForegroundMessages(async (title, body, data) => {
 			await applyDebtPushData(data);
-			// App-open sync already records inbox items via setDebtSyncNotifier.
+			// Live sync notifier already records debt inbox items while the app is running.
+			if (
+				data.type === "debt_payment" ||
+				data.type === "debt_payment_pending" ||
+				data.type === "debt_payment_approved" ||
+				data.type === "debt_payment_rejected" ||
+				data.type === "debt_removed"
+			) {
+				return;
+			}
 			if (document.visibilityState === "visible") return;
 			if (title || body) {
 				void addAppNotification({

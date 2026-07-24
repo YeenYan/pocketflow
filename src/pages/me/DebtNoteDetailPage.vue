@@ -22,7 +22,6 @@
 		deleteDebtPaymentCloud,
 		ensureFirebaseAuth,
 		listenDebtLinkRemoval,
-		listenDebtPayments,
 		markLocalNoteLinked,
 		pullDebtPayments,
 		pushDebtPayment,
@@ -48,6 +47,9 @@
 	const pendingDeleteId = ref("");
 	const pendingDeleteLabel = ref("");
 	const deleting = ref(false);
+	const showApprovalModal = ref(false);
+	const approvalEntry = ref<DebtPayment | null>(null);
+	const approvalBusy = ref(false);
 	const showRemoveEntryConfirm = ref(false);
 	const removingEntry = ref(false);
 	const showShareModal = ref(false);
@@ -66,6 +68,11 @@
 	let stopLinkListen: (() => void) | null = null;
 
 	const isBorrowed = computed(() => note.value?.type === "borrowed");
+	const isLinked = computed(
+		() =>
+			!!note.value?.linkId &&
+			(note.value.syncStatus === "linked" || note.value.syncStatus === "pending"),
+	);
 	const canShare = computed(() => note.value?.type === "lent");
 	const canRemoveEntry = computed(() => {
 		if (!note.value) return false;
@@ -79,10 +86,14 @@
 			(note.value.syncStatus === "linked" || note.value.syncStatus === "pending"),
 	);
 
+	function isCountedPayment(p: DebtPayment) {
+		return !p.status || p.status === "approved";
+	}
+
 	const notePayments = computed(() => {
 		if (!note.value) return [];
 		return payments.value
-			.filter((p) => p.debtNoteId === note.value!.id)
+			.filter((p) => p.debtNoteId === note.value!.id && p.status !== "rejected")
 			.sort(
 				(a, b) =>
 					b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt),
@@ -90,7 +101,9 @@
 	});
 
 	const paidTotal = computed(() =>
-		notePayments.value.reduce((sum, p) => sum + p.amount, 0),
+		notePayments.value
+			.filter(isCountedPayment)
+			.reduce((sum, p) => sum + p.amount, 0),
 	);
 
 	const progressPercent = computed(() => {
@@ -144,29 +157,14 @@
 		const current = note.value;
 		if (!current?.linkId) return;
 
-		stopPaymentsListen = listenDebtPayments(
-			current.linkId,
-			current.id,
-			async (amount, fromOther, date) => {
-				await loadData();
-				if (!fromOther || amount <= 0) return;
-				const who = current.counterpartyName || "Someone";
-				const when = date ? formatDate(date) : "";
-				const body = when
-					? `${who} recorded ${formatAmount(amount)} on ${when}.`
-					: `${who} recorded ${formatAmount(amount)}.`;
-				syncToast.value = body;
-				if ("Notification" in window && Notification.permission === "granted") {
-					new Notification("Debt Note update", {
-						body,
-						icon: "/pwa-192x192.png",
-					});
-				}
-				window.setTimeout(() => {
-					if (syncToast.value === body) syncToast.value = "";
-				}, 4000);
-			},
-		);
+		// Payments sync once via global listener; this page only refreshes UI.
+		const onPaymentsChanged = () => {
+			void loadData();
+		};
+		window.addEventListener("app-debt-payments-changed", onPaymentsChanged);
+		stopPaymentsListen = () => {
+			window.removeEventListener("app-debt-payments-changed", onPaymentsChanged);
+		};
 
 		stopLinkListen = listenDebtLinkRemoval(current.linkId, async () => {
 			const linkId = current.linkId!;
@@ -239,6 +237,11 @@
 		try {
 			const user = current.linkId ? await ensureFirebaseAuth() : null;
 			if (editingPaymentId.value) {
+				const existing = await db.debtPayments.get(editingPaymentId.value);
+				if (existing?.status === "pending") {
+					paymentError.value = "Pending payments cannot be edited.";
+					return;
+				}
 				await db.debtPayments.update(editingPaymentId.value, {
 					amount,
 					date,
@@ -254,6 +257,9 @@
 				}
 			} else {
 				const paymentId = createId();
+				// Borrower on a linked note must wait for lender approval.
+				const needsApproval =
+					!!current.linkId && current.type === "borrowed";
 				const payment: DebtPayment = {
 					id: paymentId,
 					debtNoteId: current.id,
@@ -262,17 +268,18 @@
 					description,
 					createdAt: new Date().toISOString(),
 					createdByUid: user?.uid,
+					status: needsApproval ? "pending" : "approved",
 				};
+				// Write local first (with cloudPaymentId) so snapshot listeners update
+				// this row instead of inserting a duplicate when push lands.
 				if (current.linkId && user) {
-					const cloudPaymentId = await pushDebtPayment(
-						current.linkId,
-						payment,
-						user.uid,
-					);
-					payment.cloudPaymentId = cloudPaymentId;
+					payment.cloudPaymentId = paymentId;
 					payment.syncedAt = new Date().toISOString();
 				}
 				await db.debtPayments.add(payment);
+				if (current.linkId && user) {
+					await pushDebtPayment(current.linkId, payment, user.uid);
+				}
 			}
 			await loadData();
 			showAddPaymentModal.value = false;
@@ -331,7 +338,50 @@
 			swipeOffsets.value[entry.id] = 0;
 			return;
 		}
+		if (entry.status === "pending" && note.value?.type === "lent" && isLinked.value) {
+			openApprovalModal(entry);
+			return;
+		}
+		if (entry.status === "pending") return;
 		openEditPayment(entry);
+	}
+
+	function openApprovalModal(entry: DebtPayment) {
+		approvalEntry.value = entry;
+		showApprovalModal.value = true;
+	}
+
+	function closeApprovalModal() {
+		showApprovalModal.value = false;
+		approvalEntry.value = null;
+	}
+
+	async function decidePayment(decision: "approved" | "rejected") {
+		const current = note.value;
+		const entry = approvalEntry.value;
+		if (!current?.linkId || !entry?.cloudPaymentId) return;
+		approvalBusy.value = true;
+		try {
+			await db.debtPayments.update(entry.id, { status: decision });
+			await updateDebtPaymentCloud(current.linkId, entry.cloudPaymentId, {
+				status: decision,
+			});
+			if (decision === "rejected") {
+				await deleteDebtPaymentCloud(current.linkId, entry.cloudPaymentId);
+				await db.debtPayments.delete(entry.id);
+			}
+			await loadData();
+			closeApprovalModal();
+		} catch {
+			syncToast.value = "Could not update payment. Try again.";
+			window.setTimeout(() => {
+				if (syncToast.value === "Could not update payment. Try again.") {
+					syncToast.value = "";
+				}
+			}, 3000);
+		} finally {
+			approvalBusy.value = false;
+		}
 	}
 
 	async function requestDeletePayment(id: string) {
@@ -563,7 +613,10 @@
 					</button>
 					<div
 						class="payment-row"
-						:class="{ 'is-swiped': swipeOffset(entry.id) < 0 }"
+						:class="{
+							'is-swiped': swipeOffset(entry.id) < 0,
+							'is-pending': entry.status === 'pending',
+						}"
 						:style="{ transform: `translateX(${swipeOffset(entry.id)}px)` }"
 						@touchstart.passive="onSwipeStart(entry.id, $event)"
 						@touchmove="onSwipeMove(entry.id, $event)"
@@ -574,6 +627,9 @@
 							<p class="payment-amount">{{ formatAmount(entry.amount) }}</p>
 							<p class="payment-desc">
 								{{ entry.description || "—" }}
+							</p>
+							<p v-if="entry.status === 'pending'" class="payment-status">
+								Pending Approval
 							</p>
 						</div>
 						<span class="payment-date">{{ formatDate(entry.date) }}</span>
@@ -646,6 +702,50 @@
 							@click="confirmDeletePayment"
 						>
 							{{ deleting ? "Removing..." : "Remove" }}
+						</Button>
+					</div>
+				</GlassContainer>
+			</div>
+
+			<div
+				v-if="showApprovalModal && approvalEntry"
+				class="modal-overlay"
+				@click.self="closeApprovalModal"
+			>
+				<GlassContainer class="modal">
+					<h2 class="modal-title">Review Payment</h2>
+					<p class="modal-text">
+						<strong>{{ formatAmount(approvalEntry.amount) }}</strong>
+						on {{ formatDate(approvalEntry.date) }}
+					</p>
+					<p class="modal-text">
+						{{ approvalEntry.description || "No description" }}
+					</p>
+					<p class="modal-text">Accept this payment from the borrower?</p>
+					<div class="modal-actions">
+						<Button
+							block
+							variant="shade"
+							:disabled="approvalBusy"
+							@click="closeApprovalModal"
+						>
+							Cancel
+						</Button>
+						<Button
+							block
+							variant="danger"
+							:disabled="approvalBusy"
+							@click="decidePayment('rejected')"
+						>
+							{{ approvalBusy ? "Saving..." : "Reject" }}
+						</Button>
+						<Button
+							block
+							variant="primary"
+							:disabled="approvalBusy"
+							@click="decidePayment('approved')"
+						>
+							{{ approvalBusy ? "Saving..." : "Accept" }}
 						</Button>
 					</div>
 				</GlassContainer>
@@ -971,6 +1071,17 @@
 		margin: 0.15rem 0 0;
 		font-size: 0.8rem;
 		color: var(--color-textSecondary);
+	}
+
+	.payment-status {
+		margin: 0.25rem 0 0;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--color-accentText);
+	}
+
+	.payment-row.is-pending {
+		opacity: 0.92;
 	}
 
 	.payment-date {
