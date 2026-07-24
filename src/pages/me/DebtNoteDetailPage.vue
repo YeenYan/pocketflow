@@ -75,7 +75,6 @@
 			!!note.value?.linkId &&
 			(note.value.syncStatus === "linked" || note.value.syncStatus === "pending"),
 	);
-	const canShare = computed(() => note.value?.type === "lent");
 	const canRemoveEntry = computed(() => {
 		if (!note.value) return false;
 		if (note.value.type === "lent") return true;
@@ -112,6 +111,17 @@
 		if (!note.value || note.value.amount <= 0) return 0;
 		return Math.min(100, Math.round((paidTotal.value / note.value.amount) * 100));
 	});
+
+	const isFullyPaid = computed(
+		() =>
+			!!note.value &&
+			note.value.amount > 0 &&
+			paidTotal.value >= note.value.amount,
+	);
+
+	const canShare = computed(
+		() => note.value?.type === "lent" && !isFullyPaid.value,
+	);
 
 	const linkStatusLabel = computed(() => {
 		if (!note.value?.linkId) return "";
@@ -220,6 +230,7 @@
 	}
 
 	function openAddPaymentModal() {
+		if (isFullyPaid.value) return;
 		editingPaymentId.value = "";
 		paymentAmount.value = "";
 		paymentDate.value = todayIso();
@@ -259,6 +270,14 @@
 		const description = paymentDescription.value.trim();
 		if (!current || amount <= 0 || !date) {
 			paymentError.value = "Enter an amount and date.";
+			return;
+		}
+		const excludeId = editingPaymentId.value || "";
+		const usedTowardTotal = notePayments.value
+			.filter((p) => p.id !== excludeId)
+			.reduce((sum, p) => sum + p.amount, 0);
+		if (usedTowardTotal + amount > current.amount) {
+			paymentError.value = "Cannot add payment. Amount exceeds the total.";
 			return;
 		}
 		savingPayment.value = true;
@@ -590,6 +609,7 @@
 				<p class="detail-amount">
 					{{ formatAmount(paidTotal) }}
 					<span class="detail-of">of {{ formatAmount(note.amount) }}</span>
+					<span v-if="isFullyPaid" class="completed-chip">Completed</span>
 				</p>
 				<div class="progress-track">
 					<div
@@ -611,7 +631,11 @@
 				<p class="history-title">
 					{{ isBorrowed ? "Payments" : "Received" }}
 				</p>
-				<Button class="add-payment-btn" @click="openAddPaymentModal">
+				<Button
+					v-if="!isFullyPaid"
+					class="add-payment-btn"
+					@click="openAddPaymentModal"
+				>
 					Add Payment
 				</Button>
 			</div>
@@ -1050,12 +1074,26 @@
 		font-size: 1.35rem;
 		font-weight: 700;
 		color: var(--color-textPrimary);
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.45rem;
 	}
 
 	.detail-of {
 		font-size: 0.85rem;
 		font-weight: 500;
 		color: var(--color-textSecondary);
+	}
+
+	.completed-chip {
+		font-size: 0.7rem;
+		font-weight: 600;
+		padding: 0.2rem 0.55rem;
+		border-radius: 9999px;
+		color: var(--color-progress-green);
+		background: rgba(16, 185, 129, 0.12);
+		border: 1px solid rgba(16, 185, 129, 0.28);
 	}
 
 	.progress-track {
