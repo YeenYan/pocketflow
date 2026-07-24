@@ -98,54 +98,59 @@ export async function syncFirebaseUserProfile() {
 }
 
 export async function registerFcmToken() {
-	const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
-	if (!vapidKey) {
-		console.warn(
-			"VITE_FIREBASE_VAPID_KEY is missing. FCM token registration skipped.",
+	try {
+		const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
+		if (!vapidKey) {
+			console.warn(
+				"VITE_FIREBASE_VAPID_KEY is missing. FCM token registration skipped.",
+			);
+			return null;
+		}
+		const supported = await isSupported();
+		if (!supported) return null;
+
+		if (!("Notification" in window)) return null;
+		const permission = await Notification.requestPermission();
+		if (permission !== "granted") return null;
+
+		messaging = getMessaging(firebaseApp);
+		const swRegistration = await navigator.serviceWorker.register(
+			"/firebase-messaging-sw.js",
 		);
+		const token = await getToken(messaging, {
+			vapidKey,
+			serviceWorkerRegistration: swRegistration,
+		});
+		if (!token) return null;
+
+		const user = await ensureFirebaseAuth();
+		const profile = await db.userProfiles.get(1);
+		if (profile) {
+			await db.userProfiles.update(1, {
+				fcmToken: token,
+				firebaseUid: user.uid,
+				updatedAt: new Date().toISOString(),
+			});
+		}
+
+		const userRef = doc(firestore, "users", user.uid);
+		const snap = await getDoc(userRef);
+		const existing = (snap.data()?.fcmTokens as string[] | undefined) ?? [];
+		const next = existing.includes(token) ? existing : [...existing, token];
+		await setDoc(
+			userRef,
+			{
+				uid: user.uid,
+				fcmTokens: next,
+				updatedAt: new Date().toISOString(),
+			},
+			{ merge: true },
+		);
+		return token;
+	} catch {
+		// Push often unavailable on HTTP / some browsers — don't block debt sync.
 		return null;
 	}
-	const supported = await isSupported();
-	if (!supported) return null;
-
-	if (!("Notification" in window)) return null;
-	const permission = await Notification.requestPermission();
-	if (permission !== "granted") return null;
-
-	messaging = getMessaging(firebaseApp);
-	const swRegistration = await navigator.serviceWorker.register(
-		"/firebase-messaging-sw.js",
-	);
-	const token = await getToken(messaging, {
-		vapidKey,
-		serviceWorkerRegistration: swRegistration,
-	});
-	if (!token) return null;
-
-	const user = await ensureFirebaseAuth();
-	const profile = await db.userProfiles.get(1);
-	if (profile) {
-		await db.userProfiles.update(1, {
-			fcmToken: token,
-			firebaseUid: user.uid,
-			updatedAt: new Date().toISOString(),
-		});
-	}
-
-	const userRef = doc(firestore, "users", user.uid);
-	const snap = await getDoc(userRef);
-	const existing = (snap.data()?.fcmTokens as string[] | undefined) ?? [];
-	const next = existing.includes(token) ? existing : [...existing, token];
-	await setDoc(
-		userRef,
-		{
-			uid: user.uid,
-			fcmTokens: next,
-			updatedAt: new Date().toISOString(),
-		},
-		{ merge: true },
-	);
-	return token;
 }
 
 export function listenForegroundMessages(

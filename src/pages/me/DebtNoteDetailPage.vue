@@ -543,10 +543,12 @@
 </script>
 
 <template>
-	<div v-if="loading" class="page-shell fetch-loader-page" aria-busy="true">
-		<div class="fetch-loader" aria-label="Loading"></div>
-	</div>
-	<div v-else-if="note" class="page-shell">
+	<Teleport to="body">
+		<div v-if="loading" class="fetch-loader-page" aria-busy="true">
+			<div class="fetch-loader" aria-label="Loading"></div>
+		</div>
+	</Teleport>
+	<div v-if="!loading && note" class="page-shell">
 		<header class="page-header mt-[-1rem]">
 			<button
 				type="button"
@@ -850,9 +852,8 @@
 	.fetch-loader-page {
 		position: fixed;
 		inset: 0;
-		z-index: 60;
-		max-width: none;
-		padding-top: 0;
+		z-index: 9999;
+		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: var(--color-overlay);

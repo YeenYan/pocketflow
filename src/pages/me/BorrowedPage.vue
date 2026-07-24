@@ -95,6 +95,11 @@
 		});
 	}
 
+	async function loadLocal() {
+		notes.value = await db.debtNotes.toArray();
+		payments.value = await db.debtPayments.toArray();
+	}
+
 	async function loadData() {
 		if (!initialLoaded) loading.value = true;
 		try {
@@ -111,8 +116,7 @@
 					/* offline / rules */
 				}
 			}
-			notes.value = await db.debtNotes.toArray();
-			payments.value = await db.debtPayments.toArray();
+			await loadLocal();
 		} finally {
 			loading.value = false;
 			initialLoaded = true;
@@ -176,20 +180,22 @@
 
 	onMounted(() => {
 		void loadData();
-		window.addEventListener("app-debt-payments-changed", loadData);
+		window.addEventListener("app-debt-payments-changed", loadLocal);
 	});
 
 	onUnmounted(() => {
-		window.removeEventListener("app-debt-payments-changed", loadData);
+		window.removeEventListener("app-debt-payments-changed", loadLocal);
 	});
 </script>
 
 <template>
 	<div class="debt-page">
-		<div v-if="loading" class="fetch-loader-wrap" aria-busy="true">
-			<div class="fetch-loader" aria-label="Loading"></div>
-		</div>
-		<div v-else class="cards-grid">
+		<Teleport to="body">
+			<div v-if="loading" class="fetch-loader-wrap" aria-busy="true">
+				<div class="fetch-loader" aria-label="Loading"></div>
+			</div>
+		</Teleport>
+		<div v-if="!loading" class="cards-grid">
 			<GlassContainer
 				v-for="note in listNotes"
 				:key="note.id"
@@ -288,7 +294,7 @@
 	.fetch-loader-wrap {
 		position: fixed;
 		inset: 0;
-		z-index: 60;
+		z-index: 9999;
 		display: flex;
 		align-items: center;
 		justify-content: center;
