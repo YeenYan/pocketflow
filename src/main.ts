@@ -114,7 +114,23 @@ async function initFirebaseSession() {
 		setDebtSyncNotifier((event) => {
 			if (event.kind === "payment" && event.amount) {
 				const title = "Debt Note payment";
-				const body = `₱${Math.round(event.amount).toLocaleString("en-PH")} was recorded on a linked debt.`;
+				const amount = `₱${Math.round(event.amount).toLocaleString("en-PH")}`;
+				const who = event.who || "Someone";
+				const debtTitle = event.noteTitle || "linked debt";
+				let when = event.when || "";
+				if (when) {
+					const d = new Date(when + "T00:00:00");
+					if (!Number.isNaN(d.getTime())) {
+						when = d.toLocaleDateString("en-US", {
+							month: "short",
+							day: "numeric",
+							year: "numeric",
+						});
+					}
+				}
+				const body = when
+					? `${who} recorded ${amount} on ${when} for ${debtTitle}.`
+					: `${who} recorded ${amount} for ${debtTitle}.`;
 				void addAppNotification({
 					title,
 					body,

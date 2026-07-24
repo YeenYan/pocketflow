@@ -1,11 +1,12 @@
 <script setup lang="ts">
 	import { nextTick, onMounted, onUnmounted, ref } from "vue";
 	import { useRoute, useRouter } from "vue-router";
-	import { ArrowLeftIcon } from "@heroicons/vue/24/outline";
+	import { ArrowLeftIcon, QrCodeIcon } from "@heroicons/vue/24/outline";
 	import { Html5Qrcode } from "html5-qrcode";
 	import GlassContainer from "../../components/containers/GlassContainer.vue";
 	import InputField from "../../components/inputs/InputField.vue";
 	import Button from "../../components/button/Button.vue";
+	import Divider from "../../components/divider/Divider.vue";
 	import { claimDebtInvite } from "../../firebase";
 
 	const route = useRoute();
@@ -120,18 +121,72 @@
 					<div id="join-qr-reader" class="scanner" />
 					<Button block variant="shade" @click="stopScan">Stop scanning</Button>
 				</div>
-				<Button v-else block variant="shade" @click="startScan">Scan QR code</Button>
+				<template v-else>
+					<div class="qr-frame">
+						<div class="qr-icon-wrap">
+							<QrCodeIcon class="qr-icon" />
+						</div>
+
+						<!-- Scan lines: one phase-driven group; trails stay below main when moving up, above when moving down -->
+						<div class="scan-lines scan-phase">
+							<div
+								class="scan-line scan-line--trail"
+								style="--ti: 3; opacity: 0.3"
+							></div>
+							<div
+								class="scan-line scan-line--trail"
+								style="--ti: 2; opacity: 0.4"
+							></div>
+							<div
+								class="scan-line scan-line--trail"
+								style="--ti: 1; opacity: 0.5"
+							></div>
+							<div class="scan-line scan-line--main"></div>
+						</div>
+
+						<div class="qr-corner qr-corner--tl">
+							<div class="qr-corner-h"></div>
+							<div class="qr-corner-v"></div>
+						</div>
+						<div class="qr-corner qr-corner--tr">
+							<div class="qr-corner-h"></div>
+							<div class="qr-corner-v"></div>
+						</div>
+						<div class="qr-corner qr-corner--bl">
+							<div class="qr-corner-h"></div>
+							<div class="qr-corner-v"></div>
+						</div>
+						<div class="qr-corner qr-corner--br">
+							<div class="qr-corner-h"></div>
+							<div class="qr-corner-v"></div>
+						</div>
+					</div>
+					<Button
+						block
+						variant="primary"
+						@click="startScan"
+						class="max-w-[12rem] w-full mx-auto"
+						>Scan QR code</Button
+					>
+				</template>
 				<p v-if="scanError" class="error">{{ scanError }}</p>
+
+				<Divider margin-top="2rem" margin-bottom="2rem" />
 
 				<InputField
 					v-model="inviteCode"
-					label="Invite code"
+					label="Enter Invite code"
 					placeholder="e.g. AB12CD"
 					mode="both"
 				/>
 				<p v-if="error" class="error">{{ error }}</p>
-				<Button block :disabled="joining || !inviteCode.trim()" @click="joinDebt">
-					{{ joining ? "Joining..." : "Join as Borrowed" }}
+				<Button
+					block
+					:disabled="joining || !inviteCode.trim()"
+					@click="joinDebt"
+					class="max-w-[12rem] w-full mx-auto"
+				>
+					{{ joining ? "Joining..." : "Join as Borrower" }}
 				</Button>
 			</GlassContainer>
 		</div>
@@ -219,9 +274,136 @@
 		min-height: 220px;
 	}
 
+	.qr-frame {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		max-width: 9rem;
+		height: 9rem;
+		margin: 0.5rem auto 1.5rem;
+	}
+
+	.qr-icon-wrap {
+		max-width: 7rem;
+		color: var(--color-primary);
+		opacity: 0.85;
+	}
+
+	.qr-icon {
+		width: 5rem;
+		height: 5rem;
+	}
+
+	.scan-lines {
+		pointer-events: none;
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: 95%;
+		transform: translate(-50%, -50%);
+	}
+
+	/*
+	  Shared --phase (0→1) drives the whole group. Main follows cos; trail offset uses sin²
+	  so offsets vanish at turnarounds (no jump when flipping above/below).
+	*/
+	.scan-line {
+		position: absolute;
+		inset-inline: 0;
+		border-radius: 9999px;
+		background: var(--color-primary);
+		will-change: transform;
+	}
+
+	.scan-phase {
+		--trail-gap: 0.45rem;
+		height: 0;
+		animation: scan-phase 1.2s linear infinite;
+	}
+
+	.scan-line--main {
+		padding-block: 0.15rem;
+		transform: translateY(calc(3.5rem * cos(2 * pi * var(--phase))));
+	}
+
+	.scan-line--trail {
+		padding-block: 0.2rem;
+		transform: translateY(
+			calc(
+				3.5rem * cos(2 * pi * var(--phase)) + var(--ti) * var(--trail-gap) *
+					sin(2 * pi * var(--phase)) * sin(2 * pi * var(--phase)) *
+					sign(0.5 - var(--phase))
+			)
+		);
+	}
+
+	@keyframes scan-phase {
+		from {
+			--phase: 0;
+		}
+		to {
+			--phase: 1;
+		}
+	}
+
+	.qr-corner {
+		position: absolute;
+	}
+
+	.qr-corner-h {
+		width: 1.6rem;
+		height: 0.4rem;
+		background: var(--color-primary);
+	}
+
+	.qr-corner-v {
+		width: 0.4rem;
+		height: 1.4rem;
+		margin-top: -0.1rem;
+		background: var(--color-primary);
+	}
+
+	.qr-corner--tl {
+		top: 0;
+		left: 0;
+	}
+
+	.qr-corner--tr {
+		top: -0.1rem;
+		right: 0.1rem;
+		transform: rotate(90deg);
+	}
+
+	.qr-corner--tr .qr-corner-v {
+		height: 1.3rem;
+	}
+
+	.qr-corner--bl {
+		bottom: -0.2rem;
+		left: 0;
+		transform: rotate(-90deg);
+	}
+
+	.qr-corner--br {
+		bottom: -0.2rem;
+		right: 0;
+		transform: rotate(180deg);
+	}
+
 	.error {
 		margin: 0;
 		font-size: 0.85rem;
 		color: var(--color-progress-red);
+	}
+</style>
+
+<style>
+	/* @property must be global so --phase animates smoothly between numeric endpoints */
+	@property --phase {
+		syntax: "<number>";
+		inherits: true;
+		initial-value: 0;
 	}
 </style>

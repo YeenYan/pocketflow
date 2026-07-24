@@ -58,12 +58,32 @@ exports.onDebtPaymentCreated = onDocumentCreated(
 		const amount = Math.round(Number(payment.amount) || 0).toLocaleString(
 			"en-PH",
 		);
+		const who =
+			creator === link.lenderUid
+				? link.lenderName || "Someone"
+				: link.borrowerName || "Someone";
+		const dateRaw = String(payment.date || "");
+		let when = dateRaw;
+		if (dateRaw) {
+			const d = new Date(dateRaw + "T00:00:00");
+			if (!Number.isNaN(d.getTime())) {
+				when = d.toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+					year: "numeric",
+				});
+			}
+		}
+		const debtTitle = link.title || "linked debt";
+		const body = when
+			? `${who} recorded ₱${amount} on ${when} for ${debtTitle}.`
+			: `${who} recorded ₱${amount} for ${debtTitle}.`;
 
 		await sendToUser(
 			targetUid,
 			{
 				title: "Debt Note payment",
-				body: `₱${amount} was recorded on a linked debt.`,
+				body,
 			},
 			{
 				type: "debt_payment",

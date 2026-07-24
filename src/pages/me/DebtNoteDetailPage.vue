@@ -147,10 +147,14 @@
 		stopPaymentsListen = listenDebtPayments(
 			current.linkId,
 			current.id,
-			async (amount, fromOther) => {
+			async (amount, fromOther, date) => {
 				await loadData();
 				if (!fromOther || amount <= 0) return;
-				const body = `Payment of ${formatAmount(amount)} was recorded.`;
+				const who = current.counterpartyName || "Someone";
+				const when = date ? formatDate(date) : "";
+				const body = when
+					? `${who} recorded ${formatAmount(amount)} on ${when}.`
+					: `${who} recorded ${formatAmount(amount)}.`;
 				syncToast.value = body;
 				if ("Notification" in window && Notification.permission === "granted") {
 					new Notification("Debt Note update", {
@@ -538,7 +542,7 @@
 					{{ isBorrowed ? "Payments" : "Received" }}
 				</p>
 				<Button class="add-payment-btn" @click="openAddPaymentModal">
-					{{ isBorrowed ? "Add Payment" : "Add Received" }}
+					Add Payment
 				</Button>
 			</div>
 
@@ -589,15 +593,7 @@
 			>
 				<GlassContainer class="modal">
 					<h2 class="modal-title">
-						{{
-							editingPaymentId
-								? isBorrowed
-									? "Edit Payment"
-									: "Edit Received"
-								: isBorrowed
-									? "Add Payment"
-									: "Add Received"
-						}}
+						{{ editingPaymentId ? "Edit Payment" : "Add Payment" }}
 					</h2>
 					<AmountField v-model="paymentAmount" label="Amount" placeholder="0" />
 					<label class="date-field">
@@ -615,7 +611,12 @@
 					<p v-if="paymentError" class="modal-error">{{ paymentError }}</p>
 					<div class="modal-actions">
 						<Button block @click="closeAddPaymentModal">Cancel</Button>
-						<Button block :disabled="!canSavePayment" @click="savePayment">
+						<Button
+							block
+							:disabled="!canSavePayment"
+							@click="savePayment"
+							variant="primary"
+						>
 							{{ savingPayment ? "Saving..." : "Save" }}
 						</Button>
 					</div>

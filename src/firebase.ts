@@ -190,6 +190,9 @@ export async function applyDebtPushData(data: Record<string, string>) {
 type DebtSyncEvent = {
 	kind: "payment" | "removed";
 	amount?: number;
+	who?: string;
+	when?: string;
+	noteTitle?: string;
 };
 
 let debtSyncNotifier: ((event: DebtSyncEvent) => void) | null = null;
@@ -226,9 +229,15 @@ export async function refreshGlobalDebtSync() {
 		if (!still?.linkId) continue;
 
 		stops.push(
-			listenDebtPayments(still.linkId, still.id, (amount, fromOther) => {
+			listenDebtPayments(still.linkId, still.id, (amount, fromOther, date) => {
 				if (fromOther && amount > 0) {
-					debtSyncNotifier?.({ kind: "payment", amount });
+					debtSyncNotifier?.({
+						kind: "payment",
+						amount,
+						who: still.counterpartyName || "Someone",
+						when: date,
+						noteTitle: still.title,
+					});
 				}
 			}),
 		);
@@ -445,7 +454,7 @@ export async function pullDebtPayments(linkId: string, localNoteId: string) {
 export function listenDebtPayments(
 	linkId: string,
 	localNoteId: string,
-	onRemotePayment?: (amount: number, fromOther: boolean) => void,
+	onRemotePayment?: (amount: number, fromOther: boolean, date: string) => void,
 ) {
 	const known = new Set<string>();
 	let ready = false;
@@ -456,6 +465,7 @@ export function listenDebtPayments(
 			const user = firebaseAuth.currentUser;
 			let notifyAmount = 0;
 			let notifyFromOther = false;
+			let notifyDate = "";
 
 			for (const change of snap.docChanges()) {
 				const data = change.doc.data();
@@ -501,6 +511,7 @@ export function listenDebtPayments(
 				if (ready && change.type === "added" && !known.has(cloudPaymentId)) {
 					notifyAmount = amount;
 					notifyFromOther = fromOther;
+					notifyDate = String(data.date || "");
 				}
 				known.add(cloudPaymentId);
 			}
@@ -512,7 +523,7 @@ export function listenDebtPayments(
 				ready = true;
 			}
 
-			onRemotePayment?.(notifyAmount, notifyFromOther);
+			onRemotePayment?.(notifyAmount, notifyFromOther, notifyDate);
 		},
 	);
 }
