@@ -543,12 +543,13 @@
 </script>
 
 <template>
-	<Teleport to="body">
-		<div v-if="loading" class="fetch-loader-page" aria-busy="true">
-			<div class="fetch-loader" aria-label="Loading"></div>
-		</div>
-	</Teleport>
-	<div v-if="!loading && note" class="page-shell">
+	<div class="page-shell">
+		<Teleport to="body">
+			<div v-if="loading" class="fetch-loader-page" aria-busy="true">
+				<div class="fetch-loader" aria-label="Loading"></div>
+			</div>
+		</Teleport>
+		<template v-if="!loading && note">
 		<header class="page-header mt-[-1rem]">
 			<button
 				type="button"
@@ -832,6 +833,7 @@
 				</GlassContainer>
 			</div>
 		</Teleport>
+		</template>
 	</div>
 </template>
 
