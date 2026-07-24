@@ -32,6 +32,8 @@
 	const noteDate = ref("");
 	const noteError = ref("");
 	const savingNote = ref(false);
+	const loading = ref(true);
+	let initialLoaded = false;
 
 	const CIRCLE_R = 42;
 	const CIRCLE_C = 2 * Math.PI * CIRCLE_R;
@@ -94,21 +96,27 @@
 	}
 
 	async function loadData() {
-		notes.value = await db.debtNotes.toArray();
-		for (const note of notes.value) {
-			if (!note.linkId) continue;
-			try {
-				await markLocalNoteLinked(note.linkId);
-				const still = await db.debtNotes.get(note.id);
-				if (still?.linkId) {
-					await pullDebtPayments(still.linkId, still.id);
+		if (!initialLoaded) loading.value = true;
+		try {
+			notes.value = await db.debtNotes.toArray();
+			for (const note of notes.value) {
+				if (!note.linkId) continue;
+				try {
+					await markLocalNoteLinked(note.linkId);
+					const still = await db.debtNotes.get(note.id);
+					if (still?.linkId) {
+						await pullDebtPayments(still.linkId, still.id);
+					}
+				} catch {
+					/* offline / rules */
 				}
-			} catch {
-				/* offline / rules */
 			}
+			notes.value = await db.debtNotes.toArray();
+			payments.value = await db.debtPayments.toArray();
+		} finally {
+			loading.value = false;
+			initialLoaded = true;
 		}
-		notes.value = await db.debtNotes.toArray();
-		payments.value = await db.debtPayments.toArray();
 	}
 
 	function openAddNoteModal() {
@@ -178,7 +186,10 @@
 
 <template>
 	<div class="debt-page">
-		<div class="cards-grid">
+		<div v-if="loading" class="fetch-loader-wrap" aria-busy="true">
+			<div class="fetch-loader" aria-label="Loading"></div>
+		</div>
+		<div v-else class="cards-grid">
 			<GlassContainer
 				v-for="note in listNotes"
 				:key="note.id"
@@ -274,6 +285,89 @@
 		flex-direction: column;
 	}
 
+	.fetch-loader-wrap {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-overlay);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+	}
+
+	/* https://uiverse.io/doniaskima/rare-falcon-68 */
+	.fetch-loader {
+		--c1: #673b14;
+		--c2: #f8b13b;
+		width: 40px;
+		height: 80px;
+		border-top: 4px solid var(--c1);
+		border-bottom: 4px solid var(--c1);
+		background: linear-gradient(
+				90deg,
+				var(--c1) 2px,
+				var(--c2) 0 5px,
+				var(--c1) 0
+			)
+			50% / 7px 8px no-repeat;
+		display: grid;
+		overflow: hidden;
+		animation: fetch-l5-0 2s infinite linear;
+	}
+
+	.fetch-loader::before,
+	.fetch-loader::after {
+		content: "";
+		grid-area: 1 / 1;
+		width: 75%;
+		height: calc(50% - 4px);
+		margin: 0 auto;
+		border: 2px solid var(--c1);
+		border-top: 0;
+		box-sizing: content-box;
+		border-radius: 0 0 40% 40%;
+		-webkit-mask:
+			linear-gradient(#000 0 0) bottom / 4px 2px no-repeat,
+			linear-gradient(#000 0 0);
+		-webkit-mask-composite: destination-out;
+		mask-composite: exclude;
+		background:
+			linear-gradient(var(--d, 0deg), var(--c2) 50%, #0000 0) bottom / 100% 205%,
+			linear-gradient(var(--c2) 0 0) center / 0 100%;
+		background-repeat: no-repeat;
+		animation: inherit;
+		animation-name: fetch-l5-1;
+	}
+
+	.fetch-loader::after {
+		transform-origin: 50% calc(100% + 2px);
+		transform: scaleY(-1);
+		--s: 3px;
+		--d: 180deg;
+	}
+
+	@keyframes fetch-l5-0 {
+		80% {
+			transform: rotate(0);
+		}
+		100% {
+			transform: rotate(0.5turn);
+		}
+	}
+
+	@keyframes fetch-l5-1 {
+		10%,
+		70% {
+			background-size: 100% 205%, var(--s, 0) 100%;
+		}
+		70%,
+		100% {
+			background-position: top, center;
+		}
+	}
+
 	.cards-grid {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -289,9 +383,10 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 0.35rem;
-		min-height: 11.5rem;
-		padding: 0.85rem 0.65rem;
+		gap: 0.2rem;
+		aspect-ratio: 1;
+		width: 100%;
+		padding: 0.65rem 0.5rem;
 		text-align: center;
 		box-shadow: none;
 	}
@@ -302,8 +397,8 @@
 
 	.circle-wrap {
 		position: relative;
-		width: 5.5rem;
-		height: 5.5rem;
+		width: 4.25rem;
+		height: 4.25rem;
 	}
 
 	.circle-svg {
@@ -330,14 +425,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.15rem;
+		font-size: 1rem;
 		font-weight: 700;
 		color: var(--color-textPrimary);
 	}
 
 	.card-title {
 		margin: 0;
-		font-size: 0.95rem;
+		font-size: 0.85rem;
 		font-weight: 700;
 		color: var(--color-textPrimary);
 		max-width: 100%;
@@ -348,26 +443,26 @@
 
 	.card-amount {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: 0.8rem;
 		font-weight: 600;
 		color: var(--color-textPrimary);
 	}
 
 	.card-date {
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--color-textSecondary);
 	}
 
 	.card-sub {
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--color-textSecondary);
 	}
 
 	.card-pending {
 		margin: 0;
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		font-weight: 600;
 		color: var(--color-accentText);
 	}

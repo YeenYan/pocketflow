@@ -58,6 +58,8 @@
 	const qrDataUrl = ref("");
 	const shareCode = ref("");
 	const syncToast = ref("");
+	const loading = ref(true);
+	let initialLoaded = false;
 
 	const swipeOffsets = ref<Record<string, number>>({});
 	let swipeStartX = 0;
@@ -147,6 +149,33 @@
 			.where("debtNoteId")
 			.equals(id)
 			.toArray();
+	}
+
+	async function loadDataWithLoader() {
+		if (!initialLoaded) loading.value = true;
+		try {
+			await loadData();
+			if (note.value?.linkId) {
+				try {
+					await markLocalNoteLinked(note.value.linkId);
+					const stillThere = await db.debtNotes.get(
+						String(route.params.id ?? ""),
+					);
+					if (!stillThere) {
+						router.replace("/me/debt-note");
+						return;
+					}
+					await pullDebtPayments(note.value.linkId, note.value.id);
+					await loadData();
+				} catch {
+					/* offline / rules */
+				}
+				startCloudListen();
+			}
+		} finally {
+			loading.value = false;
+			initialLoaded = true;
+		}
 	}
 
 	function startCloudListen() {
@@ -501,23 +530,8 @@
 		}
 	}
 
-	onMounted(async () => {
-		await loadData();
-		if (note.value?.linkId) {
-			try {
-				await markLocalNoteLinked(note.value.linkId);
-				const stillThere = await db.debtNotes.get(String(route.params.id ?? ""));
-				if (!stillThere) {
-					router.replace("/me/debt-note");
-					return;
-				}
-				await pullDebtPayments(note.value.linkId, note.value.id);
-				await loadData();
-			} catch {
-				/* offline / rules */
-			}
-			startCloudListen();
-		}
+	onMounted(() => {
+		void loadDataWithLoader();
 	});
 
 	onUnmounted(() => {
@@ -529,7 +543,10 @@
 </script>
 
 <template>
-	<div v-if="note" class="page-shell">
+	<div v-if="loading" class="page-shell fetch-loader-page" aria-busy="true">
+		<div class="fetch-loader" aria-label="Loading"></div>
+	</div>
+	<div v-else-if="note" class="page-shell">
 		<header class="page-header mt-[-1rem]">
 			<button
 				type="button"
@@ -828,6 +845,90 @@
 		max-width: 480px;
 		width: 100%;
 		overflow-x: hidden;
+	}
+
+	.fetch-loader-page {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		max-width: none;
+		padding-top: 0;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-overlay);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+	}
+
+	/* https://uiverse.io/doniaskima/rare-falcon-68 */
+	.fetch-loader {
+		--c1: #673b14;
+		--c2: #f8b13b;
+		width: 40px;
+		height: 80px;
+		border-top: 4px solid var(--c1);
+		border-bottom: 4px solid var(--c1);
+		background: linear-gradient(
+				90deg,
+				var(--c1) 2px,
+				var(--c2) 0 5px,
+				var(--c1) 0
+			)
+			50% / 7px 8px no-repeat;
+		display: grid;
+		overflow: hidden;
+		animation: fetch-l5-0 2s infinite linear;
+	}
+
+	.fetch-loader::before,
+	.fetch-loader::after {
+		content: "";
+		grid-area: 1 / 1;
+		width: 75%;
+		height: calc(50% - 4px);
+		margin: 0 auto;
+		border: 2px solid var(--c1);
+		border-top: 0;
+		box-sizing: content-box;
+		border-radius: 0 0 40% 40%;
+		-webkit-mask:
+			linear-gradient(#000 0 0) bottom / 4px 2px no-repeat,
+			linear-gradient(#000 0 0);
+		-webkit-mask-composite: destination-out;
+		mask-composite: exclude;
+		background:
+			linear-gradient(var(--d, 0deg), var(--c2) 50%, #0000 0) bottom / 100% 205%,
+			linear-gradient(var(--c2) 0 0) center / 0 100%;
+		background-repeat: no-repeat;
+		animation: inherit;
+		animation-name: fetch-l5-1;
+	}
+
+	.fetch-loader::after {
+		transform-origin: 50% calc(100% + 2px);
+		transform: scaleY(-1);
+		--s: 3px;
+		--d: 180deg;
+	}
+
+	@keyframes fetch-l5-0 {
+		80% {
+			transform: rotate(0);
+		}
+		100% {
+			transform: rotate(0.5turn);
+		}
+	}
+
+	@keyframes fetch-l5-1 {
+		10%,
+		70% {
+			background-size: 100% 205%, var(--s, 0) 100%;
+		}
+		70%,
+		100% {
+			background-position: top, center;
+		}
 	}
 
 	.page-header {
