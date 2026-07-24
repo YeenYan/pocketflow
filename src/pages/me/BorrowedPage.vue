@@ -13,7 +13,7 @@
 		type DebtNoteType,
 		type DebtPayment,
 	} from "../../db/budgetDb";
-	import { markLocalNoteLinked, pullDebtPayments } from "../../firebase";
+	import { refreshGlobalDebtSync } from "../../firebase";
 
 	const props = withDefaults(
 		defineProps<{
@@ -103,19 +103,8 @@
 	async function loadData() {
 		if (!initialLoaded) loading.value = true;
 		try {
-			notes.value = await db.debtNotes.toArray();
-			for (const note of notes.value) {
-				if (!note.linkId) continue;
-				try {
-					await markLocalNoteLinked(note.linkId);
-					const still = await db.debtNotes.get(note.id);
-					if (still?.linkId) {
-						await pullDebtPayments(still.linkId, still.id);
-					}
-				} catch {
-					/* offline / rules */
-				}
-			}
+			await loadLocal();
+			await refreshGlobalDebtSync();
 			await loadLocal();
 		} finally {
 			loading.value = false;

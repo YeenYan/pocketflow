@@ -114,9 +114,12 @@ export async function registerFcmToken() {
 		if (permission !== "granted") return null;
 
 		messaging = getMessaging(firebaseApp);
-		const swRegistration = await navigator.serviceWorker.register(
+		const existing = await navigator.serviceWorker.getRegistration(
 			"/firebase-messaging-sw.js",
 		);
+		const swRegistration =
+			existing ??
+			(await navigator.serviceWorker.register("/firebase-messaging-sw.js"));
 		const token = await getToken(messaging, {
 			vapidKey,
 			serviceWorkerRegistration: swRegistration,
@@ -135,8 +138,10 @@ export async function registerFcmToken() {
 
 		const userRef = doc(firestore, "users", user.uid);
 		const snap = await getDoc(userRef);
-		const existing = (snap.data()?.fcmTokens as string[] | undefined) ?? [];
-		const next = existing.includes(token) ? existing : [...existing, token];
+		const existingTokens = (snap.data()?.fcmTokens as string[] | undefined) ?? [];
+		const next = existingTokens.includes(token)
+			? existingTokens
+			: [...existingTokens, token];
 		await setDoc(
 			userRef,
 			{
@@ -212,6 +217,7 @@ type DebtSyncEvent = {
 
 let debtSyncNotifier: ((event: DebtSyncEvent) => void) | null = null;
 let stopGlobalDebtSync: (() => void) | null = null;
+let refreshInFlight: Promise<void> | null = null;
 
 export function setDebtSyncNotifier(
 	notifier: ((event: DebtSyncEvent) => void) | null,
@@ -220,94 +226,103 @@ export function setDebtSyncNotifier(
 }
 
 export async function refreshGlobalDebtSync() {
-	stopGlobalDebtSync?.();
-	stopGlobalDebtSync = null;
+	if (refreshInFlight) return refreshInFlight;
 
-	const notes = await db.debtNotes.toArray();
-	const stops: Array<() => void> = [];
+	refreshInFlight = (async () => {
+		stopGlobalDebtSync?.();
+		stopGlobalDebtSync = null;
 
-	for (const note of notes) {
-		if (!note.linkId) continue;
-		const linkId = note.linkId;
-		const noteId = note.id;
+		const notes = await db.debtNotes.toArray();
+		const stops: Array<() => void> = [];
 
-		try {
-			await markLocalNoteLinked(linkId);
+		for (const note of notes) {
+			if (!note.linkId) continue;
+			const linkId = note.linkId;
+			const noteId = note.id;
+
+			try {
+				await markLocalNoteLinked(linkId);
+				const still = await db.debtNotes.get(noteId);
+				if (!still?.linkId) continue;
+				await pullDebtPayments(still.linkId, still.id);
+			} catch {
+				/* offline / rules */
+			}
+
 			const still = await db.debtNotes.get(noteId);
 			if (!still?.linkId) continue;
-			await pullDebtPayments(still.linkId, still.id);
-		} catch {
-			/* offline / rules */
-		}
 
-		const still = await db.debtNotes.get(noteId);
-		if (!still?.linkId) continue;
-
-		stops.push(
-			listenDebtPayments(
-				still.linkId,
-				still.id,
-				(amount, fromOther, date, status, eventKind) => {
-					if (amount <= 0) return;
-					if (eventKind === "approved") {
+			stops.push(
+				listenDebtPayments(
+					still.linkId,
+					still.id,
+					(amount, fromOther, date, status, eventKind) => {
+						if (amount <= 0) return;
+						if (eventKind === "approved") {
+							debtSyncNotifier?.({
+								kind: "payment_approved",
+								amount,
+								when: date,
+								noteTitle: still.title,
+							});
+							return;
+						}
+						if (eventKind === "rejected") {
+							debtSyncNotifier?.({
+								kind: "payment_rejected",
+								amount,
+								when: date,
+								noteTitle: still.title,
+							});
+							return;
+						}
+						if (!fromOther) return;
+						if (status === "pending") {
+							debtSyncNotifier?.({
+								kind: "payment_pending",
+								amount,
+								who: still.counterpartyName || "Someone",
+								when: date,
+								noteTitle: still.title,
+							});
+							return;
+						}
 						debtSyncNotifier?.({
-							kind: "payment_approved",
-							amount,
-							when: date,
-							noteTitle: still.title,
-						});
-						return;
-					}
-					if (eventKind === "rejected") {
-						debtSyncNotifier?.({
-							kind: "payment_rejected",
-							amount,
-							when: date,
-							noteTitle: still.title,
-						});
-						return;
-					}
-					if (!fromOther) return;
-					if (status === "pending") {
-						debtSyncNotifier?.({
-							kind: "payment_pending",
+							kind: "payment",
 							amount,
 							who: still.counterpartyName || "Someone",
 							when: date,
 							noteTitle: still.title,
 						});
-						return;
-					}
-					debtSyncNotifier?.({
-						kind: "payment",
-						amount,
-						who: still.counterpartyName || "Someone",
-						when: date,
-						noteTitle: still.title,
-					});
-				},
-			),
-		);
+					},
+				),
+			);
 
-		stops.push(
-			listenDebtLinkRemoval(still.linkId, async () => {
-				const local = await db.debtNotes.where("linkId").equals(linkId).first();
-				if (!local) return;
-				const pays = await db.debtPayments
-					.where("debtNoteId")
-					.equals(local.id)
-					.toArray();
-				for (const p of pays) await db.debtPayments.delete(p.id);
-				await db.debtNotes.delete(local.id);
-				debtSyncNotifier?.({ kind: "removed" });
-			}),
-		);
-	}
+			stops.push(
+				listenDebtLinkRemoval(still.linkId, async () => {
+					const local = await db.debtNotes.where("linkId").equals(linkId).first();
+					if (!local) return;
+					const pays = await db.debtPayments
+						.where("debtNoteId")
+						.equals(local.id)
+						.toArray();
+					for (const p of pays) await db.debtPayments.delete(p.id);
+					await db.debtNotes.delete(local.id);
+					debtSyncNotifier?.({ kind: "removed" });
+					window.dispatchEvent(new Event("app-debt-payments-changed"));
+				}),
+			);
+		}
 
-	stopGlobalDebtSync = () => {
-		for (const stop of stops) stop();
-		stopGlobalDebtSync = null;
-	};
+		stopGlobalDebtSync = () => {
+			for (const stop of stops) stop();
+			stopGlobalDebtSync = null;
+		};
+	})().finally(() => {
+		refreshInFlight = null;
+	});
+
+	return refreshInFlight;
 }
 
 export async function createDebtInvite(note: DebtNote) {
@@ -474,6 +489,7 @@ export async function pullDebtPayments(linkId: string, localNoteId: string) {
 		.where("debtNoteId")
 		.equals(localNoteId)
 		.toArray();
+	let changed = false;
 
 	for (const docSnap of snap.docs) {
 		const data = docSnap.data();
@@ -482,36 +498,52 @@ export async function pullDebtPayments(linkId: string, localNoteId: string) {
 			data.status === "pending" || data.status === "rejected"
 				? data.status
 				: "approved";
+		const amount = Number(data.amount) || 0;
+		const date = String(data.date || "");
+		const description = String(data.description || "");
 		const found = existing.find(
 			(p) => p.cloudPaymentId === cloudPaymentId || p.id === cloudPaymentId,
 		);
 		if (found) {
+			if (
+				found.amount === amount &&
+				found.date === date &&
+				found.description === description &&
+				(found.status || "approved") === status &&
+				found.cloudPaymentId === cloudPaymentId
+			) {
+				continue;
+			}
 			await db.debtPayments.update(found.id, {
-				amount: Number(data.amount) || 0,
-				date: String(data.date || ""),
-				description: String(data.description || ""),
+				amount,
+				date,
+				description,
 				cloudPaymentId,
 				status,
 				syncedAt: new Date().toISOString(),
 			});
+			changed = true;
 		} else {
 			await db.debtPayments.put({
 				id: cloudPaymentId,
 				debtNoteId: localNoteId,
-				amount: Number(data.amount) || 0,
-				date: String(data.date || ""),
-				description: String(data.description || ""),
+				amount,
+				date,
+				description,
 				createdAt: String(data.createdAt || new Date().toISOString()),
 				cloudPaymentId,
 				createdByUid: String(data.createdByUid || ""),
 				status,
 				syncedAt: new Date().toISOString(),
 			});
+			changed = true;
 		}
 	}
 
 	await db.debtNotes.update(localNoteId, { syncStatus: "linked" });
-	window.dispatchEvent(new Event("app-debt-payments-changed"));
+	if (changed) {
+		window.dispatchEvent(new Event("app-debt-payments-changed"));
+	}
 }
 
 export function listenDebtPayments(
@@ -538,6 +570,7 @@ export function listenDebtPayments(
 			let notifyDate = "";
 			let notifyStatus = "approved";
 			let notifyEventKind: "added" | "approved" | "rejected" = "added";
+			let changed = false;
 
 			for (const change of snap.docChanges()) {
 				const data = change.doc.data();
@@ -549,6 +582,8 @@ export function listenDebtPayments(
 					data.status === "pending" || data.status === "rejected"
 						? data.status
 						: "approved";
+				const date = String(data.date || "");
+				const description = String(data.description || "");
 
 				const existing = await db.debtPayments
 					.where("debtNoteId")
@@ -559,7 +594,10 @@ export function listenDebtPayments(
 					const found = existing.find(
 						(p) => p.cloudPaymentId === cloudPaymentId || p.id === cloudPaymentId,
 					);
-					if (found) await db.debtPayments.delete(found.id);
+					if (found) {
+						await db.debtPayments.delete(found.id);
+						changed = true;
+					}
 					known.delete(cloudPaymentId);
 					knownStatus.delete(cloudPaymentId);
 					continue;
@@ -569,33 +607,43 @@ export function listenDebtPayments(
 					(p) => p.cloudPaymentId === cloudPaymentId || p.id === cloudPaymentId,
 				);
 				if (found) {
-					await db.debtPayments.update(found.id, {
-						amount,
-						date: String(data.date || ""),
-						description: String(data.description || ""),
-						cloudPaymentId,
-						status,
-						syncedAt: new Date().toISOString(),
-					});
+					if (
+						found.amount !== amount ||
+						found.date !== date ||
+						found.description !== description ||
+						(found.status || "approved") !== status ||
+						found.cloudPaymentId !== cloudPaymentId
+					) {
+						await db.debtPayments.update(found.id, {
+							amount,
+							date,
+							description,
+							cloudPaymentId,
+							status,
+							syncedAt: new Date().toISOString(),
+						});
+						changed = true;
+					}
 				} else {
 					await db.debtPayments.put({
 						id: cloudPaymentId,
 						debtNoteId: localNoteId,
 						amount,
-						date: String(data.date || ""),
-						description: String(data.description || ""),
+						date,
+						description,
 						createdAt: String(data.createdAt || new Date().toISOString()),
 						cloudPaymentId,
 						createdByUid,
 						status,
 						syncedAt: new Date().toISOString(),
 					});
+					changed = true;
 				}
 
 				if (ready && change.type === "added" && !known.has(cloudPaymentId)) {
 					notifyAmount = amount;
 					notifyFromOther = fromOther;
-					notifyDate = String(data.date || "");
+					notifyDate = date;
 					notifyStatus = status;
 					notifyEventKind = "added";
 				}
@@ -605,7 +653,7 @@ export function listenDebtPayments(
 					if (prev === "pending" && (status === "approved" || status === "rejected")) {
 						notifyAmount = amount;
 						notifyFromOther = true;
-						notifyDate = String(data.date || "");
+						notifyDate = date;
 						notifyStatus = status;
 						notifyEventKind = status;
 					}
@@ -637,7 +685,12 @@ export function listenDebtPayments(
 					notifyEventKind,
 				);
 			}
-			window.dispatchEvent(new Event("app-debt-payments-changed"));
+			if (changed) {
+				window.dispatchEvent(new Event("app-debt-payments-changed"));
+			}
+		},
+		() => {
+			/* permission / network — ignore */
 		},
 	);
 }
@@ -692,9 +745,20 @@ export async function removeDebtLinkCloud(linkId: string, inviteCode?: string) {
 }
 
 export function listenDebtLinkRemoval(linkId: string, onRemoved: () => void) {
-	return onSnapshot(doc(firestore, "debtLinks", linkId), (snap) => {
-		if (!snap.exists() || snap.data()?.status === "removed") {
-			onRemoved();
-		}
-	});
+	let seen = false;
+	return onSnapshot(
+		doc(firestore, "debtLinks", linkId),
+		(snap) => {
+			const removed = !snap.exists() || snap.data()?.status === "removed";
+			if (!seen) {
+				seen = true;
+				if (removed) onRemoved();
+				return;
+			}
+			if (removed) onRemoved();
+		},
+		() => {
+			/* permission / network — do not treat as removed */
+		},
+	);
 }

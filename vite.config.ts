@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => ({
 
     // PWA plugin: generates web manifest, service worker, and offline caching
     VitePWA({
-      // Auto-update: new SW activates when a new build is detected
-      registerType: 'autoUpdate',
+      // Prompt: avoid auto-reload loops when SW updates (esp. with FCM SW in dev)
+      registerType: 'prompt',
 
       // Include static assets in the precache manifest
       includeAssets: ['favicon.svg', 'App_Icon.webp', 'pwa-192x192.png', 'pwa-512x512.png'],
